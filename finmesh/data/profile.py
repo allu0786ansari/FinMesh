@@ -17,9 +17,12 @@ from typing import Any
 
 import polars as pl
 
+from finmesh.data.lowmem import distinct_keys_per_group, hashed_key
 from finmesh.data.manifest import load_manifest
 from finmesh.eval.provenance import Stamp, write_artifact
 from finmesh.paths import DatasetPaths, artifacts_dir
+from finmesh.reporting import fmt as _fmt
+from finmesh.reporting import table as _table
 from finmesh.sysinfo import peak_rss_mb
 
 TOP_BANKS_IN_REPORT = 25
@@ -41,16 +44,14 @@ def per_bank(transactions: Path) -> pl.DataFrame:
         .group_by(pl.col("from_bank").alias("bank"))
         .agg(pl.len().alias("internal"), pl.col("is_laundering").sum().alias("internal_laundering"))
     )
-    accounts = (
-        pl.concat(
-            [
-                lf.select(pl.col("from_bank").alias("bank"), pl.col("src_key").alias("key")),
-                lf.select(pl.col("to_bank").alias("bank"), pl.col("dst_key").alias("key")),
-            ]
-        )
-        .group_by("bank")
-        .agg(pl.col("key").n_unique().alias("accounts"))
+    rows = lf.select(pl.len()).collect(engine="streaming").item()
+    owned = pl.concat(
+        [
+            lf.select(pl.col("from_bank").alias("bank"), hashed_key("src_key").alias("key")),
+            lf.select(pl.col("to_bank").alias("bank"), hashed_key("dst_key").alias("key")),
+        ]
     )
+    accounts = distinct_keys_per_group(owned, "bank", rows=2 * rows, out="accounts").lazy()
     table = (
         accounts.join(sent, on="bank", how="left")
         .join(received, on="bank", how="left")
@@ -72,7 +73,7 @@ def per_bank(transactions: Path) -> pl.DataFrame:
             (pl.col("cross_bank") / pl.col("touching")).alias("cross_bank_share"),
         )
         .sort("touching", descending=True)
-        .collect()
+        .collect(engine="streaming")
     )
     return table
 
@@ -151,19 +152,19 @@ def build_profile(paths: DatasetPaths) -> dict[str, Any]:
         lf.group_by("payment_currency")
         .agg(pl.len().alias("rows"))
         .sort("rows", descending=True)
-        .collect()
+        .collect(engine="streaming")
     )
     formats = (
         lf.group_by("payment_format")
         .agg(pl.len().alias("rows"), pl.col("is_laundering").mean().alias("laundering_rate"))
         .sort("rows", descending=True)
-        .collect()
+        .collect(engine="streaming")
     )
     daily = (
         lf.group_by(pl.col("timestamp").dt.date().alias("day"))
         .agg(pl.len().alias("rows"), pl.col("is_laundering").sum().alias("laundering"))
         .sort("day")
-        .collect()
+        .collect(engine="streaming")
     )
     banks = per_bank(paths.transactions)
     span_days = None
@@ -208,30 +209,6 @@ def build_profile(paths: DatasetPaths) -> dict[str, Any]:
         "ingest_peak_rss_mb": ingest.get("peak_rss_mb"),
         "profile_peak_rss_mb": peak_rss_mb(),
     }
-
-
-def _fmt(v: Any) -> str:
-    if v is None:
-        return "—"
-    if isinstance(v, float):
-        return f"{v:.4f}" if abs(v) < 1 else f"{v:,.2f}"
-    if isinstance(v, int):
-        return f"{v:,}"
-    return str(v)
-
-
-_ID_COLUMNS = frozenset({"bank", "day"})
-
-
-def _cell(key: str, value: Any) -> str:
-    return str(value) if key in _ID_COLUMNS and value is not None else _fmt(value)
-
-
-def _table(rows: list[dict[str, Any]], cols: list[tuple[str, str]]) -> str:
-    head = "| " + " | ".join(label for _, label in cols) + " |"
-    rule = "| " + " | ".join("---" for _ in cols) + " |"
-    body = ["| " + " | ".join(_cell(key, r.get(key)) for key, _ in cols) + " |" for r in rows]
-    return "\n".join([head, rule, *body])
 
 
 def render_markdown(profile: dict[str, Any]) -> str:

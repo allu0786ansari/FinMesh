@@ -7,9 +7,13 @@ built from it.
 
 What it contains, so tests can assert exact numbers:
 
-* six banks, a few hundred accounts, about ten days of licit traffic;
-* one or two schemes for each of the eight AMLworld patterns, several of them
-  crossing banks, written to both the transactions CSV and the pattern file;
+* six named banks plus a long tail of 24 small ones (AMLworld has tens of
+  thousands of small bank IDs), a few hundred accounts, ten dense days;
+* three schemes for each of the eight AMLworld patterns, most of them crossing
+  banks, written to both the transactions CSV and the pattern file;
+* a sparse tail after day 10 (as in AMLworld): a few licit rows, unlabelled
+  laundering rows and one scheme that starts late on day 10 and runs past
+  midnight;
 * a handful of laundering transactions that belong to no pattern (as in the
   real data, where most laundering rows carry no pattern label);
 * one exact duplicate licit row;
@@ -27,8 +31,10 @@ from pathlib import Path
 
 from finmesh.data.schema import FIXTURE_DATASET, RAW_TRANSACTION_HEADER, dataset_files
 
-BANKS: tuple[int, ...] = (1, 10, 12, 70, 220, 1124)
-BANK_WEIGHTS: tuple[int, ...] = (30, 25, 20, 12, 8, 5)
+NAMED_BANKS: tuple[int, ...] = (1, 10, 12, 70, 220, 1124)
+SMALL_BANKS: tuple[int, ...] = tuple(range(2000, 2024))
+BANKS: tuple[int, ...] = NAMED_BANKS + SMALL_BANKS
+BANK_WEIGHTS: tuple[float, ...] = (30, 25, 20, 12, 8, 5) + (0.5,) * len(SMALL_BANKS)
 CURRENCIES: tuple[str, ...] = ("US Dollar", "US Dollar", "US Dollar", "Euro", "UK Pound")
 FORMATS: tuple[str, ...] = ("ACH", "Cheque", "Credit Card", "Wire", "Cash", "Reinvestment")
 START = datetime(2022, 9, 1, 0, 0)
@@ -84,7 +90,10 @@ class FixtureTruth:
     multi_bank_schemes: int = 0
     unlabelled_laundering_rows: int = 0
     duplicate_extra_rows: int = 0
-    banks: int = len(BANKS)
+    tail_rows: int = 0
+    tail_laundering_rows: int = 0
+    truncated_schemes: int = 0
+    banks: int = 0
 
 
 def _make_accounts(rng: random.Random, n: int) -> list[Account]:
@@ -167,7 +176,7 @@ def write_fixture(out_dir: Path, seed: int = 7) -> FixtureTruth:
     truth.duplicate_extra_rows = 1
 
     schemes: list[tuple[str, str | None, list[Tx]]] = []
-    plan = [
+    patterns = [
         "FAN-OUT",
         "FAN-IN",
         "GATHER-SCATTER",
@@ -176,17 +185,19 @@ def write_fixture(out_dir: Path, seed: int = 7) -> FixtureTruth:
         "RANDOM",
         "BIPARTITE",
         "STACK",
-        "FAN-OUT",
-        "CYCLE",
-        "SCATTER-GATHER",
     ]
+    plan = patterns * 3
+    late = len(plan) - 4  # this scheme starts at 22:00 on the last dense day
     home_bank = [a for a in launderers if a.bank == BANKS[0]]
     for i, pattern in enumerate(plan):
-        # The last three schemes stay inside one bank, as many real schemes do.
+        # The last three schemes stay inside one bank, as some real schemes do.
         single_bank = i >= len(plan) - 3
         pool = rng.sample(home_bank if single_bank else launderers, 12)
         edges, detail = _edges(pattern, rng, pool)
-        t0 = START + timedelta(hours=rng.randrange((DAYS - 2) * 24))
+        if i == late:
+            t0 = START + timedelta(days=DAYS - 1, hours=22)
+        else:
+            t0 = START + timedelta(hours=rng.randrange((DAYS - 1) * 24))
         base = round(rng.uniform(2_000, 20_000), 2)
         txs = []
         for i, (src, dst) in enumerate(edges):
@@ -197,6 +208,7 @@ def write_fixture(out_dir: Path, seed: int = 7) -> FixtureTruth:
         truth.schemes_by_pattern[pattern] = truth.schemes_by_pattern.get(pattern, 0) + 1
         banks = {t.src.bank for t in txs} | {t.dst.bank for t in txs}
         truth.multi_bank_schemes += int(len(banks) >= 2)
+        truth.truncated_schemes += int(max(t.when for t in txs) >= START + timedelta(days=DAYS))
 
     unlabelled = []
     for _ in range(15):
@@ -205,9 +217,30 @@ def write_fixture(out_dir: Path, seed: int = 7) -> FixtureTruth:
         unlabelled.append(
             Tx(when, src, dst, round(rng.uniform(500, 9000), 2), "US Dollar", "Cash", 1)
         )
+    # Sparse tail after the dense period: licit traffic has almost stopped.
+    tail_start = START + timedelta(days=DAYS)
+    tail: list[Tx] = []
+    for _ in range(6):
+        src, dst = rng.sample(accounts, 2)
+        when = tail_start + timedelta(hours=rng.randrange(48))
+        tail.append(Tx(when, src, dst, round(rng.uniform(50, 900), 2), "US Dollar", "ACH", 0))
+    for _ in range(8):
+        src, dst = rng.sample(launderers, 2)
+        tail.append(
+            Tx(
+                tail_start + timedelta(hours=rng.randrange(48)),
+                src,
+                dst,
+                round(rng.uniform(500, 9000), 2),
+                "US Dollar",
+                "ACH",
+                1,
+            )
+        )
+    unlabelled += tail[6:]
     truth.unlabelled_laundering_rows = len(unlabelled)
 
-    all_tx = licit + unlabelled + [t for _, _, txs in schemes for t in txs]
+    all_tx = licit + tail[:6] + unlabelled + [t for _, _, txs in schemes for t in txs]
     all_tx.sort(key=lambda t: t.when)  # AMLworld files are in time order
 
     with (out_dir / files.transactions).open("w", newline="") as handle:
@@ -237,4 +270,7 @@ def write_fixture(out_dir: Path, seed: int = 7) -> FixtureTruth:
     truth.laundering_rows = sum(t.laundering for t in all_tx)
     truth.pattern_rows = sum(len(txs) for _, _, txs in schemes)
     truth.schemes = len(schemes)
+    truth.tail_rows = sum(t.when >= tail_start for t in all_tx)
+    truth.tail_laundering_rows = sum(t.laundering for t in all_tx if t.when >= tail_start)
+    truth.banks = len({t.src.bank for t in all_tx} | {t.dst.bank for t in all_tx})
     return truth

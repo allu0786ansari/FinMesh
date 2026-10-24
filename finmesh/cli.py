@@ -8,6 +8,15 @@ Week-1 commands:
     finmesh ingest   --dataset HI-Small    raw files -> typed, linked Parquet
     finmesh profile  --dataset HI-Small    data profile (JSON artifact + markdown)
     finmesh week1    --dataset HI-Small    ingest + profile in one go
+
+Week-2 commands:
+
+    finmesh g0 --dataset HI-Small --dataset LI-Small
+                                           observation window, window length, splits,
+                                           federation options and Gate G0 evidence
+    finmesh feature-timing --dataset HI-Small
+                                           time a prototype per-bank feature pass
+    finmesh llm-probe --model llama3.2:3b  latency and JSON validity of a local model
 """
 
 from __future__ import annotations
@@ -98,7 +107,10 @@ def cmd_ingest(args: argparse.Namespace) -> int:
             f"unmatched {lk['unmatched_pattern_rows']}  ambiguous {lk['ambiguous_pattern_rows']}"
         )
     print(f"  accounts file: {report['accounts']['status']}")
-    print(f"  timings {report['timings']}  peak RSS {report['peak_rss_mb']} MB")
+    print(
+        f"  timings {report['timings']}  peak memory {report['peak_anon_mb']} MB "
+        f"(peak RSS incl. mapped files {report['peak_rss_mb']} MB)"
+    )
     print(f"  manifest {report['manifest_hash'][:16]}  -> {paths.parquet}")
     return 0
 
@@ -117,6 +129,67 @@ def cmd_profile(args: argparse.Namespace) -> int:
 def cmd_week1(args: argparse.Namespace) -> int:
     rc = cmd_ingest(args)
     return rc or cmd_profile(args)
+
+
+def _g0_report_path(dataset: str) -> Path:
+    if dataset == FIXTURE_DATASET:
+        return data_root() / "artifacts" / "week02" / f"G0_evidence_{dataset}.md"
+    return REPO_ROOT / "docs" / "gates" / f"G0_evidence_{dataset}.md"
+
+
+def cmd_g0(args: argparse.Namespace) -> int:
+    from finmesh.eval.g0 import render_summary, write_g0
+
+    results = []
+    for name in args.dataset:
+        paths = dataset_paths(name)
+        if not paths.ingest_report.exists():
+            print(f"{name}: not ingested; run `finmesh week1 --dataset {name}` first")
+            return 1
+        print(f"G0 evidence for {name} ...")
+        artifact, report, result = write_g0(paths, _g0_report_path(name))
+        t = result["test"]
+        print(
+            f"  window {result['window_hours']} h  schemes {result['schemes_total']}  "
+            f"option {t['option']}  multi-member test schemes {t['multi_member_schemes']}  "
+            f"band {t['band']}  peak memory {result['peak_anon_mb']} MB"
+        )
+        print(f"  artifact {artifact}")
+        print(f"  report   {report}")
+        results.append(result)
+    if len(results) > 1:
+        real = [r for r in results if r["dataset"] != FIXTURE_DATASET]
+        if real:
+            summary = REPO_ROOT / "docs" / "gates" / "G0_evidence_summary.md"
+            summary.write_text(render_summary(real))
+            print(f"summary  {summary}")
+    return 0
+
+
+def cmd_feature_timing(args: argparse.Namespace) -> int:
+    from finmesh.features.prototype import time_member_day
+
+    out = time_member_day(dataset_paths(args.dataset), option=args.option)
+    for key, value in out.items():
+        print(f"  {key}: {value}")
+    if args.dataset != FIXTURE_DATASET:
+        target = REPO_ROOT / "docs" / "gates" / f"feature_timing_{args.dataset}.json"
+        target.write_text(json.dumps(out, indent=2) + "\n")
+        print(f"written to {target}")
+    return 0
+
+
+def cmd_llm_probe(args: argparse.Namespace) -> int:
+    from finmesh.attribution.llm_probe import run_probe
+
+    result = run_probe(model=args.model, n=args.n, url=args.url)
+    name = f"llm_probe_{args.model.replace(':', '_').replace('/', '_')}.json"
+    out = (REPO_ROOT / "docs" / "gates" / name) if args.save else (data_root() / "artifacts" / name)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(result, indent=2) + "\n")
+    print(json.dumps(result, indent=2))
+    print(f"written to {out}")
+    return 0 if "error" not in result else 1
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -158,6 +231,22 @@ def build_parser() -> argparse.ArgumentParser:
         "--report", help="markdown path, or 'none' (default docs/data_profile/<dataset>.md)"
     )
     pr.set_defaults(func=cmd_profile)
+
+    g0 = sub.add_parser("g0", help="Gate G0 evidence (week 2)")
+    g0.add_argument("--dataset", action="append", required=True, help="repeat for several datasets")
+    g0.set_defaults(func=cmd_g0)
+
+    ft = sub.add_parser("feature-timing", help="time a prototype per-bank feature pass (week 2)")
+    add_dataset(ft)
+    ft.add_argument("--option", default=None, help="membership option; default: the G0 choice")
+    ft.set_defaults(func=cmd_feature_timing)
+
+    lp = sub.add_parser("llm-probe", help="latency and JSON validity of a local Ollama model")
+    lp.add_argument("--model", default="llama3.2:3b")
+    lp.add_argument("--n", type=int, default=20)
+    lp.add_argument("--url", default="http://localhost:11434")
+    lp.add_argument("--save", action="store_true", help="write the result to docs/gates/")
+    lp.set_defaults(func=cmd_llm_probe)
     return parser
 
 

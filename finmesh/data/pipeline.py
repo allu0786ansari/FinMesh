@@ -21,7 +21,7 @@ from finmesh.data.patterns import link_schemes, parse_pattern_file, summarise_sc
 from finmesh.data.schema import FIXTURE_DATASET, dataset_files
 from finmesh.eval.provenance import Stamp, write_artifact
 from finmesh.paths import DatasetPaths
-from finmesh.sysinfo import peak_rss_mb, timed
+from finmesh.sysinfo import AnonPeak, peak_rss_mb, timed
 
 
 class MissingRawDataError(FileNotFoundError):
@@ -30,6 +30,14 @@ class MissingRawDataError(FileNotFoundError):
 
 def ingest_dataset(paths: DatasetPaths) -> dict[str, Any]:
     """Run the full ingestion for one dataset and return the report payload."""
+    with AnonPeak() as anon:
+        report = _ingest(paths)
+    report["peak_anon_mb"] = anon.mb
+    _stamp_and_write(paths, report)
+    return report
+
+
+def _ingest(paths: DatasetPaths) -> dict[str, Any]:
     files = dataset_files(paths.name)
     trans_csv = paths.raw / files.transactions
     pattern_txt = paths.raw / files.patterns
@@ -82,15 +90,18 @@ def ingest_dataset(paths: DatasetPaths) -> dict[str, Any]:
     report["timings"] = timings
     report["peak_rss_mb"] = peak_rss_mb()
     report["manifest_hash"] = manifest.manifest_hash
+    return report
+
+
+def _stamp_and_write(paths: DatasetPaths, report: dict[str, Any]) -> None:
     stamp = Stamp(
         kind="ingest_report",
         dataset=paths.name,
-        manifest_hash=manifest.manifest_hash,
-        fixture=is_fixture,
+        manifest_hash=report["manifest_hash"],
+        fixture=bool(report["fixture"]),
         params={"raw_dir": str(paths.raw)},
     )
     write_artifact(paths.ingest_report, stamp, report)
-    return report
 
 
 def raw_files_present(paths: DatasetPaths) -> dict[str, bool]:

@@ -2,7 +2,7 @@
 # docs/runlog so the same steps work on Windows without make.
 DATASET ?= HI-Small
 
-.PHONY: setup check lint typecheck test cov smoke scale ingest profile week1 all
+.PHONY: setup check lint typecheck test cov smoke scale ingest profile week1 all ci
 
 setup:        ## install locked dependencies (dev tools included)
 	uv sync
@@ -40,3 +40,6 @@ week1:        ## ingest + profile a real dataset: make week1 DATASET=HI-Small
 	uv run finmesh week1 --dataset $(DATASET)
 
 all: lint typecheck cov smoke
+
+ci:           ## exactly what GitHub Actions runs; use before every push
+	bash scripts/ci_local.sh

@@ -8,7 +8,7 @@ jobs:
   checks:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.12"
@@ -26,12 +26,14 @@ jobs:
         run: |
           uv run finmesh fixture
           uv run finmesh week1 --dataset FIXTURE-Small
+          uv run finmesh g0 --dataset FIXTURE-Small
+          uv run finmesh feature-timing --dataset FIXTURE-Small
           uv run finmesh check
 
   secret-scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - uses: gitleaks/gitleaks-action@v2

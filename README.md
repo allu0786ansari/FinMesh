@@ -9,7 +9,7 @@ The full research design is in [`docs/proposal/FinMesh_Proposal_v2.md`](docs/pro
 | Week | Dates | Focus | State |
 | --- | --- | --- | --- |
 | 1 | 26 Oct – 1 Nov 2026 | Repository, CI, AMLworld ingestion, data profile | Done; verified on real data 24 Oct ([run log](docs/runlog/week-01.md)) |
-| 2 | 2 – 8 Nov | Visibility model, federation, splits, Gate G0 | Not started |
+| 2 | 2 – 8 Nov | Visibility model, federation, splits, Gate G0 | Code done; awaiting real-data G0 run ([run log](docs/runlog/week-02.md)) |
 | 3–5 | 9 – 29 Nov | Evaluation harness, features, baselines, Gate G1 | Not started |
 | 6–9 | 30 Nov – 27 Dec | Evidence sharing and leakage (headline), Gate G2 | Not started |
 | 10–12 | 28 Dec – 17 Jan | Federated DP detection, Gate G3 | Not started |
@@ -29,6 +29,7 @@ uv run pytest                # unit tests on the synthetic fixture
 uv run finmesh fixture       # write the synthetic test dataset
 uv run finmesh week1 --dataset FIXTURE-Small   # full week-1 pipeline on it
 uv run finmesh check         # what is installed and which data is present
+bash scripts/ci_local.sh     # exactly what GitHub CI runs
 ```
 
 To run on the real data, follow [`docs/runlog/week-01.md`](docs/runlog/week-01.md): download AMLworld, then `uv run finmesh week1 --dataset HI-Small` and the same for `LI-Small`.

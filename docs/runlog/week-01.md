@@ -216,4 +216,6 @@ The data itself is ignored by git; only the profiles and the data card go up. I 
     - A. real bank IDs, top K by number of accounts, K in {8, 16, 32, 64}, everything else as the outside world;
     - B. bank IDs treated as branches and grouped into K institutions by a fixed label-free rule (by country if the accounts file's bank names carry one, otherwise balanced by account count), so every account belongs to a member;
     - C. either of the above on HI-Medium.
-4. **Observation window** (finding 1): model and evaluate on 1–10 Sep only, unless you object.
+4. **Observation window** (finding 1): model and evaluate on 1–10 Sep only.
+
+**Resolved 24 Oct:** items 3 (rule implemented in week 2; final choice at G0) and 4 approved, together with ranking banks by accounts (finding 4). See `docs/proposal/CHANGES.md` (A1, A2, A4).

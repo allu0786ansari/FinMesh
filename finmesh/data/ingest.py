@@ -111,6 +111,37 @@ def ingest_transactions(csv_path: Path, out_path: Path) -> dict[str, Any]:
     return transaction_quality(out_path)
 
 
+ROWS_PER_DUPLICATE_SLICE = 4_000_000
+
+
+def _duplicate_counts(lf: pl.LazyFrame, value_cols: list[str], rows: int) -> tuple[int, int]:
+    """Count duplicate rows (every value column equal) in bounded memory.
+
+    AMLworld can contain genuine repeats, so duplicates are reported, never
+    dropped. Rows are compared through a 64-bit hash of all value columns (a
+    false match has probability about n^2 / 2^65, under 1e-4 at 32 M rows).
+    The hash space is processed in slices of about four million rows, so the
+    hash table stays near 250 MB whatever the dataset size. Week-1 counts on
+    the Small sets (exact comparison) were 9 and 8.
+    """
+    slices = max(1, -(-rows // ROWS_PER_DUPLICATE_SLICE))
+    hashed = lf.select(pl.struct(value_cols).hash(seed=0).alias("row_hash"))
+    extra = groups = 0
+    for i in range(slices):
+        part = (
+            hashed.filter(pl.col("row_hash") % slices == i)
+            .group_by("row_hash")
+            .agg(pl.len().alias("n"))
+            .filter(pl.col("n") > 1)
+            .select((pl.col("n") - 1).sum().alias("extra"), pl.len().alias("groups"))
+            .collect(engine="streaming")
+            .row(0, named=True)
+        )
+        extra += int(part["extra"] or 0)
+        groups += int(part["groups"] or 0)
+    return extra, groups
+
+
 def transaction_quality(parquet_path: Path) -> dict[str, Any]:
     """Counts that decide whether the data can be trusted before any modelling."""
     lf = pl.scan_parquet(parquet_path)
@@ -122,33 +153,47 @@ def transaction_quality(parquet_path: Path) -> dict[str, Any]:
         (pl.col("amount_received") < 0).sum().alias("negative_amount_received"),
         (pl.col("src_key") == pl.col("dst_key")).sum().alias("self_transfers"),
         pl.col("is_laundering").sum().alias("laundering_rows"),
-        (~pl.col("is_laundering").is_in([0, 1])).sum().alias("invalid_label_values"),
+        # A range test, not ``is_in``: ``is_in`` is not supported by the streaming
+        # engine and silently moves the whole query in memory (5.3 GB at 32 M rows).
+        ((pl.col("is_laundering") < 0) | (pl.col("is_laundering") > 1))
+        .sum()
+        .alias("invalid_label_values"),
         pl.col("timestamp").min().alias("first_timestamp"),
         pl.col("timestamp").max().alias("last_timestamp"),
-    ).collect()
+    ).collect(engine="streaming")
     report: dict[str, Any] = summary.row(0, named=True)
 
     malformed = sum(report[f"null_{c}"] for c in value_cols)
     report["malformed_cells"] = malformed
 
-    # Exact duplicate rows (every value column equal). AMLworld can contain
-    # genuine repeats, so they are reported, never dropped.
-    dup = (
-        lf.group_by(value_cols)
-        .agg(pl.len().alias("n"))
-        .filter(pl.col("n") > 1)
-        .select((pl.col("n") - 1).sum().alias("extra_copies"), pl.len().alias("groups"))
-        .collect()
-        .row(0, named=True)
-    )
-    report["duplicate_extra_rows"] = int(dup["extra_copies"] or 0)
-    report["duplicate_groups"] = int(dup["groups"] or 0)
+    extra, groups = _duplicate_counts(lf, value_cols, int(report["rows"]))
+    report["duplicate_extra_rows"] = extra
+    report["duplicate_groups"] = groups
 
-    keys = lf.select(
-        pl.concat([pl.col("src_key"), pl.col("dst_key")]).n_unique().alias("accounts"),
-        pl.concat([pl.col("from_bank"), pl.col("to_bank")]).n_unique().alias("banks"),
-    ).collect()
-    report.update(keys.row(0, named=True))
+    # Distinct accounts and banks, counted on 64-bit hashes of the keys: about
+    # a third of the memory of counting the strings, with a negligible chance
+    # of a collision (about 1e-8 at 3 M accounts).
+    accounts = (
+        pl.concat(
+            [
+                lf.select(pl.col("src_key").hash(seed=0).alias("k")),
+                lf.select(pl.col("dst_key").hash(seed=0).alias("k")),
+            ]
+        )
+        .select(pl.col("k").n_unique())
+        .collect(engine="streaming")
+        .item()
+    )
+    banks = (
+        pl.concat(
+            [lf.select(pl.col("from_bank").alias("b")), lf.select(pl.col("to_bank").alias("b"))]
+        )
+        .select(pl.col("b").n_unique())
+        .collect(engine="streaming")
+        .item()
+    )
+    report["accounts"] = int(accounts)
+    report["banks"] = int(banks)
     for key in ("first_timestamp", "last_timestamp"):
         if report[key] is not None:
             report[key] = report[key].isoformat(sep=" ")

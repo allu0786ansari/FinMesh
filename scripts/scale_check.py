@@ -5,16 +5,22 @@ AMLworld-format CSV with N rows of pseudo-random traffic (no patterns) and
 runs the week-1 transaction ingestion on it, so you can confirm the memory
 budget on your own machine before downloading anything:
 
-    uv run python scripts/scale_check.py --rows 5000000
+    uv run python scripts/scale_check.py --rows 5000000     # HI-Small size
+    uv run python scripts/scale_check.py --rows 32000000    # HI-Medium size
 
-It writes into a temporary folder and deletes it afterwards. The numbers are
-an engineering check only; they are never research results.
+The CSV is generated in a child process, so the peak memory printed is that of
+ingestion alone. Files go to a temporary folder (or ``--workdir``) and are
+deleted afterwards. The numbers are an engineering check only; they are never
+research results. Synthetic accounts are spread more widely than real ones,
+so this is a pessimistic test of memory.
 """
 
 from __future__ import annotations
 
 import argparse
 import shutil
+import subprocess
+import sys
 import tempfile
 import time
 from datetime import datetime
@@ -24,7 +30,7 @@ import polars as pl
 
 from finmesh.data.ingest import ingest_transactions
 from finmesh.data.schema import RAW_TRANSACTION_HEADER
-from finmesh.sysinfo import peak_rss_mb
+from finmesh.sysinfo import AnonPeak, peak_rss_mb
 
 
 def synthetic_csv(path: Path, rows: int, banks: int = 30_000, accounts: int = 515_000) -> None:
@@ -54,7 +60,7 @@ def synthetic_csv(path: Path, rows: int, banks: int = 30_000, accounts: int = 51
     )
     # Write with placeholder names, then put back AMLworld's header with its
     # repeated "Account" column, which polars cannot write directly.
-    frame.collect().write_csv(path)
+    frame.sink_csv(path)
     _rewrite_header(path, ",".join(RAW_TRANSACTION_HEADER))
 
 
@@ -70,24 +76,34 @@ def _rewrite_header(path: Path, header: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rows", type=int, default=5_000_000)
+    parser.add_argument("--workdir", help="folder for the temporary files (needs ~85 bytes/row)")
+    parser.add_argument("--generate-only", help=argparse.SUPPRESS)
     args = parser.parse_args()
-    work = Path(tempfile.mkdtemp(prefix="finmesh-scale-"))
+    if args.generate_only:
+        synthetic_csv(Path(args.generate_only), args.rows)
+        return
+    work = Path(tempfile.mkdtemp(prefix="finmesh-scale-", dir=args.workdir))
     try:
         csv_path = work / "SCALE_Trans.csv"
         t0 = time.perf_counter()
-        synthetic_csv(csv_path, args.rows)
+        cmd = [sys.executable, __file__, "--rows", str(args.rows), "--generate-only", str(csv_path)]
+        subprocess.run(cmd, check=True)
         t1 = time.perf_counter()
         size_mb = csv_path.stat().st_size / 1e6
-        print(f"wrote {args.rows:,} rows ({size_mb:,.0f} MB) in {t1 - t0:.1f} s")
-        report = ingest_transactions(csv_path, work / "transactions.parquet")
+        print(f"wrote {args.rows:,} rows ({size_mb:,.0f} MB) in {t1 - t0:.1f} s (child process)")
+        with AnonPeak() as anon:
+            report = ingest_transactions(csv_path, work / "transactions.parquet")
         t2 = time.perf_counter()
         size = (work / "transactions.parquet").stat().st_size / 1e6
         print(f"ingested {report['rows']:,} rows in {t2 - t1:.1f} s -> {size:,.0f} MB Parquet")
         print(
             f"accounts {report['accounts']:,}  banks {report['banks']:,}  "
-            f"malformed {report['malformed_cells']}"
+            f"malformed {report['malformed_cells']}  duplicates {report['duplicate_extra_rows']}"
         )
-        print(f"peak RSS {peak_rss_mb()} MB")
+        print(
+            f"peak memory of ingestion {anon.mb} MB "
+            f"(peak RSS incl. memory-mapped CSV {peak_rss_mb()} MB)"
+        )
     finally:
         shutil.rmtree(work, ignore_errors=True)
 

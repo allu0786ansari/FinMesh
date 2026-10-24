@@ -15,7 +15,7 @@ def test_profile_numbers(
     profile = build_profile(fixture_paths)
     s = profile["summary"]
     assert s["rows"] == fixture_truth.rows
-    assert 9.5 <= s["span_days"] <= 10.0
+    assert 10.0 < s["span_days"] <= 12.0  # ten dense days plus the sparse tail
     sch = profile["schemes"]
     assert sch["schemes"] == fixture_truth.schemes
     assert sch["multi_bank_schemes"] == fixture_truth.multi_bank_schemes
@@ -23,7 +23,7 @@ def test_profile_numbers(
     assert abs(sch["pattern_labelled_share"] - expected_share) < 1e-9
     assert profile["entities"]["entities_with_accounts_at_2plus_banks"] > 0
     banks = {b["bank"]: b for b in profile["banks_top"]}
-    assert set(banks) == {1, 10, 12, 70, 220, 1124}
+    assert {1, 10, 12, 70, 220, 1124} <= set(banks)
     total_touch_laundering = sum(b["touching_laundering"] for b in profile["banks_top"])
     assert total_touch_laundering >= fixture_truth.laundering_rows  # cross-bank rows count twice
 

@@ -126,8 +126,15 @@ def summarise_schemes(pattern_rows: pl.DataFrame) -> pl.DataFrame:
             pl.col("pattern").first(),
             pl.col("pattern_detail").first(),
             pl.len().alias("n_rows"),
-            pl.concat_list("src_key", "dst_key").explode(empty_as_null=False).n_unique().alias("n_accounts"),
-            pl.concat_list("from_bank", "to_bank").explode(empty_as_null=False).unique().sort().alias("banks"),
+            pl.concat_list("src_key", "dst_key")
+            .explode(empty_as_null=False)
+            .n_unique()
+            .alias("n_accounts"),
+            pl.concat_list("from_bank", "to_bank")
+            .explode(empty_as_null=False)
+            .unique()
+            .sort()
+            .alias("banks"),
             pl.col("timestamp").min().alias("start"),
             pl.col("timestamp").max().alias("end"),
         )
@@ -142,7 +149,7 @@ def link_schemes(
     """Map pattern lines to ``tx_id`` values; return links and a linking report."""
     keyed = pattern_rows.with_row_index("pattern_row").select("pattern_row", "scheme_id", *LINK_KEY)
     tx = pl.scan_parquet(transactions_parquet).select("tx_id", "is_laundering", *LINK_KEY)
-    joined = tx.join(keyed.lazy(), on=list(LINK_KEY), how="inner").collect()
+    joined = tx.join(keyed.lazy(), on=list(LINK_KEY), how="inner").collect(engine="streaming")
 
     per_line = joined.group_by("pattern_row").agg(pl.len().alias("matches"))
     matched_lines = per_line.height

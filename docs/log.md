@@ -14,6 +14,16 @@ Next week: <first two tasks>
 On track for next gate? yes / at risk / no
 ```
 
+## Week 02 · 2 – 8 Nov 2026
+
+Planned: the bank federation is chosen, splits are drafted, and the go/no-go count is known.
+Done: CI fixed (lint failure from a week-1 edit) and a local CI mirror added; observation window (dense-period rule, amendment A1), 6 h window rule, 60/20/20 splits with gaps, scheme assignment and masking; visibility model; federation options A (real banks ranked by accounts, amendment A2) and B (grouped institutions); G0 evidence with a selection rule fixed before real numbers; memory-safe data layer for HI-Medium; RFC 9497 OPRF matching Cloudflare's implementation; feature-timing spike; local LLM probe. Details in `docs/runlog/week-02.md`.
+Not done: real-data G0 counts, feature timing and LLM probe (owner's machine, run-log steps 3–9); G0 decision note.
+Numbers this week: engineering only. At HI-Medium size (32 M synthetic rows): ingest 929 MB (was 5.3 GB), G0 1.2 GB in 78 s. 52 unit tests, coverage 90.5%.
+Risks or blockers: G0 likely lands in the case-study or fallback band on the Small sets (week-1 estimate); HI-Medium is ready as the fallback. WSL may have only about 4 GB of RAM; every step now stays under 1.3 GB.
+Next week: write the G0 decision from the pushed evidence; then week 3 (sealed test entry point, label guard, metrics, alert budgets, random-alert baseline, bootstrap).
+On track for next gate? yes for the gate itself; the RQ1 band is at risk.
+
 ## Week 01 · 26 Oct – 1 Nov 2026
 
 Planned: a clean repository with CI, and both datasets loaded, hashed and profiled.
