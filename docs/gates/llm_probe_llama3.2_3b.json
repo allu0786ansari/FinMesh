@@ -1,0 +1,14 @@
+{
+  "model": "llama3.2:3b",
+  "calls": 20,
+  "completed": 20,
+  "errors": [],
+  "latency_s": {
+    "p50": 19.53,
+    "p95": 23.17,
+    "max": 23.17
+  },
+  "json_valid_rate": 1.0,
+  "schema_valid_rate": 1.0,
+  "grounded_rate": 1.0
+}

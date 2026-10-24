@@ -1,0 +1,24 @@
+{
+  "option": "B8",
+  "member": 0,
+  "member_accounts": 64386,
+  "day": "2022-09-01",
+  "window_hours": 6,
+  "visible_rows": 197765,
+  "account_windows": 96353,
+  "seconds": 0.72,
+  "rows_per_second": 274562,
+  "peak_memory_mb": 557.4,
+  "feature_columns": [
+    "out_degree",
+    "in_degree",
+    "fan_out",
+    "fan_in",
+    "amount_out",
+    "amount_in",
+    "cross_bank_share",
+    "two_cycles",
+    "self_transfers",
+    "pass_through"
+  ]
+}

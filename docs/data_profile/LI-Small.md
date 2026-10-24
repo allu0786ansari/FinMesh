@@ -21,8 +21,8 @@
 | BIPARTITE | 16 | 129 | 8.00 | 16.00 | 16 |
 | RANDOM | 15 | 77 | 5.00 | 6.00 | 15 |
 | SCATTER-GATHER | 13 | 182 | 12.00 | 8.00 | 13 |
-| GATHER-SCATTER | 12 | 150 | 12.50 | 13.50 | 11 |
 | CYCLE | 12 | 83 | 5.50 | 5.50 | 12 |
+| GATHER-SCATTER | 12 | 150 | 12.50 | 13.50 | 11 |
 | FAN-IN | 12 | 73 | 6.00 | 7.00 | 12 |
 
 | Banks touched | Schemes |
@@ -126,4 +126,4 @@
 | 2022-09-16 | 7 | 5 |
 | 2022-09-17 | 3 | 2 |
 
-Resources: ingest {'transactions_s': 24.73, 'patterns_s': 2.74}, peak memory ingest 3,634.10 MB, profile 3,634.10 MB.
+Resources: ingest {'transactions_s': 8.44, 'patterns_s': 1.18}, peak memory ingest 824.40 MB, profile 824.40 MB.

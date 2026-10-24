@@ -127,4 +127,4 @@
 | 2022-09-17 | 23 | 15 |
 | 2022-09-18 | 11 | 8 |
 
-Resources: ingest {'transactions_s': 16.18, 'patterns_s': 2.49}, peak memory ingest 2,600.30 MB, profile 2,600.30 MB.
+Resources: ingest {'transactions_s': 7.78, 'patterns_s': 0.89}, peak memory ingest 717.10 MB, profile 717.10 MB.
