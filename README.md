@@ -8,7 +8,7 @@ The full research design is in [`docs/proposal/FinMesh_Proposal_v2.md`](docs/pro
 
 | Week | Dates | Focus | State |
 | --- | --- | --- | --- |
-| 1 | 26 Oct – 1 Nov 2026 | Repository, CI, AMLworld ingestion, data profile | Code done; awaiting real-data run ([run log](docs/runlog/week-01.md)) |
+| 1 | 26 Oct – 1 Nov 2026 | Repository, CI, AMLworld ingestion, data profile | Done; verified on real data 24 Oct ([run log](docs/runlog/week-01.md)) |
 | 2 | 2 – 8 Nov | Visibility model, federation, splits, Gate G0 | Not started |
 | 3–5 | 9 – 29 Nov | Evaluation harness, features, baselines, Gate G1 | Not started |
 | 6–9 | 30 Nov – 27 Dec | Evidence sharing and leakage (headline), Gate G2 | Not started |

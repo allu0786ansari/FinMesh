@@ -31,12 +31,16 @@ Per dataset (`HI-Small`, `LI-Small`; `HI-Medium` only as the G0 fallback):
 
 | Property | HI-Small | LI-Small | Consequence |
 | --- | --- | --- | --- |
-| Transactions | about 5 M | about 7 M | Streaming ingestion; fits 8 GB |
-| Days spanned | 10 | 10 | Sub-daily windows; delayed-label work out of scope |
-| Laundering rate | about 1 in 981 | about 1 in 1,942 | Alert-budget operating points, not fixed FPR |
-| Pattern-labelled laundering | a minority of laundering rows | same | Attribution scored on the labelled subset only |
+| Transactions | 5,078,345 | 6,924,049 | Streaming ingestion; fits 8 GB |
+| Dense period | 1–10 Sep 2022 | 1–10 Sep 2022 | Sub-daily windows; delayed-label work out of scope |
+| Sparse tail | 11–18 Sep, 1,108 rows, 59% laundering | 11–17 Sep, 223 rows, 60% laundering | Excluded from modelling and evaluation (proposed) |
+| Laundering rows | 5,177 (1 in 981) | 3,565 (1 in 1,942) | Alert-budget operating points, not fixed FPR |
+| Schemes (pattern file) | 370 | 117 | Scheme counts limit RQ1 power (Gate G0) |
+| Pattern-labelled laundering | 62% | 29% | Attribution scored on the labelled subset only |
+| Bank IDs | 30,470 | 41,815 | Federation definition decided at G0 |
+| Entities with accounts at 2+ banks | 38% | 35% | Account-level DP unit is not customer-level |
 
-Values above are from the published descriptions; the measured values for your download are written by `finmesh profile` to `docs/data_profile/<dataset>.md`.
+Measured on 24 Oct 2026; full detail in `docs/data_profile/<dataset>.md`.
 
 ## Processing in FinMesh (week 1)
 
