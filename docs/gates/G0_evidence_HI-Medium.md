@@ -2,7 +2,7 @@
 
 # G0 evidence · HI-Medium
 
-**Outcome:** option **A64** (smallest real-bank option whose projected test count (135) reaches 100); **87** test schemes touch two or more members → band **case_study_pooled**. Proceed; pool both federations for headline estimates and report RQ1 with wide intervals as a case study alongside RQ2.
+**Outcome:** option **B8** (primary federation fixed by design (amendment A5): B8, eight institutions covering every account; real-bank options are a secondary partial-participation analysis); **480** test schemes touch two or more members → band **proceed**. Proceed with RQ1 as the headline on this dataset.
 
 ## Observation window
 
@@ -58,101 +58,45 @@ Multi-member = scheme visible to two or more members within its own partition. P
 
 | Option | Members | Account share | Tx visible | Visible (train) | Multi (train) | Multi (val) | Projected test | Legs invisible | Legs boundary | Legs cross-member | Legs internal |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| A8 | 8 | 0.0115 | 0.0459 | 408 | 96 | 15 | 26.60 | 10,123 | 1,057 | 82 | 29 |
-| A16 | 16 | 0.0191 | 0.0726 | 528 | 163 | 31 | 46.60 | 9,634 | 1,481 | 143 | 33 |
-| A32 | 32 | 0.0296 | 0.1112 | 682 | 289 | 50 | 81.40 | 8,803 | 2,063 | 385 | 40 |
-| A64 | 64 | 0.0468 | 0.1674 | 852 | 469 | 95 | 135.40 | 7,499 | 2,718 | 1,019 | 55 |
-| B4 | 4 | 1.00 | 1.00 | 1,582 | 1,408 | 459 | 448.10 | 0 | 0 | 8,258 | 3,033 |
-| B8 | 8 | 1.00 | 1.00 | 1,582 | 1,527 | 522 | 491.80 | 0 | 0 | 9,772 | 1,519 |
-| B16 | 16 | 1.00 | 1.00 | 1,582 | 1,560 | 542 | 504.50 | 0 | 0 | 10,480 | 811 |
+| A8 | 8 | 0.0115 | 0.0459 | 408 | 96 | 15 | 15.00 | 10,123 | 1,057 | 82 | 29 |
+| A16 | 16 | 0.0191 | 0.0726 | 528 | 163 | 31 | 31.00 | 9,634 | 1,481 | 143 | 33 |
+| A32 | 32 | 0.0296 | 0.1112 | 682 | 289 | 50 | 50.00 | 8,803 | 2,063 | 385 | 40 |
+| A64 | 64 | 0.0468 | 0.1674 | 852 | 469 | 95 | 95.00 | 7,499 | 2,718 | 1,019 | 55 |
+| B4 | 4 | 1.00 | 1.00 | 1,582 | 1,408 | 459 | 459.00 | 0 | 0 | 8,258 | 3,033 |
+| B8 | 8 | 1.00 | 1.00 | 1,582 | 1,527 | 522 | 522.00 | 0 | 0 | 9,772 | 1,519 |
+| B16 | 16 | 1.00 | 1.00 | 1,582 | 1,560 | 542 | 542.00 | 0 | 0 | 10,480 | 811 |
 
-**Selection:** A64 — smallest real-bank option whose projected test count (135) reaches 100.
+**Selection:** B8 — primary federation fixed by design (amendment A5): B8, eight institutions covering every account; real-bank options are a secondary partial-participation analysis.
 
 ## Test count (chosen option only)
 
-87 multi-member and 213 visible test schemes. Thresholds: 100 proceed, 40 case study.
+480 multi-member and 500 visible test schemes. Thresholds: 100 proceed, 40 case study.
 
 Multi-member schemes by pattern and partition (chosen option):
 
-| pattern | gap | train | test | val | outside |
+| pattern | gap | train | val | outside | test |
 | --- | --- | --- | --- | --- | --- |
-| BIPARTITE | 1 | 85 | 15 | 25 | 5 |
-| CYCLE | 2 | 50 | 11 | 11 | 0 |
-| FAN-IN | 0 | 48 | 6 | 12 | 0 |
-| FAN-OUT | 0 | 52 | 10 | 12 | 0 |
-| GATHER-SCATTER | 1 | 54 | 3 | 8 | 0 |
-| RANDOM | 1 | 33 | 11 | 7 | 0 |
-| SCATTER-GATHER | 1 | 57 | 6 | 6 | 0 |
-| STACK | 0 | 90 | 25 | 14 | 4 |
+| BIPARTITE | 10 | 187 | 74 | 14 | 62 |
+| CYCLE | 15 | 204 | 69 | 0 | 65 |
+| FAN-IN | 11 | 208 | 69 | 0 | 54 |
+| FAN-OUT | 6 | 208 | 62 | 0 | 63 |
+| GATHER-SCATTER | 10 | 172 | 65 | 0 | 55 |
+| RANDOM | 11 | 186 | 53 | 0 | 63 |
+| SCATTER-GATHER | 10 | 191 | 71 | 0 | 51 |
+| STACK | 10 | 171 | 59 | 15 | 67 |
 
 ## Members of the chosen option
 
 | Member | Bank IDs | Accounts | Tx touching (upper bound) | Largest bank |
 | --- | --- | --- | --- | --- |
-| 0 | 1 | 3,738 | 216,805 | 27 |
-| 1 | 1 | 3,574 | 226,188 | 12 |
-| 2 | 1 | 3,377 | 225,559 | 11 |
-| 3 | 1 | 2,853 | 209,592 | 0 |
-| 4 | 1 | 2,853 | 205,160 | 20 |
-| 5 | 1 | 2,794 | 142,707 | 112 |
-| 6 | 1 | 2,308 | 125,174 | 15 |
-| 7 | 1 | 2,300 | 133,309 | 29 |
-| 8 | 1 | 2,214 | 124,958 | 4 |
-| 9 | 1 | 2,208 | 118,164 | 114 |
-| 10 | 1 | 2,070 | 129,310 | 14 |
-| 11 | 1 | 2,020 | 121,037 | 25 |
-| 12 | 1 | 1,902 | 110,409 | 6 |
-| 13 | 1 | 1,846 | 117,635 | 3 |
-| 14 | 1 | 1,820 | 100,722 | 113 |
-| 15 | 1 | 1,812 | 104,050 | 111 |
-| 16 | 1 | 1,548 | 89,262 | 28 |
-| 17 | 1 | 1,522 | 81,991 | 26 |
-| 18 | 1 | 1,486 | 87,419 | 210 |
-| 19 | 1 | 1,430 | 79,444 | 13 |
-| 20 | 1 | 1,418 | 100,717 | 1208 |
-| 21 | 1 | 1,393 | 101,968 | 214 |
-| 22 | 1 | 1,392 | 94,742 | 2597 |
-| 23 | 1 | 1,374 | 104,300 | 2310 |
-| 24 | 1 | 1,315 | 88,536 | 544 |
-| 25 | 1 | 1,303 | 82,447 | 1601 |
-| 26 | 1 | 1,292 | 85,128 | 1818 |
-| 27 | 1 | 1,279 | 85,424 | 741 |
-| 28 | 1 | 1,274 | 81,322 | 2776 |
-| 29 | 1 | 1,234 | 76,567 | 1924 |
-| 30 | 1 | 1,232 | 82,137 | 1046 |
-| 31 | 1 | 1,229 | 77,784 | 11081 |
-| 32 | 1 | 1,223 | 76,136 | 718 |
-| 33 | 1 | 1,199 | 72,793 | 2954 |
-| 34 | 1 | 1,196 | 79,118 | 1922 |
-| 35 | 1 | 1,196 | 75,578 | 11032 |
-| 36 | 1 | 1,191 | 73,921 | 1831 |
-| 37 | 1 | 1,189 | 77,890 | 1226 |
-| 38 | 1 | 1,187 | 77,485 | 1 |
-| 39 | 1 | 1,184 | 73,418 | 867 |
-| 40 | 1 | 1,177 | 74,847 | 21 |
-| 41 | 1 | 1,177 | 67,543 | 11304 |
-| 42 | 1 | 1,156 | 72,225 | 952 |
-| 43 | 1 | 1,149 | 66,436 | 2 |
-| 44 | 1 | 1,144 | 70,419 | 1488 |
-| 45 | 1 | 1,138 | 78,093 | 1213 |
-| 46 | 1 | 1,137 | 65,396 | 21418 |
-| 47 | 1 | 1,135 | 72,924 | 1313 |
-| 48 | 1 | 1,127 | 62,445 | 22235 |
-| 49 | 1 | 1,117 | 64,605 | 11796 |
-| 50 | 1 | 1,112 | 64,655 | 10 |
-| 51 | 1 | 1,104 | 66,485 | 11848 |
-| 52 | 1 | 1,081 | 62,768 | 357 |
-| 53 | 1 | 1,081 | 56,057 | 6422 |
-| 54 | 1 | 1,068 | 65,443 | 11798 |
-| 55 | 1 | 1,049 | 62,649 | 1347 |
-| 56 | 1 | 1,048 | 64,845 | 1315 |
-| 57 | 1 | 1,038 | 60,765 | 369 |
-| 58 | 1 | 1,035 | 60,695 | 18 |
-| 59 | 1 | 1,033 | 58,178 | 14902 |
-| 60 | 1 | 1,027 | 57,019 | 4252 |
-| 61 | 1 | 1,025 | 54,319 | 12582 |
-| 62 | 1 | 1,023 | 58,813 | 2609 |
-| 63 | 1 | 1,022 | 61,691 | 2408 |
+| 0 | 15,291 | 259,628 | 7,231,841 | 27 |
+| 1 | 15,291 | 259,628 | 7,279,663 | 12 |
+| 2 | 15,292 | 259,628 | 7,302,690 | 11 |
+| 3 | 15,292 | 259,628 | 7,295,331 | 0 |
+| 4 | 15,292 | 259,628 | 7,252,688 | 20 |
+| 5 | 15,292 | 259,628 | 7,231,566 | 112 |
+| 6 | 15,292 | 259,628 | 7,173,035 | 15 |
+| 7 | 15,291 | 259,627 | 10,224,048 | 29 |
 
 ## Account reuse across partitions
 
@@ -188,4 +132,4 @@ Launderer accounts that recur in later schemes make detection easier than a fres
 | 19 | 210 | 1,486 | 87,419 |
 | 20 | 13 | 1,430 | 79,444 |
 
-Resources: {'window_and_split_s': 15.38, 'options_s': 28.74}, peak memory 739.00 MB.
+Resources: {'window_and_split_s': 12.76, 'options_s': 26.66}, peak memory 793.90 MB.

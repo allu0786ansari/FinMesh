@@ -1,0 +1,15 @@
+{
+  "model": "llama3.2:3b",
+  "decoding": "json-only",
+  "calls": 20,
+  "completed": 20,
+  "errors": [],
+  "latency_s": {
+    "p50": 20.53,
+    "p95": 29.89,
+    "max": 29.89
+  },
+  "json_valid_rate": 1.0,
+  "schema_valid_rate": 1.0,
+  "grounded_rate": 1.0
+}

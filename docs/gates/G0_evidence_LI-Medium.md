@@ -2,7 +2,7 @@
 
 # G0 evidence · LI-Medium
 
-**Outcome:** option **B8** (no real-bank option projects 100 or more multi-member test schemes; default grouped option B8); **91** test schemes touch two or more members → band **case_study_pooled**. Proceed; pool both federations for headline estimates and report RQ1 with wide intervals as a case study alongside RQ2.
+**Outcome:** option **B8** (primary federation fixed by design (amendment A5): B8, eight institutions covering every account; real-bank options are a secondary partial-participation analysis); **91** test schemes touch two or more members → band **case_study_pooled**. Proceed; pool both federations for headline estimates and report RQ1 with wide intervals as a case study alongside RQ2.
 
 ## Observation window
 
@@ -58,15 +58,15 @@ Multi-member = scheme visible to two or more members within its own partition. P
 
 | Option | Members | Account share | Tx visible | Visible (train) | Multi (train) | Multi (val) | Projected test | Legs invisible | Legs boundary | Legs cross-member | Legs internal |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| A8 | 8 | 0.0114 | 0.0451 | 63 | 17 | 2 | 4.60 | 1,709 | 152 | 10 | 4 |
-| A16 | 16 | 0.0193 | 0.0722 | 78 | 25 | 5 | 7.20 | 1,655 | 197 | 18 | 5 |
-| A32 | 32 | 0.0300 | 0.1117 | 106 | 52 | 14 | 15.80 | 1,482 | 328 | 59 | 6 |
-| A64 | 64 | 0.0472 | 0.1672 | 141 | 77 | 22 | 23.80 | 1,268 | 456 | 144 | 7 |
-| B4 | 4 | 1.00 | 1.00 | 247 | 220 | 83 | 72.70 | 0 | 0 | 1,384 | 491 |
-| B8 | 8 | 1.00 | 1.00 | 247 | 240 | 89 | 79.00 | 0 | 0 | 1,656 | 219 |
-| B16 | 16 | 1.00 | 1.00 | 247 | 246 | 93 | 81.40 | 0 | 0 | 1,756 | 119 |
+| A8 | 8 | 0.0114 | 0.0451 | 63 | 17 | 2 | 2.00 | 1,709 | 152 | 10 | 4 |
+| A16 | 16 | 0.0193 | 0.0722 | 78 | 25 | 5 | 5.00 | 1,655 | 197 | 18 | 5 |
+| A32 | 32 | 0.0300 | 0.1117 | 106 | 52 | 14 | 14.00 | 1,482 | 328 | 59 | 6 |
+| A64 | 64 | 0.0472 | 0.1672 | 141 | 77 | 22 | 22.00 | 1,268 | 456 | 144 | 7 |
+| B4 | 4 | 1.00 | 1.00 | 247 | 220 | 83 | 83.00 | 0 | 0 | 1,384 | 491 |
+| B8 | 8 | 1.00 | 1.00 | 247 | 240 | 89 | 89.00 | 0 | 0 | 1,656 | 219 |
+| B16 | 16 | 1.00 | 1.00 | 247 | 246 | 93 | 93.00 | 0 | 0 | 1,756 | 119 |
 
-**Selection:** B8 — no real-bank option projects 100 or more multi-member test schemes; default grouped option B8.
+**Selection:** B8 — primary federation fixed by design (amendment A5): B8, eight institutions covering every account; real-bank options are a secondary partial-participation analysis.
 
 ## Test count (chosen option only)
 
@@ -74,16 +74,16 @@ Multi-member = scheme visible to two or more members within its own partition. P
 
 Multi-member schemes by pattern and partition (chosen option):
 
-| pattern | train | test | gap | outside | val |
+| pattern | val | train | gap | test | outside |
 | --- | --- | --- | --- | --- | --- |
-| BIPARTITE | 33 | 12 | 5 | 2 | 16 |
-| CYCLE | 26 | 7 | 0 | 0 | 11 |
-| FAN-IN | 25 | 8 | 1 | 0 | 11 |
-| FAN-OUT | 40 | 13 | 2 | 0 | 10 |
-| GATHER-SCATTER | 24 | 10 | 0 | 0 | 9 |
-| RANDOM | 28 | 11 | 2 | 0 | 7 |
-| SCATTER-GATHER | 32 | 14 | 1 | 0 | 14 |
-| STACK | 32 | 16 | 3 | 3 | 11 |
+| BIPARTITE | 16 | 33 | 5 | 12 | 2 |
+| CYCLE | 11 | 26 | 0 | 7 | 0 |
+| FAN-IN | 11 | 25 | 1 | 8 | 0 |
+| FAN-OUT | 10 | 40 | 2 | 13 | 0 |
+| GATHER-SCATTER | 9 | 24 | 0 | 10 | 0 |
+| RANDOM | 7 | 28 | 2 | 11 | 0 |
+| SCATTER-GATHER | 14 | 32 | 1 | 14 | 0 |
+| STACK | 11 | 32 | 3 | 16 | 3 |
 
 ## Members of the chosen option
 
@@ -132,4 +132,4 @@ Launderer accounts that recur in later schemes make detection easier than a fres
 | 19 | 6 | 1,511 | 88,650 |
 | 20 | 210 | 1,510 | 88,030 |
 
-Resources: {'window_and_split_s': 13.15, 'options_s': 27.77}, peak memory 714.20 MB.
+Resources: {'window_and_split_s': 11.86, 'options_s': 26.51}, peak memory 737.10 MB.

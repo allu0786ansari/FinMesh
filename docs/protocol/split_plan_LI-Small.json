@@ -1,0 +1,58 @@
+{
+  "window_hours": 6,
+  "n_windows": 40,
+  "fractions": [
+    0.6,
+    0.2,
+    0.2
+  ],
+  "gap_windows": 1,
+  "observation": {
+    "start": "2022-09-01 00:00:00",
+    "end": "2022-09-11 00:00:00",
+    "dense_days": 10,
+    "median_daily_rows": 282877.0,
+    "rows_in_window": 6923826,
+    "rows_before": 0,
+    "rows_after": 223,
+    "laundering_rows_after": 134,
+    "rule": "longest run of consecutive days with rows >= 5% of the median daily count"
+  },
+  "periods": [
+    {
+      "name": "train",
+      "start": "2022-09-01 00:00:00",
+      "end": "2022-09-06 12:00:00",
+      "hours": 132.0
+    },
+    {
+      "name": "gap",
+      "start": "2022-09-06 12:00:00",
+      "end": "2022-09-06 18:00:00",
+      "hours": 6.0
+    },
+    {
+      "name": "val",
+      "start": "2022-09-06 18:00:00",
+      "end": "2022-09-08 18:00:00",
+      "hours": 48.0
+    },
+    {
+      "name": "gap",
+      "start": "2022-09-08 18:00:00",
+      "end": "2022-09-09 00:00:00",
+      "hours": 6.0
+    },
+    {
+      "name": "test",
+      "start": "2022-09-09 00:00:00",
+      "end": "2022-09-11 00:00:00",
+      "hours": 48.0
+    }
+  ],
+  "windows": {
+    "train": 22,
+    "val": 8,
+    "test": 8
+  }
+}
