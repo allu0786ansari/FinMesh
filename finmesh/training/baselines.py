@@ -88,6 +88,27 @@ def _per_member(models: dict[int, Any]) -> FeatureFn:
     return score
 
 
+def fit_local_models(
+    store: EvalStore,
+    features: FeatureStore,
+    cols: tuple[str, ...],
+    windows: Windows,
+    seed: int,
+    members: list[int],
+) -> dict[int, GBDT]:
+    """One LightGBM per member on its own rows (S0); members without positives are skipped."""
+    fit, stop = training_rows(store, features, cols, windows, seed)
+    models: dict[int, GBDT] = {}
+    for m in members:
+        fi, si = fit.member == m, stop.member == m
+        if fit.y[fi].sum() == 0 or stop.y[si].sum() == 0:
+            continue
+        models[m] = GBDT(cols, seed).fit(
+            fit.x[fi], fit.y[fi], fit.w[fi], stop.x[si], stop.y[si], stop.w[si]
+        )
+    return models
+
+
 def score_rows(
     store: EvalStore,
     features: FeatureStore,
@@ -239,16 +260,7 @@ def run_baselines(
         ("S0-BG-noart", sets["no_artefacts"]),
     ):
         t0 = time.perf_counter()
-        fit, stop = training_rows(store, member_f, cols, windows, seed)
-        models: dict[int, GBDT] = {}
-        for m in members:
-            fi, si = fit.member == m, stop.member == m
-            if fit.y[fi].sum() == 0 or stop.y[si].sum() == 0:
-                continue
-            models[m] = GBDT(cols, seed).fit(
-                fit.x[fi], fit.y[fi], fit.w[fi], stop.x[si], stop.y[si], stop.w[si]
-            )
-        del fit, stop
+        models = fit_local_models(store, member_f, cols, windows, seed, members)
         local_fn = _per_member(models)
         book.add(name, "val", score_rows(store, member_f, "val", local_fn))
         book.add(name, "stop", score_rows(store, member_f, "train", local_fn, windows.stop_from))

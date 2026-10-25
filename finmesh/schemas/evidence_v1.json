@@ -1,0 +1,30 @@
+{
+  "name": "finmesh-evidence",
+  "version": 1,
+  "purpose": "The minimised evidence record a member discloses about one of its account-windows (S2; S3 releases each field through k-ary randomised response; S1 discloses only the alert flag and time bucket).",
+  "token": "OPRF token of the account under the epoch key (finmesh.matching.tokens), 16 bytes",
+  "time": "window index of the account-window (6 h bucket); a response carries the most recent record in the requested range",
+  "probability": {
+    "source": "member's own score, isotonic-calibrated on data earlier than the run (held-out training windows for validation runs; validation for the test run)",
+    "edges": [0.01, 0.05, 0.2, 0.5]
+  },
+  "deviations": {
+    "source": "the member's local autoencoder: per-feature squared reconstruction error of the robust-scaled features (finmesh.models.autoencoder)",
+    "top": 3,
+    "magnitude_edges": [1.0, 4.0, 16.0],
+    "direction": "+1 when the feature is above its reconstruction, -1 below"
+  },
+  "counters": [
+    {"name": "fan_out", "feature": "fan_out", "edges": [1, 2, 3, 5, 10, 20]},
+    {"name": "fan_in", "feature": "fan_in", "edges": [1, 2, 3, 5, 10, 20]},
+    {"name": "tx_out", "feature": "tx_out", "edges": [1, 2, 5, 10, 20, 50]},
+    {"name": "tx_in", "feature": "tx_in", "edges": [1, 2, 5, 10, 20, 50]},
+    {"name": "amt_out", "feature": "amt_out", "edges": [1000, 10000, 100000, 1000000]},
+    {"name": "amt_in", "feature": "amt_in", "edges": [1000, 10000, 100000, 1000000]},
+    {"name": "pass_through", "feature": "pass_through", "edges": [0.2, 0.5, 0.8, 0.95]},
+    {"name": "cross_bank_share", "feature": "cross_bank_share", "edges": [0.25, 0.75]},
+    {"name": "new_cp_share", "feature": "new_cp_share", "edges": [0.25, 0.5, 0.75]},
+    {"name": "delay_min_h", "feature": "in_out_delay_min_h", "edges": [1, 6, 24]}
+  ],
+  "missing": "a missing value takes the bucket after the last regular one (len(edges) + 1)"
+}

@@ -50,3 +50,29 @@ def test_no_alerts_gives_no_incidents() -> None:
     empty = pl.DataFrame(schema=KEY_SCHEMA)
     edges = pl.DataFrame(schema=EDGE_SCHEMA)
     assert incidents(empty, edges, 12, False).height == 0
+
+
+def test_link_edges_touching_equals_filtering_the_full_table(
+    fixture_paths: object, ingested: dict[str, object]
+) -> None:
+    from finmesh.data.consortium import ConsortiumSpec, bank_sizes, build_membership
+    from finmesh.eval.g0 import run_g0
+    from finmesh.eval.split_io import load_plan
+    from finmesh.fusion.local import link_edges
+    from finmesh.paths import DatasetPaths
+
+    assert isinstance(fixture_paths, DatasetPaths)
+    run_g0(fixture_paths)
+    plan = load_plan(fixture_paths)
+    membership = build_membership(
+        bank_sizes(fixture_paths.transactions), ConsortiumSpec.parse("B8")
+    )
+    full = link_edges(fixture_paths.transactions, plan, 20, 30, 12, membership)
+    some = full.select(pl.col("src").alias("account")).unique().head(25)
+    cut = link_edges(fixture_paths.transactions, plan, 20, 30, 12, membership, touching=some)
+    want = full.filter(
+        pl.col("src").is_in(some["account"].implode())
+        | pl.col("dst").is_in(some["account"].implode())
+    )
+    order = ["src", "dst", "window"]
+    assert cut.sort(order).equals(want.sort(order).select(cut.columns))

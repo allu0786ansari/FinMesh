@@ -14,6 +14,16 @@ Next week: <first two tasks>
 On track for next gate? yes / at risk / no
 ```
 
+## Week 06 · 30 Nov – 6 Dec 2026
+
+Planned: banks can match accounts through OPRF tokens and exchange S1 and S2 evidence in the harness.
+Done: closed G1 (preregistration frozen; A12 ablation and decomposition added to the baselines runner). Built the token service (per-epoch keys, budgets, count-only log), token client, shared-key hashing control, CC5 contract tests, local autoencoder with top-3 deviations, evidence schema and records, signed one-time requests with rate limits and retention, allowlisted messages and bus, S0/S1/S2 responses, and the in-process protocol run (`finmesh share`). Details in `docs/runlog/week-06.md`.
+Not done: real-data protocol run (run-log steps 2–4); the `g1` tag must be pushed from the owner's machine.
+Numbers this week: engineering only (hand-built cases, fixture, stress run).
+Risks or blockers: S1 should approach the pooled-linking upper bound; if not, the epoch split or the rate limits lose links.
+Next week: week 7, fusion, triage, S4 and the first validation frontier.
+On track for next gate? yes (G2, week 9).
+
 ## Week 05 · 23 – 29 Nov 2026
 
 Planned: the local-only (S0) and pooled-oracle reference points exist, and targets are frozen.

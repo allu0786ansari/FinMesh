@@ -36,6 +36,7 @@ jobs:
           uv run finmesh diagnose --dataset FIXTURE-Small
           uv run finmesh features --dataset FIXTURE-Small --view pooled
           uv run finmesh baselines --dataset FIXTURE-Small --reps 200 --draws 5
+          uv run finmesh share --dataset FIXTURE-Small --reps 200
           uv run finmesh check
 
   secret-scan:

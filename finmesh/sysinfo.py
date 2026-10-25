@@ -60,6 +60,12 @@ class AnonPeak:
                 self.peak_kb = max(self.peak_kb or 0, kb)
             self._stop.wait(self.interval_s)
 
+    def lap(self) -> float | None:
+        """Peak MB since the previous lap (or the start); starts a new lap."""
+        peak = self.peak_kb
+        self.peak_kb = _anon_kb()
+        return round(peak / 1024, 1) if peak is not None else None
+
     def __enter__(self) -> AnonPeak:
         if self.peak_kb is not None:
             self._thread.start()

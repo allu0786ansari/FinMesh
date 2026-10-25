@@ -485,6 +485,49 @@ def cmd_g1(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_share(args: argparse.Namespace) -> int:
+    from finmesh.data.manifest import load_manifest
+    from finmesh.eval.provenance import Stamp, write_artifact
+    from finmesh.training.sharing_report import render_sharing
+    from finmesh.training.sharing_run import run_with_memory
+
+    paths = dataset_paths(args.dataset)
+    result = run_with_memory(paths, option=args.option, seed=args.seed, reps=args.reps)
+    manifest = load_manifest(paths.manifest)
+    stamp = Stamp(
+        kind="sharing_run",
+        dataset=paths.name,
+        manifest_hash=manifest.manifest_hash,
+        fixture=manifest.fixture,
+        seed=args.seed,
+        split="val",
+        params={"option": args.option, "reps": args.reps},
+    )
+    artifact = write_artifact(
+        data_root() / "artifacts" / "week06" / f"sharing_{paths.name}_seed{args.seed}.json",
+        stamp,
+        result,
+    )
+    if args.dataset == FIXTURE_DATASET or args.seed != 0:
+        report = data_root() / "artifacts" / "week06" / f"sharing_{paths.name}_seed{args.seed}.md"
+    else:
+        report = REPO_ROOT / "docs" / "eval" / f"sharing_{paths.name}.md"
+    report.parent.mkdir(parents=True, exist_ok=True)
+    report.write_text(render_sharing(result))
+    primary = result["primary_budget"]
+    for name, res in result["results"].items():
+        b = next(x for x in res["budgets"] if x["budget"] == primary)
+        p = result["protocol"].get(name, {})
+        print(
+            f"  {name:<15} linked {b['linked']['estimate']:.3f}  "
+            f"requests {p.get('requests', 0):>7,}  links {p.get('links', 0):>6,}"
+        )
+    print(f"  {result['seconds']:.0f} s, peak memory {result['peak_anon_mb']} MB")
+    print(f"  artifact {artifact}")
+    print(f"  report   {report}")
+    return 0
+
+
 def cmd_sealed_log(args: argparse.Namespace) -> int:
     from finmesh.eval.sealed import read_access_log
 
@@ -599,6 +642,13 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("g1", help="Gate G1 evidence from the baseline artifacts (week 5)").set_defaults(
         func=cmd_g1
     )
+
+    sh = sub.add_parser("share", help="in-process sharing protocol run, S0/S1/S2 (week 6)")
+    sh.add_argument("--dataset", required=True)
+    sh.add_argument("--option", default="B8")
+    sh.add_argument("--seed", type=int, default=0)
+    sh.add_argument("--reps", type=int, default=1000, help="bootstrap replicates")
+    sh.set_defaults(func=cmd_share)
 
     sl = sub.add_parser("sealed-log", help="show every opening of the sealed test")
     add_dataset(sl)

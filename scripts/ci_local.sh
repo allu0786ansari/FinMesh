@@ -21,5 +21,6 @@ step uv run finmesh feature-report --dataset FIXTURE-Small
 step uv run finmesh diagnose --dataset FIXTURE-Small
 step uv run finmesh features --dataset FIXTURE-Small --view pooled
 step uv run finmesh baselines --dataset FIXTURE-Small --reps 200 --draws 5
+step uv run finmesh share --dataset FIXTURE-Small --reps 200
 step uv run finmesh check
 echo; echo "local CI: all steps passed"
