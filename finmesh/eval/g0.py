@@ -92,7 +92,7 @@ def band(test_multi_member_schemes: int) -> str:
 BAND_TEXT = {
     "proceed": "Proceed with RQ1 as the headline on this dataset.",
     "case_study_pooled": (
-        "Proceed; pool both federations for headline estimates and report RQ1 with wide "
+        "Proceed; pool the HI and LI regimes for headline estimates and report RQ1 with wide "
         "intervals as a case study alongside RQ2."
     ),
     "fallback": (
@@ -404,7 +404,7 @@ def render(result: dict[str, Any]) -> str:
         "## Federation options (train and validation only)",
         "",
         "Multi-member = scheme visible to two or more members within its own partition. "
-        "Projected test = (train + val) scaled by the test period's share of time.",
+        "Projected test = validation count scaled by the test period's length (amendment A5).",
         "",
         table(
             [

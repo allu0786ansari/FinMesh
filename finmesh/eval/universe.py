@@ -175,9 +175,12 @@ def build_universe(paths: DatasetPaths, option: str = "B8") -> dict[str, Any]:
             .collect(engine="streaming")
         )
         for p in EVAL_PARTITIONS:
-            part.filter(pl.col("partition") == p).drop("partition").write_parquet(
-                layout.partition_dir(p) / f"universe_{i:03d}.parquet"
-            )
+            # Sorted by member, account, window: deterministic, and the same row
+            # order as the feature files (finmesh.features.build), so scores
+            # attach to labels without a join.
+            part.filter(pl.col("partition") == p).drop("partition").sort(
+                "member", "account", "window"
+            ).write_parquet(layout.partition_dir(p) / f"universe_{i:03d}.parquet")
         del part
 
     _write_scheme_tables(paths, plan, layout, membership, links)

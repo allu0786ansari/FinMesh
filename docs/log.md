@@ -14,6 +14,16 @@ Next week: <first two tasks>
 On track for next gate? yes / at risk / no
 ```
 
+## Week 04 · 16 – 22 Nov 2026
+
+Planned: every account-window at every bank has its behaviour and graph features, within the memory budget.
+Done: reviewed the week-3 real-data results (G0 closed on HI-Medium with 480 test schemes; harness calibrated; findings on FPR-budget drift, activity as a top-only signal, scheme coverage, probe grounding). Froze feature schema v1: 47 features (19 behaviour, 12 graph, 5 history, 11 neighbourhood). Built the edge table with data-derived exchange rates, account features in hash slices, member-view neighbourhood features (cycles 2–4, scatter-gather, hub indicators) over a 24 h lookback, and a single-feature report as a leakage smoke test. Label files are now sorted to line up with features. Details in `docs/runlog/week-04.md`.
+Not done: real-data build (run-log steps 2–5).
+Numbers this week: engineering only. On a 32 M-row heavy-tailed stress set (41 M account-windows): whole build 622 s, peak 2.0 GB (first attempt 5.9 GB; fixed). Feature report 101 s, 1.0 GB.
+Risks or blockers: FPR budgets drift between periods; primary operating point to be decided at G1 (recommendation: alerts per 1,000 accounts per day).
+Next week: week 5, local and pooled baselines, preregistration, Gate G1.
+On track for next gate? yes (G1, week 5).
+
 ## Week 03 · 9 – 15 Nov 2026
 
 Planned: a harness that can score any detector at any budget, with test data locked away.

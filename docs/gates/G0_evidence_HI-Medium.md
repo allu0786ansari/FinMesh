@@ -54,7 +54,7 @@ Schemes: 2,756, of which 738 run past the window end (scored on their in-window 
 
 ## Federation options (train and validation only)
 
-Multi-member = scheme visible to two or more members within its own partition. Projected test = (train + val) scaled by the test period's share of time.
+Multi-member = scheme visible to two or more members within its own partition. Projected test = validation count scaled by the test period's length (amendment A5).
 
 | Option | Members | Account share | Tx visible | Visible (train) | Multi (train) | Multi (val) | Projected test | Legs invisible | Legs boundary | Legs cross-member | Legs internal |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |

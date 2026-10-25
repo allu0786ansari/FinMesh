@@ -2,7 +2,7 @@
 
 # G0 evidence · LI-Medium
 
-**Outcome:** option **B8** (primary federation fixed by design (amendment A5): B8, eight institutions covering every account; real-bank options are a secondary partial-participation analysis); **91** test schemes touch two or more members → band **case_study_pooled**. Proceed; pool both federations for headline estimates and report RQ1 with wide intervals as a case study alongside RQ2.
+**Outcome:** option **B8** (primary federation fixed by design (amendment A5): B8, eight institutions covering every account; real-bank options are a secondary partial-participation analysis); **91** test schemes touch two or more members → band **case_study_pooled**. Proceed; pool the HI and LI regimes for headline estimates and report RQ1 with wide intervals as a case study alongside RQ2.
 
 ## Observation window
 
@@ -54,7 +54,7 @@ Schemes: 456, of which 126 run past the window end (scored on their in-window pa
 
 ## Federation options (train and validation only)
 
-Multi-member = scheme visible to two or more members within its own partition. Projected test = (train + val) scaled by the test period's share of time.
+Multi-member = scheme visible to two or more members within its own partition. Projected test = validation count scaled by the test period's length (amendment A5).
 
 | Option | Members | Account share | Tx visible | Visible (train) | Multi (train) | Multi (val) | Projected test | Legs invisible | Legs boundary | Legs cross-member | Legs internal |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |

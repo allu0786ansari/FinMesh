@@ -16,5 +16,7 @@ step uv run finmesh feature-timing --dataset FIXTURE-Small
 step uv run finmesh labels --dataset FIXTURE-Small
 step uv run finmesh harness-check --dataset FIXTURE-Small --reps 200
 step uv run finmesh sealed-log --dataset FIXTURE-Small
+step uv run finmesh features --dataset FIXTURE-Small
+step uv run finmesh feature-report --dataset FIXTURE-Small
 step uv run finmesh check
 echo; echo "local CI: all steps passed"

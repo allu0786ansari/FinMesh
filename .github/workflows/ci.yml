@@ -31,6 +31,8 @@ jobs:
           uv run finmesh labels --dataset FIXTURE-Small
           uv run finmesh harness-check --dataset FIXTURE-Small --reps 200
           uv run finmesh sealed-log --dataset FIXTURE-Small
+          uv run finmesh features --dataset FIXTURE-Small
+          uv run finmesh feature-report --dataset FIXTURE-Small
           uv run finmesh check
 
   secret-scan:

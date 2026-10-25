@@ -285,6 +285,83 @@ def cmd_harness_check(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_features(args: argparse.Namespace) -> int:
+    from finmesh.data.manifest import load_manifest
+    from finmesh.eval.provenance import Stamp, write_artifact
+    from finmesh.features.build import build_features
+    from finmesh.features.report import render_build
+
+    paths = dataset_paths(args.dataset)
+    meta = build_features(paths, option=args.option)
+    manifest = load_manifest(paths.manifest)
+    stamp = Stamp(
+        kind="features",
+        dataset=paths.name,
+        manifest_hash=manifest.manifest_hash,
+        fixture=manifest.fixture,
+        split=f"w{meta['window_hours']}",
+        params={"option": args.option, "schema_version": meta["schema_version"]},
+    )
+    artifact = write_artifact(
+        data_root() / "artifacts" / "week04" / f"features_{paths.name}.json", stamp, meta
+    )
+    if args.dataset == FIXTURE_DATASET:
+        report = data_root() / "artifacts" / "week04" / f"features_{paths.name}.md"
+    else:
+        report = REPO_ROOT / "docs" / "eval" / f"features_{paths.name}.md"
+    report.parent.mkdir(parents=True, exist_ok=True)
+    report.write_text(render_build(meta))
+    for part, n in meta["rows"].items():
+        print(f"  {part:<5} account-windows {n:,}")
+    for stage, t in meta["timings"].items():
+        print(f"  {stage:<13} {t['seconds']:>7.1f} s  peak {t['peak_anon_mb']:,.0f} MB")
+    unreachable = meta["currencies"]["unreachable"]
+    if unreachable:
+        print(f"  no exchange rate for: {', '.join(unreachable)}")
+    print(f"  artifact {artifact}")
+    print(f"  report   {report}")
+    return 0
+
+
+def cmd_feature_report(args: argparse.Namespace) -> int:
+    from finmesh.data.manifest import load_manifest
+    from finmesh.eval.feature_report import feature_signal, render_feature_signal
+    from finmesh.eval.provenance import Stamp, write_artifact
+    from finmesh.eval.sealed import EvalStore
+    from finmesh.features.build import FeatureStore
+    from finmesh.sysinfo import AnonPeak
+
+    paths = dataset_paths(args.dataset)
+    with AnonPeak() as anon:
+        result = feature_signal(
+            EvalStore(paths, option=args.option), FeatureStore(paths, option=args.option)
+        )
+    if args.dataset == FIXTURE_DATASET:
+        report = data_root() / "artifacts" / "week04" / f"feature_signal_{paths.name}.md"
+    else:
+        report = REPO_ROOT / "docs" / "eval" / f"feature_signal_{paths.name}.md"
+    report.parent.mkdir(parents=True, exist_ok=True)
+    report.write_text(render_feature_signal(paths.name, args.option, result))
+    manifest = load_manifest(paths.manifest)
+    stamp = Stamp(
+        kind="feature_signal",
+        dataset=paths.name,
+        manifest_hash=manifest.manifest_hash,
+        fixture=manifest.fixture,
+        split="val",
+        params={"option": args.option},
+    )
+    write_artifact(
+        data_root() / "artifacts" / "week04" / f"feature_signal_{paths.name}.json", stamp, result
+    )
+    for r in result["features"][:8]:
+        print(f"  {r['feature']:<24} AUPRC {r['auprc']:.4f}  AUROC {r['auroc']:.4f}")
+    print(f"  prevalence {result['prevalence']:.4f}  flagged: {result['flagged'] or 'none'}")
+    print(f"  report   {report}")
+    print(f"  peak memory {anon.mb} MB")
+    return 0
+
+
 def cmd_sealed_log(args: argparse.Namespace) -> int:
     from finmesh.eval.sealed import read_access_log
 
@@ -366,6 +443,16 @@ def build_parser() -> argparse.ArgumentParser:
     hc.add_argument("--seed", type=int, default=0)
     hc.add_argument("--reps", type=int, default=1000)
     hc.set_defaults(func=cmd_harness_check)
+
+    fe = sub.add_parser("features", help="feature schema v1 for every account-window (week 4)")
+    fe.add_argument("--dataset", required=True)
+    fe.add_argument("--option", default="B8")
+    fe.set_defaults(func=cmd_features)
+
+    fr = sub.add_parser("feature-report", help="single-feature signal on validation (week 4)")
+    fr.add_argument("--dataset", required=True)
+    fr.add_argument("--option", default="B8")
+    fr.set_defaults(func=cmd_feature_report)
 
     sl = sub.add_parser("sealed-log", help="show every opening of the sealed test")
     add_dataset(sl)

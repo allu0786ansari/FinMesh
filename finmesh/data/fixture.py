@@ -37,6 +37,8 @@ BANKS: tuple[int, ...] = NAMED_BANKS + SMALL_BANKS
 BANK_WEIGHTS: tuple[float, ...] = (30, 25, 20, 12, 8, 5) + (0.5,) * len(SMALL_BANKS)
 CURRENCIES: tuple[str, ...] = ("US Dollar", "US Dollar", "US Dollar", "Euro", "UK Pound")
 FORMATS: tuple[str, ...] = ("ACH", "Cheque", "Credit Card", "Wire", "Cash", "Reinvestment")
+# Reference-currency value of one unit; used for cross-currency licit rows.
+FX_TO_USD: dict[str, float] = {"US Dollar": 1.0, "Euro": 1.1, "UK Pound": 1.3}
 START = datetime(2022, 9, 1, 0, 0)
 DAYS = 10
 
@@ -57,20 +59,23 @@ class Tx:
     currency: str
     fmt: str
     laundering: int
+    recv_currency: str | None = None  # set for cross-currency rows
+    recv_amount: float | None = None
 
     def cells(self, padded_banks: bool = False) -> list[str]:
         def bank(b: int) -> str:
             return f"{b:03d}" if padded_banks else str(b)
 
         amount = f"{self.amount:.2f}"
+        received = amount if self.recv_amount is None else f"{self.recv_amount:.2f}"
         return [
             self.when.strftime("%Y/%m/%d %H:%M"),
             bank(self.src.bank),
             self.src.account,
             bank(self.dst.bank),
             self.dst.account,
-            amount,
-            self.currency,
+            received,
+            self.recv_currency or self.currency,
             amount,
             self.currency,
             self.fmt,
@@ -172,6 +177,13 @@ def write_fixture(out_dir: Path, seed: int = 7) -> FixtureTruth:
     accounts = _make_accounts(rng, 360)
     launderers = accounts[:120]
     licit = _licit(rng, accounts, 4000)
+    # Every third licit payment in a foreign currency is received in US dollars, so
+    # exchange rates can be recovered from the data (no random draws: the rest of
+    # the fixture is unchanged).
+    for k, t in enumerate(licit):
+        if t.currency != "US Dollar" and k % 3 == 0:
+            t.recv_currency = "US Dollar"
+            t.recv_amount = round(t.amount * FX_TO_USD[t.currency], 2)
     licit.append(Tx(**{**licit[17].__dict__}))  # one exact duplicate row
     truth.duplicate_extra_rows = 1
 
