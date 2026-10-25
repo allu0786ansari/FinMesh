@@ -18,16 +18,18 @@
   "counts": {
     "train": {
       "account_windows": 3086445,
-      "positives": 3197,
-      "masked": 0,
+      "positives": 2978,
+      "masked": 219,
+      "incidental": 219,
       "accounts": 702531,
       "schemes": 68,
       "multi_member_schemes": 66
     },
     "val": {
       "account_windows": 968125,
-      "positives": 1091,
-      "masked": 273,
+      "positives": 1006,
+      "masked": 358,
+      "incidental": 85,
       "accounts": 320821,
       "schemes": 23,
       "multi_member_schemes": 23

@@ -1,8 +1,8 @@
 # Feature build · HI-Medium
 
-Federation B8, 6 h windows, feature schema v2 (`c092db8f0957`), 16 account slices. Edge rows in the observation window: 31,891,251.
+Federation B8, member view, 6 h windows, feature schema v3 (`550f9243bb68`), 16 account slices. Edge rows in the observation window: 31,891,251.
 
-**Total 298 s; peak memory 1,299 MB** (anonymous memory, the part that counts against RAM; budget 8 GB).
+**Total 336 s; peak memory 1,302 MB** (anonymous memory, the part that counts against RAM; budget 8 GB).
 
 | Partition | Account-windows |
 | --- | --- |
@@ -14,22 +14,22 @@ Federation B8, 6 h windows, feature schema v2 (`c092db8f0957`), 16 account slice
 
 | Stage | Seconds | Peak MB |
 | --- | --- | --- |
-| edges | 17.90 | 677.60 |
-| neighbourhood | 84.60 | 849.20 |
-| accounts | 195.50 | 1,299.30 |
+| edges | 17.60 | 406.30 |
+| neighbourhood | 130.40 | 1,253.60 |
+| accounts | 188.10 | 1,301.90 |
 
-## Neighbourhood pass per member (lookback 4 windows, hub cap 64)
+## Neighbourhood pass per member (lookback 12 windows, hub cap 64)
 
 | Member | Seconds | Visible edge rows (with lookback) | Rows per second |
 | --- | --- | --- | --- |
-| 0 | 9.06 | 5,386,446 | 594,530.46 |
-| 1 | 8.74 | 5,422,944 | 620,474.14 |
-| 2 | 8.51 | 5,437,999 | 639,012.81 |
-| 3 | 8.73 | 5,437,767 | 622,882.82 |
-| 4 | 8.43 | 5,402,304 | 640,842.70 |
-| 5 | 8.39 | 5,393,206 | 642,813.59 |
-| 6 | 8.35 | 5,349,199 | 640,622.63 |
-| 7 | 11.77 | 7,558,442 | 642,178.59 |
+| 0 | 13.50 | 10,894,226 | 806,979.70 |
+| 1 | 13.69 | 10,971,541 | 801,427.39 |
+| 2 | 13.52 | 10,999,897 | 813,601.85 |
+| 3 | 13.50 | 10,999,626 | 814,787.11 |
+| 4 | 13.26 | 10,928,964 | 824,205.43 |
+| 5 | 13.04 | 10,911,951 | 836,806.06 |
+| 6 | 12.48 | 10,822,486 | 867,186.38 |
+| 7 | 17.63 | 15,216,023 | 863,075.61 |
 
 ## Exchange rates (reference-currency value of one unit, from training rows)
 
