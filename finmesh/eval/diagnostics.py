@@ -25,14 +25,13 @@ from finmesh.data.lowmem import hashed_key
 from finmesh.data.splits import partition_expr, window_index_expr
 from finmesh.eval.sealed import EvalStore
 from finmesh.eval.split_io import load_plan
+from finmesh.eval.universe import INCIDENTAL_MAX_SHARE, INCIDENTAL_MIN_LEGS
 from finmesh.features.build import FeatureStore
 from finmesh.features.schema import SCHEMA_VERSION
 from finmesh.paths import DatasetPaths
 from finmesh.reporting import table
 
 OPEN_PARTITIONS: tuple[str, ...] = ("train", "val")
-INCIDENTAL_MIN_LEGS = 20
-INCIDENTAL_MAX_SHARE = 0.1
 
 SIGNATURES: dict[str, tuple[str, pl.Expr]] = {
     "CYCLE": (
@@ -95,7 +94,7 @@ def positive_profile(paths: DatasetPaths, store: EvalStore) -> dict[str, Any]:
         }
     }
     for part in OPEN_PARTITIONS:
-        lab = store.partition(part).labels.frame.filter(~pl.col("masked"))
+        lab = store.partition(part, variant="touch").labels.frame.filter(~pl.col("masked"))
         lab = lab.select("account", "window", "tx", "label")
         pos = (
             lab.filter(pl.col("label") == 1)

@@ -14,6 +14,16 @@ Next week: <first two tasks>
 On track for next gate? yes / at risk / no
 ```
 
+## Week 05 · 23 – 29 Nov 2026
+
+Planned: the local-only (S0) and pooled-oracle reference points exist, and targets are frozen.
+Done: reviewed the week-4 diagnostics; the owner decided A9 (mask incidental positives), A10 (primary operating point 1 alert per 1,000 accounts per day) and A11 (schema v3, 72 h neighbourhood lookback). Built labels with incidental masking, the pooled feature view for the oracle, local and pooled incident linking, a random baseline for linked detection, LightGBM, Isolation Forest and PCA baselines with isotonic calibration, the baselines runner and the G1 evidence page. Drafted the preregistration. Details in `docs/runlog/week-05.md`.
+Not done: real-data baselines and G1 evidence (run-log steps 2–6); preregistration section 9 and the `g1` tag follow.
+Numbers this week: engineering only (stress set). Member-view features 1,393 s at 3.0 GB; neighbourhood pass made about 1.5x faster, still exact.
+Risks or blockers: if the oracle − S0 gap is under 5 points, RQ1's headline needs rethinking before week 6.
+Next week: week 6, the evidence-sharing levels.
+On track for next gate? yes, pending the G1 run.
+
 ## Week 04 · 16 – 22 Nov 2026
 
 Planned: every account-window at every bank has its behaviour and graph features, within the memory budget.

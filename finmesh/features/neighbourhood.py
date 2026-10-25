@@ -25,7 +25,11 @@ work at (edges x cap) per window; hub contact is reported separately.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import polars as pl
+
+PART_EDGES = 500_000  # outgoing edges of active accounts per part
 
 NEIGHBOURHOOD_COUNTS: tuple[str, ...] = (
     "nb_out_deg",
@@ -53,7 +57,10 @@ def window_features(
 
     ``visible``: edges m can see, columns src, dst, src_member, dst_member,
     window (self-loops already removed). Returns columns a, then
-    :data:`NEIGHBOURHOOD_COUNTS`.
+    :data:`NEIGHBOURHOOD_COUNTS`. Active accounts are processed in hash parts
+    of about :data:`PART_EDGES` outgoing edges, so 2-path tables stay bounded
+    on large graphs (the pooled view, long lookbacks); parts do not change
+    the result, because each account's features depend only on the graph.
     """
     span = visible.filter(pl.col("window").is_between(window - lookback + 1, window))
     now = span.filter(pl.col("window") == window)
@@ -77,12 +84,36 @@ def window_features(
         (pl.col("od").fill_null(0) + pl.col("id").fill_null(0)).alias("deg")
     )
     hubs = deg.filter(pl.col("deg") > cap).select("n")
+    mid_out = e.join(hubs, left_on="src", right_on="n", how="anti")  # b -> c, b not a hub
+    mid_in = e.join(hubs, left_on="dst", right_on="n", how="anti")  # c -> d, d not a hub
+    graph = _Graph(e, out_deg, in_deg, deg, hubs, mid_out, mid_in)
 
+    touching = e.join(active, left_on="src", right_on="a", how="semi").height
+    parts = max(1, -(-touching // PART_EDGES))
+    if parts == 1:
+        return _features(active, graph)
+    return pl.concat(
+        [_features(active.filter(pl.col("a") % parts == j), graph) for j in range(parts)]
+    ).sort("a")
+
+
+@dataclass(frozen=True)
+class _Graph:
+    e: pl.DataFrame
+    out_deg: pl.DataFrame
+    in_deg: pl.DataFrame
+    deg: pl.DataFrame
+    hubs: pl.DataFrame
+    mid_out: pl.DataFrame
+    mid_in: pl.DataFrame
+
+
+def _features(active: pl.DataFrame, g: _Graph) -> pl.DataFrame:
+    e, out_deg, in_deg, deg, hubs = g.e, g.out_deg, g.in_deg, g.deg, g.hubs
+    mid_out, mid_in = g.mid_out, g.mid_in
     # Edges leaving / entering an active account, and edges usable as 2-path legs.
     from_a = e.join(active, left_on="src", right_on="a", how="semi")
     into_a = e.join(active, left_on="dst", right_on="a", how="semi")
-    mid_out = e.join(hubs, left_on="src", right_on="n", how="anti")  # b -> c, b not a hub
-    mid_in = e.join(hubs, left_on="dst", right_on="n", how="anti")  # c -> d, d not a hub
 
     p2_out = (
         from_a.rename({"src": "a", "dst": "b"})
@@ -95,24 +126,31 @@ def window_features(
         .filter(pl.col("c") != pl.col("a"))
     )
 
+    # Cycles close through an edge into an active account, so only into_a is probed
+    # (not the whole graph); 4-cycle overlaps are needed only for the (a, c) pairs
+    # that have 2-paths both ways, a tiny share of all 2-paths.
     cyc2 = _count(
-        from_a.join(e.rename({"src": "dst", "dst": "src"}), on=["src", "dst"], how="semi"),
+        from_a.join(into_a.rename({"src": "dst", "dst": "src"}), on=["src", "dst"], how="semi"),
         "src",
         "cyc2",
     )
     cyc3 = _count(
-        p2_out.join(e.rename({"src": "c", "dst": "a"}), on=["c", "a"], how="semi"), "a", "cyc3"
+        p2_out.join(into_a.rename({"src": "c", "dst": "a"}), on=["c", "a"], how="semi"),
+        "a",
+        "cyc3",
     )
     n_out = p2_out.group_by("a", "c").agg(pl.len().cast(pl.Int64).alias("n1"))
     n_in = p2_in.group_by("c", "a").agg(pl.len().cast(pl.Int64).alias("n2"))
+    both = n_out.join(n_in, on=["a", "c"])
+    pairs = both.select("a", "c")
     overlap = (
-        p2_out.join(p2_in.rename({"d": "b"}), on=["a", "b", "c"])
+        p2_out.join(pairs, on=["a", "c"], how="semi")
+        .join(p2_in.join(pairs, on=["a", "c"], how="semi").rename({"d": "b"}), on=["a", "b", "c"])
         .group_by("a", "c")
         .agg(pl.len().cast(pl.Int64).alias("ov"))
     )
     cyc4 = (
-        n_out.join(n_in, on=["a", "c"])
-        .join(overlap, on=["a", "c"], how="left")
+        both.join(overlap, on=["a", "c"], how="left")
         .group_by("a")
         .agg(
             (pl.col("n1") * pl.col("n2") - pl.col("ov").fill_null(0))

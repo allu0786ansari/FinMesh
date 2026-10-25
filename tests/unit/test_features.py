@@ -29,11 +29,14 @@ from finmesh.paths import DatasetPaths, dataset_paths
 # Pinned: changing a released schema file must be a new schema version.
 SCHEMA_V1_SHA256 = "240e2915d01e93bc1bccadfd17a6bf6a4b4b6167edda14544abdf40cfbf21a97"
 SCHEMA_V2_SHA256 = "c092db8f095773999ba1f8359002b7ed3e9e3591406835ea7026f18f19e658bf"
+SCHEMA_V3_SHA256 = "550f9243bb6881bee4900e958565db5426280bc0af51cbbb58de015e33459d41"
 
 
 def test_released_schemas_are_frozen() -> None:
     assert load_schema(1).sha256 == SCHEMA_V1_SHA256, "feature schema v1 changed"
-    assert load_schema(2).sha256 == SCHEMA_V2_SHA256, "feature schema v2 changed: release v3"
+    assert load_schema(2).sha256 == SCHEMA_V2_SHA256, "feature schema v2 changed"
+    assert load_schema(3).sha256 == SCHEMA_V3_SHA256, "feature schema v3 changed: release v4"
+    assert load_schema(3).names == load_schema(2).names
     v1, v2 = load_schema(1).names, load_schema(2).names
     assert [n for n in v1 if n not in v2] == ["age_windows"]
     assert [n for n in v2 if n not in v1] == ["recency_windows"]
@@ -41,7 +44,8 @@ def test_released_schemas_are_frozen() -> None:
 
 def test_current_schema_is_well_formed() -> None:
     schema = load_schema()
-    assert schema.version == 2
+    assert schema.version == 3
+    assert schema.params["lookback_hours"] == schema.params["history_hours"] == 72
     names = schema.names
     assert len(names) == len(set(names))
     assert {f["family"] for f in schema.features} <= set(FAMILIES)
@@ -238,6 +242,31 @@ def test_neighbourhood_features_match_brute_force(seed: int) -> None:
                 assert row == exp
 
 
+def test_neighbourhood_parts_do_not_change_results(monkeypatch: pytest.MonkeyPatch) -> None:
+    from finmesh.features import neighbourhood
+
+    rng = random.Random(9)
+    rows = [
+        (rng.randrange(60), rng.randrange(60), 0, rng.randrange(2), rng.randrange(4))
+        for _ in range(500)
+    ]
+    rows = [r for r in rows if r[0] != r[1]]
+    edges = pl.DataFrame(
+        rows,
+        schema={
+            "src": pl.UInt64,
+            "dst": pl.UInt64,
+            "src_member": pl.Int32,
+            "dst_member": pl.Int32,
+            "window": pl.Int32,
+        },
+        orient="row",
+    )
+    whole = window_features(edges, 0, 3, 4, 8)
+    monkeypatch.setattr(neighbourhood, "PART_EDGES", 7)
+    assert window_features(edges, 0, 3, 4, 8).equals(whole)
+
+
 @pytest.fixture(scope="module")
 def built(fixture_paths: DatasetPaths, ingested: dict[str, object]) -> FeatureStore:
     run_g0(fixture_paths)
@@ -332,7 +361,7 @@ def test_schema_document_matches_schema_file() -> None:
     from finmesh.features.schema import render_schema
     from finmesh.paths import REPO_ROOT
 
-    for version in (1, 2):
+    for version in (1, 2, 3):
         doc = REPO_ROOT / "docs" / "protocol" / f"features_v{version}.md"
         assert doc.read_text() == render_schema(load_schema(version)), f"regenerate {doc.name}"
 
@@ -371,3 +400,20 @@ def test_diagnostics_on_the_fixture(built: FeatureStore, fixture_paths: DatasetP
     drift = {r["feature"]: r for r in feature_drift(built)}
     assert set(drift) == set(built.schema.names)
     assert drift["recency_windows"]["psi"] < 0.25  # stationary after the burn-in
+
+
+def test_pooled_view_extends_member_view(built: FeatureStore, fixture_paths: DatasetPaths) -> None:
+    meta = build_features(fixture_paths, "B8", view="pooled")
+    pooled = FeatureStore(fixture_paths, "B8", "pooled")
+    assert meta["view"] == "pooled" and meta["rows"] == built.meta["rows"]
+    schema = load_schema()
+    own = [n for n in schema.names if n not in NEIGHBOURHOOD_COUNTS]
+    for part in ("train", "val"):
+        m, p = built.partition(part).frame, pooled.partition(part).frame
+        assert p.select(KEYS).equals(m.select(KEYS))  # same rows, same order
+        assert p.select(own).equals(m.select(own), null_equal=True)  # own legs: identical
+        # The pooled graph is a superset of every member's view: degrees never shrink,
+        # and somewhere they grow (edges between two other members' accounts).
+        assert (p["nb_out_deg"] >= m["nb_out_deg"]).all()
+        assert (p["nb_in_deg"] >= m["nb_in_deg"]).all()
+        assert (p["cp_in_deg_max"] > m["cp_in_deg_max"]).any()

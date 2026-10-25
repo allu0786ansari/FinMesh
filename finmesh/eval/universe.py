@@ -40,6 +40,25 @@ from finmesh.eval.split_io import load_plan
 from finmesh.paths import DatasetPaths
 
 EVAL_PARTITIONS: tuple[str, ...] = ("train", "val", "test")
+
+# Amendment A9: a positive account-window with at least INCIDENTAL_MIN_LEGS legs,
+# of which under INCIDENTAL_MAX_SHARE are unmasked laundering legs, is a busy
+# account a scheme passed through once. It is masked in the primary label and
+# positive in the "touch" sensitivity variant.
+INCIDENTAL_MIN_LEGS = 20
+INCIDENTAL_MAX_SHARE = 0.1
+LABEL_VARIANTS: tuple[str, ...] = ("primary", "touch")
+
+
+def incidental_expr() -> pl.Expr:
+    """Over aggregated columns ``pos``, ``tx`` and ``bad_legs``."""
+    return (
+        pl.col("pos")
+        & (pl.col("tx") >= INCIDENTAL_MIN_LEGS)
+        & (pl.col("bad_legs") < INCIDENTAL_MAX_SHARE * pl.col("tx"))
+    )
+
+
 SEALED_PARTITIONS: frozenset[str] = frozenset({"test"})
 
 
@@ -160,8 +179,10 @@ def build_universe(paths: DatasetPaths, option: str = "B8") -> dict[str, Any]:
                 pl.len().alias("tx"),
                 (pl.col("bad") & ~pl.col("tx_masked")).any().alias("pos"),
                 (pl.col("bad") & pl.col("tx_masked")).any().alias("masked_bad"),
+                (pl.col("bad") & ~pl.col("tx_masked")).sum().alias("bad_legs"),
             )
             .join(membership.lazy(), on="bank", how="inner")
+            .with_columns(incidental_expr().alias("incidental"))
             .select(
                 "member",
                 "bank",
@@ -169,8 +190,9 @@ def build_universe(paths: DatasetPaths, option: str = "B8") -> dict[str, Any]:
                 pl.col("window").cast(pl.Int32),
                 "partition",
                 pl.col("tx").cast(pl.UInt32),
-                pl.col("pos").cast(pl.Int8).alias("label"),
-                (pl.col("masked_bad") & ~pl.col("pos")).alias("masked"),
+                (pl.col("pos") & ~pl.col("incidental")).cast(pl.Int8).alias("label"),
+                ((pl.col("masked_bad") & ~pl.col("pos")) | pl.col("incidental")).alias("masked"),
+                "incidental",
             )
             .collect(engine="streaming")
         )
@@ -184,6 +206,7 @@ def build_universe(paths: DatasetPaths, option: str = "B8") -> dict[str, Any]:
         del part
 
     _write_scheme_tables(paths, plan, layout, membership, links)
+    _mark_incidental_scheme_windows(layout)
     sizes = bank_sizes(paths.transactions)
     accounts = (
         sizes.join(membership, on="bank", how="inner")
@@ -200,6 +223,11 @@ def build_universe(paths: DatasetPaths, option: str = "B8") -> dict[str, Any]:
         "spec": ConsortiumSpec.parse(option).name,
         "window_hours": plan.window_hours,
         "slices": n_slices,
+        "label_rule": {
+            "positive": "touches an unmasked laundering leg and is not incidental (amendment A9)",
+            "incidental_min_legs": INCIDENTAL_MIN_LEGS,
+            "incidental_max_share": INCIDENTAL_MAX_SHARE,
+        },
         "partition_hours": {p: plan.period(p).hours for p in EVAL_PARTITIONS},
         "partition_windows": {p: _window_range(plan, p) for p in EVAL_PARTITIONS},
         "counts": {p: counts[p] for p in EVAL_PARTITIONS if p not in SEALED_PARTITIONS},
@@ -283,6 +311,22 @@ def _write_scheme_tables(
         summary.write_parquet(layout.partition_dir(p) / "schemes.parquet")
 
 
+def _mark_incidental_scheme_windows(layout: EvalLayout) -> None:
+    """Flag scheme account-windows that are incidental; the primary label ignores them."""
+    for p in EVAL_PARTITIONS:
+        d = layout.partition_dir(p)
+        flagged = (
+            pl.scan_parquet(d / "universe_*.parquet")
+            .filter(pl.col("incidental"))
+            .select("account", "window", pl.lit(True).alias("incidental"))
+            .collect(engine="streaming")
+        )
+        sw = pl.read_parquet(d / "scheme_windows.parquet").drop("incidental", strict=False)
+        sw.join(flagged, on=["account", "window"], how="left").with_columns(
+            pl.col("incidental").fill_null(False)
+        ).write_parquet(d / "scheme_windows.parquet")
+
+
 def partition_counts(layout: EvalLayout, partition: str) -> dict[str, int]:
     u = pl.scan_parquet(layout.partition_dir(partition) / "universe_*.parquet")
     row = (
@@ -290,6 +334,7 @@ def partition_counts(layout: EvalLayout, partition: str) -> dict[str, int]:
             pl.len().alias("account_windows"),
             pl.col("label").sum().alias("positives"),
             pl.col("masked").sum().alias("masked"),
+            pl.col("incidental").sum().alias("incidental"),
             pl.col("account").n_unique().alias("accounts"),
         )
         .collect(engine="streaming")

@@ -30,6 +30,7 @@ LABEL_COLUMNS: frozenset[str] = frozenset(
         "pattern",
         "pattern_detail",
         "scheme_partition",
+        "incidental",
     }
 )
 

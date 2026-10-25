@@ -59,16 +59,23 @@ CHUNK_HOURS = 24
 LEGS_PER_SUBSLICE = 1_000_000
 
 
+VIEWS: tuple[str, ...] = ("member", "pooled")
+
+
 @dataclass(frozen=True)
 class FeatureLayout:
     paths: DatasetPaths
     window_hours: int
     option: str
     version: int
+    view: str = "member"
 
     @property
     def root(self) -> Path:
-        return self.paths.parquet / f"features_w{self.window_hours}_{self.option}_v{self.version}"
+        tag = "" if self.view == "member" else f"_{self.view}"
+        return (
+            self.paths.parquet / f"features_w{self.window_hours}_{self.option}{tag}_v{self.version}"
+        )
 
     def partition_dir(self, partition: str) -> Path:
         return self.root / partition
@@ -113,15 +120,26 @@ def _neighbourhood_pass(
     schema: FeatureSchema,
     slices: int,
     work: Path,
+    pooled: bool = False,
 ) -> dict[str, Any]:
+    """Neighbourhood features per member and window; ``pooled`` sees every edge.
+
+    The pooled view is the oracle's: one institution holding every bank, so
+    every transaction is visible and every account is active in its windows.
+    """
     hours = plan.window_hours
     lookback = max(1, int(schema.params["lookback_hours"]) // hours)
     cap = int(schema.params["hub_degree_cap"])
     per_chunk = max(1, CHUNK_HOURS // hours)
     parts = window_partitions(plan)
     scored = sorted(w for w, p in parts.items() if p in PARTITIONS)
-    members = sorted(membership["member"].unique().to_list())
+    members = [0] if pooled else sorted(membership["member"].unique().to_list())
     m = membership.lazy()
+    if pooled:
+        src_member = pl.lit(0, pl.Int32).alias("src_member")
+        dst_member = pl.lit(0, pl.Int32).alias("dst_member")
+    else:
+        src_member, dst_member = pl.col("src_member"), pl.col("dst_member")
     seconds: dict[int, float] = defaultdict(float)
     visible_rows: dict[int, int] = defaultdict(int)
     rows_out = 0
@@ -151,7 +169,7 @@ def _neighbourhood_pass(
                 on="to_bank",
                 how="left",
             )
-            .select("src", "dst", "src_member", "dst_member", "window")
+            .select("src", "dst", src_member, dst_member, "window")
             .collect(engine="streaming")
         )
         results = []
@@ -211,7 +229,16 @@ def _finish(
     return schema.cast(full).with_columns(full["partition"])
 
 
-def build_features(paths: DatasetPaths, option: str = "B8") -> dict[str, Any]:
+def build_features(paths: DatasetPaths, option: str = "B8", view: str = "member") -> dict[str, Any]:
+    """Member view (what each bank sees) or pooled view (the oracle's full graph)."""
+    if view not in VIEWS:
+        raise ValueError(f"view must be one of {VIEWS}")
+    if view == "pooled":
+        return _build_pooled(paths, option)
+    return _build_member(paths, option)
+
+
+def _build_member(paths: DatasetPaths, option: str) -> dict[str, Any]:
     """Write the current feature schema for every account-window; return the build summary."""
     schema = load_schema()
     plan = load_plan(paths)
@@ -278,6 +305,7 @@ def build_features(paths: DatasetPaths, option: str = "B8") -> dict[str, Any]:
     meta: dict[str, Any] = {
         "dataset": paths.name,
         "option": option,
+        "view": "member",
         "window_hours": plan.window_hours,
         "schema_version": schema.version,
         "schema_sha256": schema.sha256,
@@ -295,17 +323,78 @@ def build_features(paths: DatasetPaths, option: str = "B8") -> dict[str, Any]:
     return meta
 
 
+def _build_pooled(paths: DatasetPaths, option: str) -> dict[str, Any]:
+    """Pooled view: account features are the member view's (an account's own legs
+    are complete in both); neighbourhood features are recomputed on the full graph."""
+    schema = load_schema()
+    plan = load_plan(paths)
+    member = FeatureStore(paths, option, "member")
+    layout = FeatureLayout(paths, plan.window_hours, option, schema.version, "pooled")
+    membership = _membership(paths, option)
+    if layout.root.exists():
+        shutil.rmtree(layout.root)
+    layout.work.mkdir(parents=True)
+    timings: dict[str, Any] = {}
+    slices = int(member.meta["slices"])
+    with AnonPeak() as anon:
+        t0 = time.perf_counter()
+        names = currencies(paths.transactions, plan)
+        ratios = pair_ratios(paths.transactions, plan)
+        rates = chain_rates(names, ratios, str(schema.params["reference_currency"]))
+        edges = layout.work / "edges.parquet"
+        write_edges(paths.transactions, plan, edges, rates, names)
+        timings["edges"] = {"seconds": round(time.perf_counter() - t0, 1)}
+    timings["edges"]["peak_anon_mb"] = anon.mb
+    with AnonPeak() as anon:
+        t0 = time.perf_counter()
+        nb = _neighbourhood_pass(edges, membership, plan, schema, slices, layout.work, pooled=True)
+        timings["neighbourhood"] = {"seconds": round(time.perf_counter() - t0, 1)}
+    timings["neighbourhood"]["peak_anon_mb"] = anon.mb
+    counts = {p: 0 for p in PARTITIONS}
+    with AnonPeak() as anon:
+        t0 = time.perf_counter()
+        for d in range(slices):
+            nbr = _neighbourhood_for_slice(layout.work, d)
+            for p in PARTITIONS:
+                src = member.layout.partition_dir(p) / f"feat_{d:03d}.parquet"
+                base = pl.read_parquet(src).drop(*NEIGHBOURHOOD_COUNTS)
+                frame = schema.cast(
+                    base.join(
+                        nbr, on=["account", "window"], how="left", maintain_order="left"
+                    ).with_columns(pl.col(c).fill_null(0) for c in NEIGHBOURHOOD_COUNTS)
+                )
+                FeatureFrame(frame)
+                layout.partition_dir(p).mkdir(parents=True, exist_ok=True)
+                frame.write_parquet(layout.partition_dir(p) / f"feat_{d:03d}.parquet")
+                counts[p] += frame.height
+            del nbr
+        timings["merge"] = {"seconds": round(time.perf_counter() - t0, 1)}
+    timings["merge"]["peak_anon_mb"] = anon.mb
+    shutil.rmtree(layout.work)
+    meta = {
+        **{k: v for k, v in member.meta.items() if k not in ("timings", "neighbourhood")},
+        "view": "pooled",
+        "neighbourhood": nb,
+        "rows": counts,
+        "timings": timings,
+    }
+    layout.meta.write_text(json.dumps(meta, indent=2) + "\n")
+    return meta
+
+
 class FeatureStore:
     """Read features per partition, in the universe's row order."""
 
-    def __init__(self, paths: DatasetPaths, option: str = "B8") -> None:
+    def __init__(self, paths: DatasetPaths, option: str = "B8", view: str = "member") -> None:
         schema = load_schema()
         plan = load_plan(paths)
         self.schema = schema
-        self.layout = FeatureLayout(paths, plan.window_hours, option, schema.version)
+        self.layout = FeatureLayout(paths, plan.window_hours, option, schema.version, view)
         if not self.layout.meta.exists():
             raise FileNotFoundError(
-                f"{self.layout.meta} missing; run `finmesh features --dataset {paths.name}` first"
+                f"{self.layout.meta} missing; run `finmesh features --dataset {paths.name}"
+                + ("" if view == "member" else f" --view {view}")
+                + "` first"
             )
         self.meta: dict[str, Any] = json.loads(self.layout.meta.read_text())
         if self.meta["schema_sha256"] != schema.sha256:

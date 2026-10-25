@@ -17,7 +17,7 @@ from typing import Any
 import polars as pl
 
 SCHEMA_DIR = Path(__file__).resolve().parent.parent / "schemas"
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 KEYS: tuple[str, ...] = ("member", "account", "window")
 FAMILIES: tuple[str, ...] = ("behaviour", "graph", "history", "neighbourhood")
 

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import polars as pl
 import pytest
 
@@ -150,3 +152,49 @@ def test_fast_score_join_equals_hash_join(store: EvalStore) -> None:
     assert fast.sort(key).equals(slow.sort(key))
     assert fast["score"].null_count() == 0
     assert "label" not in labels.keys().columns
+
+
+def test_incidental_positives_are_masked_in_primary_and_positive_in_touch(
+    fixture_paths: DatasetPaths, store: EvalStore, tmp_path: Path
+) -> None:
+    """A busy account that one scheme leg passes through (A9)."""
+    import shutil
+
+    from finmesh.data.lowmem import hashed_key
+    from finmesh.data.splits import window_index_expr
+    from finmesh.eval.split_io import load_plan
+    from finmesh.paths import dataset_paths
+
+    copy = dataset_paths(fixture_paths.name, root=tmp_path)
+    shutil.copytree(fixture_paths.parquet, copy.parquet, ignore=shutil.ignore_patterns("eval_*"))
+    tx = pl.read_parquet(copy.transactions)
+    plan = load_plan(copy)
+    val = plan.period("val")
+    bad = tx.filter(
+        (pl.col("is_laundering") == 1)
+        & (pl.col("timestamp") >= val.start)
+        & (pl.col("timestamp") < val.end)
+    ).row(0, named=True)
+    senders = tx.filter(pl.col("dst_key") != bad["dst_key"])["src_key"].unique().head(30)
+    extra = pl.DataFrame(
+        [
+            {**bad, "tx_id": int(tx["tx_id"].max()) + 1 + k, "is_laundering": 0, "src_key": s}
+            for k, s in enumerate(senders.to_list())
+        ],
+        schema=tx.schema,
+    )
+    pl.concat([tx, extra]).write_parquet(copy.transactions)
+    build_universe(copy, "B8")
+    st = EvalStore(copy, "B8")
+
+    key = pl.DataFrame({"account": [bad["dst_key"]], "timestamp": [bad["timestamp"]]}).select(
+        hashed_key("account").alias("account"), window_index_expr(plan).alias("window")
+    )
+    primary = st.partition("val").labels.frame.join(key, on=["account", "window"])
+    touch = st.partition("val", variant="touch").labels.frame.join(key, on=["account", "window"])
+    assert primary.row(0, named=True)["incidental"]
+    assert (primary["label"][0], primary["masked"][0]) == (0, True)
+    assert (touch["label"][0], touch["masked"][0]) == (1, False)
+    p_sw = st.partition("val").scheme_windows.join(key, on=["account", "window"])
+    assert p_sw.height == 0  # the primary label never counts it towards scheme detection
+    assert st.meta["counts"]["val"]["incidental"] == 1

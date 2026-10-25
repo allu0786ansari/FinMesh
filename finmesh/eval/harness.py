@@ -27,6 +27,7 @@ from finmesh.eval.metrics import RankedScores, precision_at_k
 from finmesh.eval.schemes import alert_rates, random_detection_probability, scheme_outcomes
 from finmesh.eval.sealed import EvalStore, PartitionData
 from finmesh.eval.stats import interval_from, scheme_rate_ci
+from finmesh.fusion.local import Linker
 
 UNSCORED = -1e300  # windows a detector did not score rank below everything
 
@@ -77,6 +78,8 @@ def budget_metrics(
     incidents: pl.DataFrame | None,
     reps: int,
     seed: int,
+    linker: Linker | None = None,
+    linked_draws: int = 20,
 ) -> tuple[dict[str, Any], pl.DataFrame]:
     alerts = apply_budget(
         joined.select(*KEY_COLUMNS, "score", "label", "masked"),
@@ -97,9 +100,16 @@ def budget_metrics(
         .group_by("member")
         .agg(pl.col("alert").mean().alias("fpr"))
     )
+    if linker is not None:
+        incidents = linker(alerts.filter(pl.col("alert")).select(KEY_COLUMNS))
     outcomes = scheme_outcomes(
         alerts, part.scheme_windows, part.schemes, window_hours, delay_windows, incidents
     )
+    random_linked = None
+    if linker is not None and budget.kind == "per_1000_per_day" and linked_draws > 0:
+        random_linked = _random_linked(
+            alerts, part, linker, window_hours, delay_windows, linked_draws, seed
+        )
     rates = alert_rates(alerts)
     random_p = random_detection_probability(part.scheme_windows, part.schemes, rates, delay_windows)
     detected = outcomes["detected"].to_numpy()
@@ -133,10 +143,77 @@ def budget_metrics(
             "low": float(np.nanpercentile(draws, 2.5)),
             "high": float(np.nanpercentile(draws, 97.5)),
         },
+        "random_alert_linked": random_linked,
+        "linker": linker.name if linker is not None else None,
         "median_time_to_detect_h": _num(ttd.median()) if ttd.len() else None,
         "delay_windows": delay_windows,
     }
     return result, outcomes
+
+
+_RANDOM_LINKED: dict[tuple[Any, ...], dict[str, float]] = {}
+
+
+def _random_linked(
+    alerts: pl.DataFrame,
+    part: PartitionData,
+    linker: Linker,
+    window_hours: int,
+    delay_windows: int | None,
+    draws: int,
+    seed: int,
+) -> dict[str, float]:
+    """Linked detection of random alerts with the same count per member and window.
+
+    For the per-day budget every scorer alerts the same number of account-windows
+    in each member-window, so the baseline is shared and cached per partition.
+    """
+    counts = alerts.filter(pl.col("alert")).group_by("member", "window").agg(pl.len().alias("k"))
+    key = (
+        part.partition,
+        alerts.height,
+        linker.name,
+        int(counts["k"].sum()),
+        delay_windows,
+        draws,
+        seed,
+    )
+    if key in _RANDOM_LINKED:
+        return _RANDOM_LINKED[key]
+    keys = alerts.select(KEY_COLUMNS)
+    rates: list[float] = []
+    for d in range(draws):
+        u = pl.struct("account", "window").hash(seed=0x5EED + 7919 * d + seed)
+        drawn = (
+            keys.with_columns(u.alias("u"))
+            .join(counts, on=["member", "window"], how="left")
+            .sort("member", "window", "u")
+            .with_columns(
+                (pl.int_range(pl.len()).over("member", "window") < pl.col("k").fill_null(0)).alias(
+                    "alert"
+                )
+            )
+            .select(*KEY_COLUMNS, "alert")
+        )
+        out = scheme_outcomes(
+            drawn,
+            part.scheme_windows,
+            part.schemes,
+            window_hours,
+            delay_windows,
+            linker(drawn.filter(pl.col("alert")).select(KEY_COLUMNS)),
+        )
+        rate = _num(out["linked"].mean()) if out.height else None
+        rates.append(rate if rate is not None else float("nan"))
+    arr = np.array(rates)
+    result = {
+        "estimate": float(np.nanmean(arr)),
+        "low": float(np.nanpercentile(arr, 2.5)),
+        "high": float(np.nanpercentile(arr, 97.5)),
+        "draws": draws,
+    }
+    _RANDOM_LINKED[key] = result
+    return result
 
 
 def evaluate(
@@ -152,7 +229,11 @@ def evaluate(
     reps: int = 1000,
     window_reps: int = 200,
     seed: int = 0,
+    linker: Linker | None = None,
+    linked_draws: int = 20,
+    outcomes: dict[str, pl.DataFrame] | None = None,
 ) -> dict[str, Any]:
+    """Window and budget metrics; per-scheme outcomes go into ``outcomes`` if given."""
     joined, unscored = _scored_with_labels(part, scores)
     report: dict[str, Any] = {
         "partition": part.partition,
@@ -162,7 +243,7 @@ def evaluate(
         "budgets": [],
     }
     for budget in budgets:
-        result, _ = budget_metrics(
+        result, per_scheme = budget_metrics(
             joined,
             part,
             budget,
@@ -173,8 +254,12 @@ def evaluate(
             incidents=incidents,
             reps=reps,
             seed=seed,
+            linker=linker,
+            linked_draws=linked_draws,
         )
         report["budgets"].append(result)
+        if outcomes is not None:
+            outcomes[budget.name] = per_scheme
     return report
 
 

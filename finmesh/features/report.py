@@ -14,9 +14,11 @@ def render_build(meta: dict[str, Any]) -> str:
     peak = max(v["peak_anon_mb"] for v in t.values())
     rates = meta["currencies"]
     lines = [
-        f"# Feature build · {meta['dataset']}",
+        f"# Feature build · {meta['dataset']}"
+        + ("" if meta.get("view", "member") == "member" else f" · {meta['view']} view"),
         "",
-        f"Federation {meta['option']}, {meta['window_hours']} h windows, feature schema "
+        f"Federation {meta['option']}, {meta.get('view', 'member')} view, "
+        f"{meta['window_hours']} h windows, feature schema "
         f"v{meta['schema_version']} (`{meta['schema_sha256'][:12]}`), {meta['slices']} account "
         f"slices. Edge rows in the observation window: {meta['edge_rows']:,}.",
         "",

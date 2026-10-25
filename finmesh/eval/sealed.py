@@ -29,7 +29,7 @@ import polars as pl
 from finmesh.eval.guard import LabelFrame
 from finmesh.eval.provenance import git_commit
 from finmesh.eval.split_io import load_plan
-from finmesh.eval.universe import SEALED_PARTITIONS, EvalLayout, sealed_root
+from finmesh.eval.universe import LABEL_VARIANTS, SEALED_PARTITIONS, EvalLayout, sealed_root
 from finmesh.paths import DatasetPaths
 
 
@@ -55,6 +55,18 @@ class PartitionData:
     @property
     def days(self) -> float:
         return self.hours / 24
+
+
+def label_variant(frame: pl.DataFrame, variant: str) -> pl.DataFrame:
+    """Universe rows with ``label`` and ``masked`` for the chosen variant (A9)."""
+    if variant not in LABEL_VARIANTS:
+        raise ValueError(f"label variant must be one of {LABEL_VARIANTS}")
+    if variant == "primary":
+        return frame
+    return frame.with_columns(
+        (pl.col("label").cast(pl.Boolean) | pl.col("incidental")).cast(pl.Int8).alias("label"),
+        (pl.col("masked") & ~pl.col("incidental")).alias("masked"),
+    )
 
 
 class EvalStore:
@@ -84,9 +96,10 @@ class EvalStore:
         self._refuse_sealed(partition)
         return self._read(partition).select("member", "bank", "account", "window", "tx")
 
-    def partition(self, partition: str) -> PartitionData:
+    def partition(self, partition: str, variant: str = "primary") -> PartitionData:
+        """Labels and scheme tables; ``variant`` "touch" is the A9 sensitivity label."""
         self._refuse_sealed(partition)
-        return self._load(partition)
+        return self._load(partition, variant)
 
     def _refuse_sealed(self, partition: str) -> None:
         if partition in SEALED_PARTITIONS:
@@ -97,13 +110,31 @@ class EvalStore:
     def _read(self, partition: str) -> pl.DataFrame:
         return pl.read_parquet(self.layout.partition_dir(partition) / "universe_*.parquet")
 
-    def _load(self, partition: str) -> PartitionData:
+    def _load(self, partition: str, variant: str = "primary") -> PartitionData:
+        if variant not in LABEL_VARIANTS:
+            raise ValueError(f"label variant must be one of {LABEL_VARIANTS}")
         d = self.layout.partition_dir(partition)
         win = self.meta["partition_windows"][partition]
+        frame = self._read(partition)
+        scheme_windows = pl.read_parquet(d / "scheme_windows.parquet")
+        if "incidental" not in frame.columns:
+            raise FileNotFoundError(
+                "labels predate amendment A9; rebuild them with "
+                f"`finmesh labels --dataset {self.paths.name}`"
+            )
+        if variant == "touch":
+            frame = frame.with_columns(
+                (pl.col("label").cast(pl.Boolean) | pl.col("incidental"))
+                .cast(pl.Int8)
+                .alias("label"),
+                (pl.col("masked") & ~pl.col("incidental")).alias("masked"),
+            )
+        else:
+            scheme_windows = scheme_windows.filter(~pl.col("incidental"))
         return PartitionData(
             partition=partition,
-            labels=LabelFrame(self._read(partition), partition),
-            scheme_windows=pl.read_parquet(d / "scheme_windows.parquet"),
+            labels=LabelFrame(frame, partition),
+            scheme_windows=scheme_windows.drop("incidental"),
             schemes=pl.read_parquet(d / "schemes.parquet"),
             hours=float(self.meta["partition_hours"][partition]),
             windows=(int(win[0]), int(win[1])),
@@ -127,9 +158,10 @@ def open_sealed_test(
     seed: int,
     purpose: str,
     allow_repeat: bool = False,
+    variant: str = "primary",
 ) -> PartitionData:
     """The only way to read test labels. Logs first, then returns the data."""
-    digest = config_hash(config)
+    digest = config_hash({**config, "label_variant": variant})
     log = read_access_log(store.paths)
     previous = [e for e in log if e["config_hash"] == digest and e["seed"] == seed]
     if previous and not allow_repeat:
@@ -145,6 +177,7 @@ def open_sealed_test(
         "seed": seed,
         "purpose": purpose,
         "repeat": bool(previous),
+        "label_variant": variant,
         "git_commit": git_commit(),
         "user": getpass.getuser(),
     }
@@ -152,4 +185,4 @@ def open_sealed_test(
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a") as handle:
         handle.write(json.dumps(entry) + "\n")
-    return store._load("test")
+    return store._load("test", variant)

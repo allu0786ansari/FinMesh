@@ -292,7 +292,7 @@ def cmd_features(args: argparse.Namespace) -> int:
     from finmesh.features.report import render_build
 
     paths = dataset_paths(args.dataset)
-    meta = build_features(paths, option=args.option)
+    meta = build_features(paths, option=args.option, view=args.view)
     manifest = load_manifest(paths.manifest)
     stamp = Stamp(
         kind="features",
@@ -300,15 +300,20 @@ def cmd_features(args: argparse.Namespace) -> int:
         manifest_hash=manifest.manifest_hash,
         fixture=manifest.fixture,
         split=f"w{meta['window_hours']}",
-        params={"option": args.option, "schema_version": meta["schema_version"]},
+        params={
+            "option": args.option,
+            "view": args.view,
+            "schema_version": meta["schema_version"],
+        },
     )
+    tag = paths.name if args.view == "member" else f"{paths.name}_{args.view}"
     artifact = write_artifact(
-        data_root() / "artifacts" / "week04" / f"features_{paths.name}.json", stamp, meta
+        data_root() / "artifacts" / "week04" / f"features_{tag}.json", stamp, meta
     )
     if args.dataset == FIXTURE_DATASET:
-        report = data_root() / "artifacts" / "week04" / f"features_{paths.name}.md"
+        report = data_root() / "artifacts" / "week04" / f"features_{tag}.md"
     else:
-        report = REPO_ROOT / "docs" / "eval" / f"features_{paths.name}.md"
+        report = REPO_ROOT / "docs" / "eval" / f"features_{tag}.md"
     report.parent.mkdir(parents=True, exist_ok=True)
     report.write_text(render_build(meta))
     for part, n in meta["rows"].items():
@@ -413,6 +418,73 @@ def cmd_diagnose(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_baselines(args: argparse.Namespace) -> int:
+    from finmesh.data.manifest import load_manifest
+    from finmesh.eval.provenance import Stamp, write_artifact
+    from finmesh.training.baselines import run_with_memory
+    from finmesh.training.report import render_baselines
+
+    paths = dataset_paths(args.dataset)
+    result = run_with_memory(
+        paths, option=args.option, seed=args.seed, reps=args.reps, linked_draws=args.draws
+    )
+    manifest = load_manifest(paths.manifest)
+    stamp = Stamp(
+        kind="baselines",
+        dataset=paths.name,
+        manifest_hash=manifest.manifest_hash,
+        fixture=manifest.fixture,
+        seed=args.seed,
+        split="val",
+        params={"option": args.option, "reps": args.reps, "draws": args.draws},
+    )
+    artifact = write_artifact(
+        data_root() / "artifacts" / "week05" / f"baselines_{paths.name}_seed{args.seed}.json",
+        stamp,
+        result,
+    )
+    page = render_baselines(result)
+    if args.dataset == FIXTURE_DATASET or args.seed != 0:
+        report = data_root() / "artifacts" / "week05" / f"baselines_{paths.name}_seed{args.seed}.md"
+    else:
+        report = REPO_ROOT / "docs" / "eval" / f"baselines_{paths.name}.md"
+    report.parent.mkdir(parents=True, exist_ok=True)
+    report.write_text(page)
+    primary = result["primary_budget"]
+    for name, res in result["results"].items():
+        b = next(x for x in res["budgets"] if x["budget"] == primary)
+        auprc = res["window"]["auprc"]["estimate"] if res["window"].get("auprc") else float("nan")
+        print(
+            f"  {name:<9} AUPRC {auprc:.4f}  detected {b['detected']['estimate']:.3f}  "
+            f"linked {b['linked']['estimate']:.3f}"
+        )
+    gap = result["comparisons"]["oracle - S0-BG"]["linked"]["difference"]
+    print(f"  oracle - S0 linked {gap['estimate']:+.3f} [{gap['low']:+.3f}, {gap['high']:+.3f}]")
+    print(f"  {result['seconds']:.0f} s, peak memory {result['peak_anon_mb']} MB")
+    print(f"  artifact {artifact}")
+    print(f"  report   {report}")
+    return 0
+
+
+def cmd_g1(args: argparse.Namespace) -> int:
+    from finmesh.eval.g1 import load_summaries, render_g1
+
+    summaries = load_summaries(data_root() / "artifacts" / "week05")
+    out = REPO_ROOT / "docs" / "gates" / "G1_evidence.md"
+    out.write_text(render_g1(summaries))
+    for s in summaries:
+        verdict = "met" if s["criterion_met"] else "not met"
+        print(
+            f"  {s['dataset']:<10} S0 linked {s['s0_linked']:.3f}  "
+            f"oracle {s['oracle_linked']:.3f}  "
+            f"gap {s['gap']:+.3f} [{s['gap_low']:+.3f}, {s['gap_high']:+.3f}]  criterion {verdict}"
+        )
+    if not summaries:
+        print("  no real-data baseline artifacts yet; run `finmesh baselines` first")
+    print(f"  report   {out}")
+    return 0
+
+
 def cmd_sealed_log(args: argparse.Namespace) -> int:
     from finmesh.eval.sealed import read_access_log
 
@@ -498,6 +570,12 @@ def build_parser() -> argparse.ArgumentParser:
     fe = sub.add_parser("features", help="features for every account-window (week 4)")
     fe.add_argument("--dataset", required=True)
     fe.add_argument("--option", default="B8")
+    fe.add_argument(
+        "--view",
+        default="member",
+        choices=("member", "pooled"),
+        help="member: what each bank sees; pooled: the oracle's full graph (needs member first)",
+    )
     fe.set_defaults(func=cmd_features)
 
     fr = sub.add_parser("feature-report", help="single-feature signal on validation (week 4)")
@@ -509,6 +587,18 @@ def build_parser() -> argparse.ArgumentParser:
     dg.add_argument("--dataset", required=True)
     dg.add_argument("--option", default="B8")
     dg.set_defaults(func=cmd_diagnose)
+
+    bl = sub.add_parser("baselines", help="S0, oracle and unsupervised baselines (week 5)")
+    bl.add_argument("--dataset", required=True)
+    bl.add_argument("--option", default="B8")
+    bl.add_argument("--seed", type=int, default=0)
+    bl.add_argument("--reps", type=int, default=1000, help="bootstrap replicates")
+    bl.add_argument("--draws", type=int, default=20, help="random-alert draws for linked detection")
+    bl.set_defaults(func=cmd_baselines)
+
+    sub.add_parser("g1", help="Gate G1 evidence from the baseline artifacts (week 5)").set_defaults(
+        func=cmd_g1
+    )
 
     sl = sub.add_parser("sealed-log", help="show every opening of the sealed test")
     add_dataset(sl)
