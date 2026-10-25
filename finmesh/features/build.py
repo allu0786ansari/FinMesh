@@ -1,9 +1,9 @@
-"""Build feature schema v1 for every account-window of a federation (week 4).
+"""Build the current feature schema for every account-window of a federation (week 4).
 
 Storage, per dataset, window length, federation option and schema version:
 
-    data/parquet/<ds>/features_w6_B8_v1/{train,val,test}/feat_<slice>.parquet
-    data/parquet/<ds>/features_w6_B8_v1/meta.json
+    data/parquet/<ds>/features_w6_B8_v<N>/{train,val,test}/feat_<slice>.parquet
+    data/parquet/<ds>/features_w6_B8_v<N>/meta.json
 
 Rows are exactly the evaluation universe's account-windows (finmesh.eval.
 universe), split into the same account hash slices and sorted by member,
@@ -212,7 +212,7 @@ def _finish(
 
 
 def build_features(paths: DatasetPaths, option: str = "B8") -> dict[str, Any]:
-    """Write feature schema v1 for every account-window; return the build summary."""
+    """Write the current feature schema for every account-window; return the build summary."""
     schema = load_schema()
     plan = load_plan(paths)
     layout = FeatureLayout(paths, plan.window_hours, option, schema.version)
@@ -248,6 +248,7 @@ def build_features(paths: DatasetPaths, option: str = "B8") -> dict[str, Any]:
         layout.partition_dir(p).mkdir(parents=True, exist_ok=True)
     counts = {p: 0 for p in PARTITIONS}
     tolerance = float(schema.params["delay_tolerance_hours"])
+    history = max(1, int(schema.params["history_hours"]) // plan.window_hours)
     # Sub-slices of about LEGS_PER_SUBSLICE legs keep the per-counterparty
     # group-bys near 1 GB however large the dataset (4 M legs took 3.7 GB).
     sub = max(1, -(-2 * edge_rows // (slices * LEGS_PER_SUBSLICE)))
@@ -258,7 +259,7 @@ def build_features(paths: DatasetPaths, option: str = "B8") -> dict[str, Any]:
             pieces = []
             for j in range(sub):
                 legs = legs_for_slice(edges, membership, slices, d, sub, j)
-                acct = account_features(legs, tolerance)
+                acct = account_features(legs, tolerance, history)
                 del legs
                 pieces.append(_finish(acct, part_of, nbr, schema))
                 del acct
@@ -282,6 +283,8 @@ def build_features(paths: DatasetPaths, option: str = "B8") -> dict[str, Any]:
         "schema_sha256": schema.sha256,
         "slices": slices,
         "subslices": sub,
+        # Windows before this one have incomplete history or lookback: training burn-in.
+        "history_complete_from_window": max(history, nb["lookback_windows"]),
         "edge_rows": edge_rows,
         "currencies": rate_report(ratios, rates),
         "neighbourhood": nb,

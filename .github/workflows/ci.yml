@@ -33,6 +33,7 @@ jobs:
           uv run finmesh sealed-log --dataset FIXTURE-Small
           uv run finmesh features --dataset FIXTURE-Small
           uv run finmesh feature-report --dataset FIXTURE-Small
+          uv run finmesh diagnose --dataset FIXTURE-Small
           uv run finmesh check
 
   secret-scan:

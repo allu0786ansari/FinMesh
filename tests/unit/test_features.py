@@ -26,13 +26,22 @@ from finmesh.features.neighbourhood import NEIGHBOURHOOD_COUNTS, window_features
 from finmesh.features.schema import FAMILIES, KEYS, load_schema
 from finmesh.paths import DatasetPaths, dataset_paths
 
-# Pinned: changing finmesh/schemas/features_v1.json must be a new schema version.
+# Pinned: changing a released schema file must be a new schema version.
 SCHEMA_V1_SHA256 = "240e2915d01e93bc1bccadfd17a6bf6a4b4b6167edda14544abdf40cfbf21a97"
+SCHEMA_V2_SHA256 = "c092db8f095773999ba1f8359002b7ed3e9e3591406835ea7026f18f19e658bf"
 
 
-def test_schema_v1_is_frozen_and_well_formed() -> None:
-    schema = load_schema(1)
-    assert schema.sha256 == SCHEMA_V1_SHA256, "feature schema v1 changed: release v2 instead"
+def test_released_schemas_are_frozen() -> None:
+    assert load_schema(1).sha256 == SCHEMA_V1_SHA256, "feature schema v1 changed"
+    assert load_schema(2).sha256 == SCHEMA_V2_SHA256, "feature schema v2 changed: release v3"
+    v1, v2 = load_schema(1).names, load_schema(2).names
+    assert [n for n in v1 if n not in v2] == ["age_windows"]
+    assert [n for n in v2 if n not in v1] == ["recency_windows"]
+
+
+def test_current_schema_is_well_formed() -> None:
+    schema = load_schema()
+    assert schema.version == 2
     names = schema.names
     assert len(names) == len(set(names))
     assert {f["family"] for f in schema.features} <= set(FAMILIES)
@@ -125,17 +134,34 @@ def test_account_features_on_a_hand_built_account() -> None:
     assert w0["fmt_wire_share"] == pytest.approx(1 / 3)
     assert w0["fmt_cheque_share"] == pytest.approx(1 / 3)
     assert (w0["new_cp_n"], w0["new_cp_share"]) == (3, 1.0)
-    assert (w0["age_windows"], w0["prior_active_windows"]) == (0, 0)
-    assert w0["prior_leg_rate"] is None and w0["legs_vs_history"] is None
+    assert (w0["recency_windows"], w0["prior_active_windows"]) == (13, 0)  # nothing earlier
+    assert w0["prior_leg_rate"] == 0.0
+    assert w0["legs_vs_history"] == pytest.approx(math.log1p(3))
     assert w0["active_span_h"] == pytest.approx(2.0)
 
     assert (w1["tx_out"], w1["tx_in"], w1["self_tx"]) == (1, 0, 1)
     assert (w1["new_cp_n"], w1["new_cp_share"]) == (0, 0.0)  # counterparty 3 seen in window 0
-    assert (w1["age_windows"], w1["prior_active_windows"]) == (1, 1)
-    assert w1["prior_leg_rate"] == pytest.approx(3.0)
-    assert w1["legs_vs_history"] == pytest.approx(0.0)  # 3 legs, as before
+    assert (w1["recency_windows"], w1["prior_active_windows"]) == (1, 1)
+    assert w1["prior_leg_rate"] == pytest.approx(3 / 12)  # 3 legs over a 12-window span
+    assert w1["legs_vs_history"] == pytest.approx(math.log1p(3) - math.log1p(3 / 12))
     assert w1["in_out_delay_min_h"] == pytest.approx(380 / 60)  # self legs ignored
-    assert w1["amt_vs_history"] == pytest.approx(math.log1p(60.0) - math.log1p(200.0))
+    assert w1["amt_vs_history"] == pytest.approx(math.log1p(60.0) - math.log1p(200.0 / 12))
+
+
+def test_history_forgets_beyond_the_history_span() -> None:
+    legs = _legs()
+    late = legs.filter(pl.col("window") == 0).with_columns(
+        pl.lit(20, pl.Int32).alias("window"),
+        pl.col("timestamp") + timedelta(hours=120),
+    )
+    f = account_features(pl.concat([legs, late]), history=12).sort("window")
+    w20 = f.filter(pl.col("window") == 20).row(0, named=True)
+    assert w20["recency_windows"] == 13  # previous activity more than 12 windows back
+    assert w20["prior_active_windows"] == 0
+    assert w20["prior_leg_rate"] == 0.0
+    assert (w20["new_cp_n"], w20["new_cp_share"]) == (3, 1.0)  # forgotten, so new again
+    w1 = account_features(pl.concat([legs, late]), history=1).filter(pl.col("window") == 1)
+    assert w1["prior_active_windows"][0] == 1 and w1["new_cp_n"][0] == 0
 
 
 def _brute(edges: set[tuple[int, int]], active: set[int], cap: int) -> dict[int, dict[str, int]]:
@@ -306,5 +332,42 @@ def test_schema_document_matches_schema_file() -> None:
     from finmesh.features.schema import render_schema
     from finmesh.paths import REPO_ROOT
 
-    doc = REPO_ROOT / "docs" / "protocol" / "features_v1.md"
-    assert doc.read_text() == render_schema(), "regenerate docs/protocol/features_v1.md"
+    for version in (1, 2):
+        doc = REPO_ROOT / "docs" / "protocol" / f"features_v{version}.md"
+        assert doc.read_text() == render_schema(load_schema(version)), f"regenerate {doc.name}"
+
+
+def test_psi_is_zero_for_identical_and_large_for_shifted() -> None:
+    import numpy as np
+
+    from finmesh.features.drift import psi
+
+    rng = np.random.default_rng(0)
+    x = rng.normal(size=20_000)
+    assert psi(x, x) == pytest.approx(0.0, abs=1e-9)
+    assert psi(x, x + 1.0) > 0.25
+    with_missing = np.where(rng.random(20_000) < 0.3, np.nan, x)
+    assert psi(x, with_missing) > 0.25  # missing values are their own bin
+
+
+def test_diagnostics_on_the_fixture(built: FeatureStore, fixture_paths: DatasetPaths) -> None:
+    from finmesh.eval.diagnostics import pattern_visibility, positive_profile
+    from finmesh.features.drift import feature_drift
+
+    store = EvalStore(fixture_paths, "B8")
+    profile = positive_profile(fixture_paths, store)
+    val = store.partition("val").labels.frame.filter(~pl.col("masked"))
+    assert profile["val"]["positives"] == int(val["label"].sum())
+    assert profile["val"]["incidental"] == 0  # fixture accounts are never busy hubs
+
+    membership = pl.read_parquet(fixture_paths.parquet / "membership_B8.parquet")
+    vis = {
+        r["pattern"]: r for r in pattern_visibility(fixture_paths, built, membership)["patterns"]
+    }
+    # An account's own legs are always visible to its member: fan patterns always fire.
+    assert vis["FAN-OUT"]["fired"] == 1.0 and vis["FAN-IN"]["fired"] == 1.0
+    assert "fired" not in vis["RANDOM"]
+
+    drift = {r["feature"]: r for r in feature_drift(built)}
+    assert set(drift) == set(built.schema.names)
+    assert drift["recency_windows"]["psi"] < 0.25  # stationary after the burn-in

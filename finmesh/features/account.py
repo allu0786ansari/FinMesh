@@ -76,8 +76,13 @@ def _share(cond: pl.Expr, among: pl.Expr) -> pl.Expr:
     return cond.filter(among).mean()
 
 
-def account_features(legs: pl.DataFrame, delay_tolerance_h: float = 24.0) -> pl.DataFrame:
-    """One row per (account, window) with behaviour, graph and history features."""
+def account_features(
+    legs: pl.DataFrame, delay_tolerance_h: float = 24.0, history: int = 12
+) -> pl.DataFrame:
+    """One row per (account, window) with behaviour, graph and history features.
+
+    ``history`` is the history span in windows (schema ``history_hours`` / window length).
+    """
     selfx = pl.col("account") == pl.col("cp")
     other = ~selfx
     out_ = pl.col("dir") == DIR_OUT
@@ -128,8 +133,8 @@ def account_features(legs: pl.DataFrame, delay_tolerance_h: float = 24.0) -> pl.
     return (
         base.join(_hhi(legs.filter(other)), on=key, how="left")
         .join(_delays(legs.filter(other), delay_tolerance_h), on=key, how="left")
-        .join(_new_counterparties(legs.filter(other)), on=key, how="left")
-        .join(_history(base), on=key, how="left")
+        .join(_new_counterparties(legs.filter(other), history), on=key, how="left")
+        .join(_history(base, history), on=key, how="left")
         .with_columns(pl.col("new_cp_n").fill_null(0))
     )
 
@@ -191,43 +196,52 @@ def _delays(legs: pl.DataFrame, tolerance_h: float) -> pl.DataFrame:
     )
 
 
-def _new_counterparties(legs: pl.DataFrame) -> pl.DataFrame:
-    """Counterparties never seen by the account in an earlier window.
+def _new_counterparties(legs: pl.DataFrame, history: int) -> pl.DataFrame:
+    """Counterparties not seen by the account in the previous ``history`` windows.
 
-    The first window of an (account, counterparty) pair is the minimum over
-    all its windows; a pair is new in window w exactly when that minimum is
-    w, which depends only on windows up to w.
+    For each (account, counterparty) pair, the previous window in which it
+    occurred; the pair is new in window w when there is none, or it is more
+    than ``history`` windows back. Depends only on windows up to w.
     """
-    pairs = legs.select("account", "window", "cp").unique()
-    first = pairs.group_by("account", "cp").agg(pl.col("window").min().alias("first_w"))
-    new = pl.col("window") == pl.col("first_w")
+    pairs = legs.select("account", "cp", "window").unique().sort("account", "cp", "window")
+    prev = pl.col("window").shift(1).over("account", "cp")
+    new = prev.is_null() | (pl.col("window") - prev > history)
     return (
-        pairs.join(first, on=["account", "cp"])
+        pairs.with_columns(new.alias("new"))
         .group_by("account", "window")
-        .agg(new.sum().alias("new_cp_n"), new.mean().alias("new_cp_share"))
+        .agg(pl.col("new").sum().alias("new_cp_n"), pl.col("new").mean().alias("new_cp_share"))
     )
 
 
-def _history(base: pl.DataFrame) -> pl.DataFrame:
-    """Activity relative to the account's own earlier windows (causal)."""
-    h = base.select("account", "window", "legs", "amt_all").sort("account", "window")
-    by = "account"
+def _history(base: pl.DataFrame, history: int) -> pl.DataFrame:
+    """Activity relative to the account's previous ``history`` windows (causal).
+
+    Every output depends only on windows [w - history, w], so it means the
+    same in every period once ``history`` windows have passed.
+    """
+    span = f"{history}i"
+    h = (
+        base.select("account", "window", "legs", "amt_all")
+        .sort("account", "window")
+        .with_columns(pl.lit(1, pl.Int64).alias("one"))
+    )
+
+    def prior(col: str) -> pl.Expr:
+        return pl.col(col).rolling_sum_by("window", window_size=span, closed="left").over("account")
+
+    gap = pl.col("window") - pl.col("window").shift(1).over("account")
     h = h.with_columns(
-        (pl.col("window") - pl.col("window").min().over(by)).alias("age_windows"),
-        pl.int_range(pl.len()).over(by).alias("prior_active_windows"),
-        (pl.col("legs").cum_sum().over(by) - pl.col("legs")).alias("prior_legs"),
-        (pl.col("amt_all").cum_sum().over(by) - pl.col("amt_all")).alias("prior_amt"),
+        pl.when(gap <= history).then(gap).otherwise(history + 1).alias("recency_windows"),
+        prior("one").alias("prior_active_windows"),
+        (prior("legs") / history).alias("prior_leg_rate"),
+        (prior("amt_all") / history).alias("prior_amt_rate"),
     )
-    age = pl.when(pl.col("age_windows") > 0).then(pl.col("age_windows"))
-    has_history = pl.col("prior_active_windows") > 0
-    leg_rate = pl.when(has_history).then(pl.col("prior_legs") / age)
-    amt_rate = pl.when(has_history).then(pl.col("prior_amt") / age)
     return h.select(
         "account",
         "window",
-        "age_windows",
+        "recency_windows",
         "prior_active_windows",
-        leg_rate.alias("prior_leg_rate"),
-        (pl.col("legs").log1p() - leg_rate.log1p()).alias("legs_vs_history"),
-        (pl.col("amt_all").log1p() - amt_rate.log1p()).alias("amt_vs_history"),
+        "prior_leg_rate",
+        (pl.col("legs").log1p() - pl.col("prior_leg_rate").log1p()).alias("legs_vs_history"),
+        (pl.col("amt_all").log1p() - pl.col("prior_amt_rate").log1p()).alias("amt_vs_history"),
     )

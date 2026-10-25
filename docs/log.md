@@ -24,6 +24,8 @@ Risks or blockers: FPR budgets drift between periods; primary operating point to
 Next week: week 5, local and pooled baselines, preregistration, Gate G1.
 On track for next gate? yes (G1, week 5).
 
+Follow-up (25 Oct, after the real-data run): history features drifted by construction; replaced by schema v2 before any model (amendment A8). Added `finmesh diagnose`: incidental positives (busy accounts touched once by a scheme), pattern visibility per member, feature drift. Two G1 decisions now pending the diagnostics: primary operating point and the treatment of incidental positives.
+
 ## Week 03 · 9 – 15 Nov 2026
 
 Planned: a harness that can score any detector at any budget, with test data locked away.

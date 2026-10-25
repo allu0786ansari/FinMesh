@@ -1,4 +1,4 @@
-"""Feature schema v1, frozen in ``finmesh/schemas/features_v1.json`` (week 4).
+"""Feature schemas, frozen in ``finmesh/schemas/features_v<N>.json`` (week 4).
 
 The JSON file is the contract between the extractor and every model: names,
 order, dtypes, families and definitions. Its SHA-256 is pinned by a test, so
@@ -17,7 +17,7 @@ from typing import Any
 import polars as pl
 
 SCHEMA_DIR = Path(__file__).resolve().parent.parent / "schemas"
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 KEYS: tuple[str, ...] = ("member", "account", "window")
 FAMILIES: tuple[str, ...] = ("behaviour", "graph", "history", "neighbourhood")
 
@@ -68,15 +68,21 @@ def load_schema(version: int = SCHEMA_VERSION) -> FeatureSchema:
 
 
 def render_schema(schema: FeatureSchema | None = None) -> str:
-    """Human-readable copy of the schema file (``docs/protocol/features_v1.md``)."""
+    """Human-readable copy of the schema file (``docs/protocol/features_v<N>.md``)."""
     schema = schema or load_schema()
     doc = json.loads(schema_path(schema.version).read_text())
+    changes = f"changes_from_v{schema.version - 1}"
     lines = [
         f"# Feature schema v{schema.version}",
         "",
         f"Generated from `finmesh/schemas/features_v{schema.version}.json` "
         f"(SHA-256 `{schema.sha256[:16]}`); the JSON file is authoritative.",
         "",
+        *(
+            [f"**Changes from v{schema.version - 1}:** {doc[changes]}", ""]
+            if changes in doc
+            else []
+        ),
         f"**Unit:** {doc['unit']}. **Keys:** "
         + ", ".join(f"`{k['name']}` ({k['definition']})" for k in doc["keys"])
         + ".",

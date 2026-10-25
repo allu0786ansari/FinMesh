@@ -2,7 +2,100 @@
 
 **Goal:** every account-window at every bank has its behaviour and graph features, within the memory budget.
 
-**State:** code complete. Tested on the fixture, against brute-force counts on random graphs, and at HI-Medium scale on a deliberately harder synthetic set: 32 M rows with heavy-tailed account activity. The real-data steps are below.
+**State:** first real-data run done (25 Oct). The review below found one design flaw, now fixed as **feature schema v2** (amendment A8), plus two questions to settle at G1. The **follow-up run** (steps F1–F5) rebuilds features with v2 and adds diagnostics; the first run's steps are kept further down for reference.
+
+## Review of your week-4 results
+
+**What is fine:**
+- **Builds:** HI-Medium in 283 s at a peak of 1.3 GB; LI-Medium 300 s; the Small sets under a minute. Rows equal the label counts in every partition.
+- **Exchange rates:** all 15 AMLworld currencies got a rate from about 200 observed pairs, and they are plausible (Euro 1.17, UK Pound 1.29, Yen 0.0095, Bitcoin about 11,900 USD).
+- **Leakage check:** no feature is flagged on any dataset.
+- **Signal:** the strongest single features are the ones the AML literature expects. ACH share has AUROC 0.89 on HI-Medium, consistent with Altman et al., where laundering in AMLworld over-uses ACH. Then come fan-out, new counterparties, and amount relative to history.
+
+**What needed fixing or deciding:**
+
+1. **Fixed: history features drifted by construction (schema v1 → v2, amendment A8).** v1 counted history from the observation start, so `age_windows`, `prior_active_windows` and `new_cp_*` grow with time. A new drift check (`finmesh diagnose`) measured PSI 7 for `age_windows` from train to validation on the fixture; above 0.25 is a large shift. A model trained on early windows would meet systematically different values in validation and test.
+   - In v2 every feature depends only on the current window and the previous 72 h. `age_windows` becomes `recency_windows`, and the history rates divide by the full 72 h span.
+   - The first 72 h are a training burn-in, recorded as `history_complete_from_window` in the build meta.
+   - After the fix, the fixture's drift flags are gone apart from two cycle counts too rare to occur in its small validation set.
+   - No model had been trained, so this is a design correction, not a post-hoc change. v1 stays frozen in the repository as a record.
+2. **To decide at G1: busy accounts among the positives.** On every dataset, positives have a mean fan-out of 34–47 against 0.6 for negatives, yet `tx_out` ranks positives below chance (AUROC 0.45–0.49). A few very busy accounts that a scheme passed through once are labelled positive. They explain week 3's "90 of the top 100 by activity are positive", and any degree-based model gets credit for alerting them, though an analyst would not see them as laundering accounts.
+   - `finmesh diagnose` now counts them ("incidental" positives: at least 20 legs, under 10% laundering).
+   - If they are a material share, the preregistration should treat them as masked, neither positive nor negative, with the current definition kept as a sensitivity analysis.
+3. **To understand: cycles rarely fire.** `cyc3` is never non-zero in LI-Medium or HI-Small validation, and `cyc4` is rare everywhere. Two causes are possible.
+   - **Visibility:** a cycle through other members' accounts is invisible to one member. That is the gap evidence sharing should close, so it is the headline story.
+   - **Lookback:** cycles can take longer than 24 h, which would be a feature design issue.
+
+   `finmesh diagnose` measures both for every AMLworld pattern: whether one member sees all legs, whether the scheme fits in the lookback, and whether the signature fires.
+4. **Expected, not a bug: `fmt_reinvestment_share` is 0 throughout validation.** The data has 1.9 M Reinvestment rows, the extractor counts them correctly (tested with reinvestment self-transfers), and none falls in the validation days. The drift check now flags such features as "absent later" for review at G1.
+
+### What changed in the code
+
+| Item | Where |
+| --- | --- |
+| Feature schema v2 (current); v1 kept frozen | `finmesh/schemas/features_v2.json`, `docs/protocol/features_v2.md` |
+| Fixed-span history and new counterparties | `finmesh/features/account.py` |
+| Drift check (PSI per feature, train after burn-in vs validation) | `finmesh/features/drift.py` |
+| Positive profile and pattern visibility | `finmesh/eval/diagnostics.py`, `finmesh diagnose` |
+| Amendment A8 | `docs/proposal/CHANGES.md` |
+
+**Tests added:** history forgets beyond its span, PSI behaviour, and diagnostics on the fixture (fan patterns always fire, positives counted exactly). Both schema files are pinned.
+
+**At scale** (32 M-row stress set, 41 M account-windows):
+
+| Step | Time | Peak memory |
+| --- | --- | --- |
+| Feature build, v2 | 829 s | 2.1 GB |
+| `diagnose` | about 65 s | 1.9 GB |
+
+## Follow-up run (about 45 minutes)
+
+### F1. Update and check
+
+```bash
+cd ~/FinMesh
+git pull
+uv sync
+bash scripts/ci_local.sh
+```
+
+### F2. Rebuild features with schema v2 (25–40 min)
+
+```bash
+uv run finmesh features --dataset HI-Medium
+uv run finmesh features --dataset LI-Medium
+uv run finmesh features --dataset HI-Small
+uv run finmesh features --dataset LI-Small
+```
+
+v2 features go to a new folder (`features_w6_B8_v2`). The v1 folders can be deleted afterwards to free disk, for example `rm -rf data/parquet/*/features_w6_B8_v1`. Labels do not need rebuilding.
+
+### F3. Single-feature report (5–8 min)
+
+```bash
+uv run finmesh feature-report --dataset HI-Medium
+uv run finmesh feature-report --dataset LI-Medium
+uv run finmesh feature-report --dataset HI-Small
+```
+
+### F4. Diagnostics (about 2 min each)
+
+```bash
+uv run finmesh diagnose --dataset HI-Medium
+uv run finmesh diagnose --dataset LI-Medium
+uv run finmesh diagnose --dataset HI-Small
+```
+
+Writes `docs/eval/diagnostics_<ds>.md`. Nothing here can fail the run. Its three tables (positives, pattern visibility, drift) are the evidence for the two G1 decisions.
+
+### F5. Tests and push
+
+```bash
+uv run pytest -m real_data -v
+git add docs/eval/
+git commit -m "Week 4 follow-up: schema v2 features and diagnostics on real data"
+git push
+```
 
 ## Review of your week-3 results
 
@@ -70,7 +163,7 @@ The first attempt peaked at 5.9 GB. Two exact fixes brought it to 2.0 GB:
 
 Real HI-Medium has fewer account-windows (about 24 M) spread over more days, so expect similar or lower memory and about 10–20 minutes on your machine.
 
-## What you run on your machine
+## First run (done 25 Oct; kept for reference)
 
 About 1 hour, most of it the two Medium builds.
 
@@ -151,10 +244,12 @@ git push
 - [x] Time-bucketed chunks (one day plus a 24 h lookback) with bounded cycle length and a hub cap
 - [x] Extractor deterministic and never reads labels (tests: rebuild equality, ground-truth shuffle, static guard, `FeatureFrame`)
 - [x] Throughput and peak memory per member, logged in `docs/eval/features_<ds>.md`
-- [x] Feature schema v1 frozen in `finmesh/schemas/`
-- [ ] Done when: features for all federation banks written to Parquet within 8 GB on real data (steps 3–4; the 32 M-row stress run peaked at 2.0 GB)
+- [x] Feature schema frozen in `finmesh/schemas/` (v1, superseded before any model by v2, amendment A8)
+- [x] Done when: features for all federation banks written to Parquet within 8 GB on real data (HI-Medium peak 1.3 GB, 25 Oct; v2 rebuild in step F2)
 
 ## Open items for you
 
-1. Run steps 1–5 and push.
-2. At G1 (week 5): decide the primary operating point (recommendation in review item 3).
+1. Run the follow-up steps F1–F5 and push.
+2. At G1 (week 5), decide, with the diagnostics in hand:
+   - the primary operating point (week-3 review item 3; recommendation: alerts per 1,000 accounts per day);
+   - how to treat incidental positives (week-4 review item 2; recommendation: mask them, keep the current label as a sensitivity analysis).

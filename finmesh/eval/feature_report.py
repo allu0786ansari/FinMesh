@@ -21,6 +21,7 @@ from finmesh.eval.guard import KEY_COLUMNS
 from finmesh.eval.metrics import RankedScores
 from finmesh.eval.sealed import EvalStore
 from finmesh.features.build import FeatureStore
+from finmesh.features.schema import SCHEMA_VERSION
 from finmesh.reporting import table
 
 LEAK_AUROC = 0.95
@@ -95,7 +96,7 @@ def render_feature_signal(dataset: str, option: str, result: dict[str, Any]) -> 
     lines = [
         f"# Single-feature signal · {dataset}",
         "",
-        f"Federation {option}, feature schema v1, {result['partition']} partition: "
+        f"Federation {option}, feature schema v{SCHEMA_VERSION}, {result['partition']} partition: "
         f"{result['account_windows']:,} account-windows, {result['positives']:,} positive "
         f"(prevalence {result['prevalence']:.4f}). Each feature alone ranks the "
         "account-windows; AUPRC uses the better direction, chosen on these same rows, so the "

@@ -362,6 +362,57 @@ def cmd_feature_report(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_diagnose(args: argparse.Namespace) -> int:
+    import polars as pl
+
+    from finmesh.data.manifest import load_manifest
+    from finmesh.eval.diagnostics import pattern_visibility, positive_profile, render_diagnostics
+    from finmesh.eval.provenance import Stamp, write_artifact
+    from finmesh.eval.sealed import EvalStore
+    from finmesh.features.build import FeatureStore
+    from finmesh.features.drift import feature_drift
+    from finmesh.sysinfo import AnonPeak
+
+    paths = dataset_paths(args.dataset)
+    membership = pl.read_parquet(paths.parquet / f"membership_{args.option}.parquet")
+    with AnonPeak() as anon:
+        store = EvalStore(paths, option=args.option)
+        features = FeatureStore(paths, option=args.option)
+        profile = positive_profile(paths, store)
+        visibility = pattern_visibility(paths, features, membership)
+        drift = feature_drift(features)
+    result = {"profile": profile, "visibility": visibility, "drift": drift, "peak_anon_mb": anon.mb}
+    manifest = load_manifest(paths.manifest)
+    stamp = Stamp(
+        kind="diagnostics",
+        dataset=paths.name,
+        manifest_hash=manifest.manifest_hash,
+        fixture=manifest.fixture,
+        split="train+val",
+        params={"option": args.option},
+    )
+    write_artifact(
+        data_root() / "artifacts" / "week04" / f"diagnostics_{paths.name}.json", stamp, result
+    )
+    if args.dataset == FIXTURE_DATASET:
+        report = data_root() / "artifacts" / "week04" / f"diagnostics_{paths.name}.md"
+    else:
+        report = REPO_ROOT / "docs" / "eval" / f"diagnostics_{paths.name}.md"
+    report.parent.mkdir(parents=True, exist_ok=True)
+    report.write_text(render_diagnostics(paths.name, args.option, profile, visibility, drift))
+    v = profile["val"]
+    print(f"  val positives {v['positives']:,}  incidental {v['incidental']:,}")
+    for r in visibility["patterns"]:
+        if "fired" in r:
+            print(
+                f"  {r['pattern']:<15} schemes {r['schemes']:>5}  signature fires {r['fired']:.2f}"
+            )
+    print(f"  drift flags: {[r['feature'] for r in drift if r['flag']] or 'none'}")
+    print(f"  report   {report}")
+    print(f"  peak memory {anon.mb} MB")
+    return 0
+
+
 def cmd_sealed_log(args: argparse.Namespace) -> int:
     from finmesh.eval.sealed import read_access_log
 
@@ -444,7 +495,7 @@ def build_parser() -> argparse.ArgumentParser:
     hc.add_argument("--reps", type=int, default=1000)
     hc.set_defaults(func=cmd_harness_check)
 
-    fe = sub.add_parser("features", help="feature schema v1 for every account-window (week 4)")
+    fe = sub.add_parser("features", help="features for every account-window (week 4)")
     fe.add_argument("--dataset", required=True)
     fe.add_argument("--option", default="B8")
     fe.set_defaults(func=cmd_features)
@@ -453,6 +504,11 @@ def build_parser() -> argparse.ArgumentParser:
     fr.add_argument("--dataset", required=True)
     fr.add_argument("--option", default="B8")
     fr.set_defaults(func=cmd_feature_report)
+
+    dg = sub.add_parser("diagnose", help="positives, pattern visibility, feature drift (week 4)")
+    dg.add_argument("--dataset", required=True)
+    dg.add_argument("--option", default="B8")
+    dg.set_defaults(func=cmd_diagnose)
 
     sl = sub.add_parser("sealed-log", help="show every opening of the sealed test")
     add_dataset(sl)

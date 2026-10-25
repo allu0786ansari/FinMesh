@@ -1,0 +1,320 @@
+{
+  "name": "finmesh-features",
+  "version": 2,
+  "changes_from_v1": "History and new-counterparty features depend only on the previous history_hours instead of everything since the observation start. In v1 they grew with time by construction (age_windows had drift PSI 7 from train to validation on the fixture), so a model trained on early windows would meet different values later. age_windows is replaced by recency_windows, and the history rates divide by the full span. Every v2 feature depends only on the current window and the previous history_hours, so it is stationary once history_hours have passed; earlier windows are a training burn-in (meta: history_complete_from_window).",
+  "unit": "account-window: one account held at a federation member, in one window, with at least one transaction",
+  "keys": [
+    {
+      "name": "member",
+      "definition": "federation member holding the account"
+    },
+    {
+      "name": "account",
+      "definition": "64-bit hash of the <bank>:<account> key"
+    },
+    {
+      "name": "window",
+      "definition": "zero-based window number since the observation start"
+    }
+  ],
+  "params": {
+    "lookback_hours": 24,
+    "history_hours": 72,
+    "hub_degree_cap": 64,
+    "delay_tolerance_hours": 24,
+    "reference_currency": "US Dollar",
+    "rate_source": "median amount_received / amount_paid per currency pair on train-partition rows, chained to the reference currency"
+  },
+  "conventions": [
+    "Every feature is computed from the holding member's own view (finmesh.data.visibility): rows in which one of its accounts sends or receives.",
+    "A leg is one side of a transaction for the account: outbound (it pays) or inbound (it is paid). A self-transfer has the same account on both sides; it counts in self_tx and in history totals and is excluded from every counterparty or graph feature.",
+    "Amounts are converted to the reference currency with data-derived rates; legs in a currency with no rate count in unconvertible_share and are left out of amount sums.",
+    "History features (and new counterparties) depend only on the previous history_hours, so they mean the same in every period once history_hours have passed since the observation start; earlier windows are a training burn-in (meta: history_complete_from_window).",
+    "Neighbourhood features use the member's visible graph over the lookback (the current window and the earlier ones within lookback_hours): distinct directed account pairs, timing ignored inside the lookback. Intermediate accounts in 2-paths must have visible degree at most hub_degree_cap.",
+    "Shares and ratios are null when their denominator is empty; counts and sums are 0."
+  ],
+  "features": [
+    {
+      "name": "tx_out",
+      "dtype": "u32",
+      "family": "behaviour",
+      "definition": "outbound legs, excluding self-transfers"
+    },
+    {
+      "name": "tx_in",
+      "dtype": "u32",
+      "family": "behaviour",
+      "definition": "inbound legs, excluding self-transfers"
+    },
+    {
+      "name": "self_tx",
+      "dtype": "u32",
+      "family": "behaviour",
+      "definition": "self-transfers"
+    },
+    {
+      "name": "amt_out",
+      "dtype": "f32",
+      "family": "behaviour",
+      "definition": "sum of outbound amounts (reference currency)"
+    },
+    {
+      "name": "amt_in",
+      "dtype": "f32",
+      "family": "behaviour",
+      "definition": "sum of inbound amounts (reference currency)"
+    },
+    {
+      "name": "amt_out_max",
+      "dtype": "f32",
+      "family": "behaviour",
+      "definition": "largest outbound amount; 0 when none"
+    },
+    {
+      "name": "amt_in_max",
+      "dtype": "f32",
+      "family": "behaviour",
+      "definition": "largest inbound amount; 0 when none"
+    },
+    {
+      "name": "amt_net",
+      "dtype": "f32",
+      "family": "behaviour",
+      "definition": "amt_in - amt_out"
+    },
+    {
+      "name": "active_span_h",
+      "dtype": "f32",
+      "family": "behaviour",
+      "definition": "hours between the first and the last leg in the window"
+    },
+    {
+      "name": "currencies_n",
+      "dtype": "u32",
+      "family": "behaviour",
+      "definition": "distinct currencies on the account's own side of its legs"
+    },
+    {
+      "name": "cross_currency_share",
+      "dtype": "f32",
+      "family": "behaviour",
+      "definition": "share of legs whose payment and receiving currencies differ"
+    },
+    {
+      "name": "unconvertible_share",
+      "dtype": "f32",
+      "family": "behaviour",
+      "definition": "share of legs whose amount has no reference-currency rate"
+    },
+    {
+      "name": "fmt_ach_share",
+      "dtype": "f32",
+      "family": "behaviour",
+      "definition": "share of legs paid by ACH"
+    },
+    {
+      "name": "fmt_bitcoin_share",
+      "dtype": "f32",
+      "family": "behaviour",
+      "definition": "share of legs paid in Bitcoin"
+    },
+    {
+      "name": "fmt_cash_share",
+      "dtype": "f32",
+      "family": "behaviour",
+      "definition": "share of legs paid in cash"
+    },
+    {
+      "name": "fmt_cheque_share",
+      "dtype": "f32",
+      "family": "behaviour",
+      "definition": "share of legs paid by cheque"
+    },
+    {
+      "name": "fmt_credit_card_share",
+      "dtype": "f32",
+      "family": "behaviour",
+      "definition": "share of legs paid by credit card"
+    },
+    {
+      "name": "fmt_reinvestment_share",
+      "dtype": "f32",
+      "family": "behaviour",
+      "definition": "share of legs that are reinvestments"
+    },
+    {
+      "name": "fmt_wire_share",
+      "dtype": "f32",
+      "family": "behaviour",
+      "definition": "share of legs paid by wire"
+    },
+    {
+      "name": "fan_out",
+      "dtype": "u32",
+      "family": "graph",
+      "definition": "distinct counterparties paid"
+    },
+    {
+      "name": "fan_in",
+      "dtype": "u32",
+      "family": "graph",
+      "definition": "distinct counterparties paying in"
+    },
+    {
+      "name": "out_amount_hhi",
+      "dtype": "f32",
+      "family": "graph",
+      "definition": "Herfindahl index of outbound amounts across counterparties (1 = one counterparty)"
+    },
+    {
+      "name": "in_amount_hhi",
+      "dtype": "f32",
+      "family": "graph",
+      "definition": "Herfindahl index of inbound amounts across counterparties"
+    },
+    {
+      "name": "pass_through",
+      "dtype": "f32",
+      "family": "graph",
+      "definition": "min(amt_in, amt_out) / max(amt_in, amt_out)"
+    },
+    {
+      "name": "in_out_delay_min_h",
+      "dtype": "f32",
+      "family": "graph",
+      "definition": "over outbound legs in the window: shortest time since the latest earlier inbound leg (within delay_tolerance_hours), in hours"
+    },
+    {
+      "name": "in_out_delay_med_h",
+      "dtype": "f32",
+      "family": "graph",
+      "definition": "median of the same delays"
+    },
+    {
+      "name": "cross_bank_share",
+      "dtype": "f32",
+      "family": "graph",
+      "definition": "share of legs whose counterparty is at another bank"
+    },
+    {
+      "name": "cross_member_share",
+      "dtype": "f32",
+      "family": "graph",
+      "definition": "share of legs whose counterparty is at another federation member"
+    },
+    {
+      "name": "outside_share",
+      "dtype": "f32",
+      "family": "graph",
+      "definition": "share of legs whose counterparty bank is outside the federation"
+    },
+    {
+      "name": "new_cp_n",
+      "dtype": "u32",
+      "family": "graph",
+      "definition": "counterparties in this window not seen by the account in the previous history_hours"
+    },
+    {
+      "name": "new_cp_share",
+      "dtype": "f32",
+      "family": "graph",
+      "definition": "new_cp_n / distinct counterparties in the window"
+    },
+    {
+      "name": "recency_windows",
+      "dtype": "u32",
+      "family": "history",
+      "definition": "windows since the account's previous active window; history window + 1 when there is none within history_hours"
+    },
+    {
+      "name": "prior_active_windows",
+      "dtype": "u32",
+      "family": "history",
+      "definition": "windows within the previous history_hours in which the account had a leg"
+    },
+    {
+      "name": "prior_leg_rate",
+      "dtype": "f32",
+      "family": "history",
+      "definition": "legs per window over the previous history_hours (legs in that span / its length in windows)"
+    },
+    {
+      "name": "legs_vs_history",
+      "dtype": "f32",
+      "family": "history",
+      "definition": "log1p(legs in this window) - log1p(prior_leg_rate)"
+    },
+    {
+      "name": "amt_vs_history",
+      "dtype": "f32",
+      "family": "history",
+      "definition": "log1p(amt_in + amt_out) - log1p(amount per window over the previous history_hours)"
+    },
+    {
+      "name": "nb_out_deg",
+      "dtype": "u32",
+      "family": "neighbourhood",
+      "definition": "distinct accounts paid over the lookback"
+    },
+    {
+      "name": "nb_in_deg",
+      "dtype": "u32",
+      "family": "neighbourhood",
+      "definition": "distinct accounts paying in over the lookback"
+    },
+    {
+      "name": "gs_min_fan",
+      "dtype": "u32",
+      "family": "neighbourhood",
+      "definition": "min(nb_in_deg, nb_out_deg): gather-scatter hub indicator"
+    },
+    {
+      "name": "cyc2",
+      "dtype": "u32",
+      "family": "neighbourhood",
+      "definition": "visible 2-cycles a->b->a through the account"
+    },
+    {
+      "name": "cyc3",
+      "dtype": "u32",
+      "family": "neighbourhood",
+      "definition": "visible simple 3-cycles a->b->c->a through the account (b within the hub cap)"
+    },
+    {
+      "name": "cyc4",
+      "dtype": "u32",
+      "family": "neighbourhood",
+      "definition": "visible simple 4-cycles a->b->c->d->a through the account (b and d within the hub cap)"
+    },
+    {
+      "name": "sg_out_max",
+      "dtype": "u32",
+      "family": "neighbourhood",
+      "definition": "max over accounts c of distinct b with a->b->c: scatter-gather source indicator"
+    },
+    {
+      "name": "sg_in_max",
+      "dtype": "u32",
+      "family": "neighbourhood",
+      "definition": "max over accounts c of distinct b with c->b->a: scatter-gather sink indicator"
+    },
+    {
+      "name": "cp_in_deg_max",
+      "dtype": "u32",
+      "family": "neighbourhood",
+      "definition": "largest visible in-degree among accounts the account paid: feeder of a gather hub"
+    },
+    {
+      "name": "cp_out_deg_max",
+      "dtype": "u32",
+      "family": "neighbourhood",
+      "definition": "largest visible out-degree among accounts that paid the account: receiver from a scatter hub"
+    },
+    {
+      "name": "hub_neighbours",
+      "dtype": "u32",
+      "family": "neighbourhood",
+      "definition": "neighbours over the lookback whose visible degree exceeds the hub cap"
+    }
+  ]
+}
