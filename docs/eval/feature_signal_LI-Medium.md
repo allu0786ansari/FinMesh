@@ -1,27 +1,27 @@
 # Single-feature signal · LI-Medium
 
-Federation B8, feature schema v1, val partition: 3,324,357 account-windows, 4,433 positive (prevalence 0.0013). Each feature alone ranks the account-windows; AUPRC uses the better direction, chosen on these same rows, so the table is descriptive. Lift = AUPRC / prevalence.
+Federation B8, feature schema v2, val partition: 3,324,357 account-windows, 4,433 positive (prevalence 0.0013). Each feature alone ranks the account-windows; AUPRC uses the better direction, chosen on these same rows, so the table is descriptive. Lift = AUPRC / prevalence.
 
 **Leakage check:** no feature reaches AUROC 0.95 or AUPRC 0.5 on its own.
 
 | Feature | Family | Present | Mean (positive) | Mean (negative) | AUROC | Better | AUPRC | Lift |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | fan_out | graph | 1.00 | 46.61 | 0.5859 | 0.5020 | high | 0.0301 | 22.60 |
+| new_cp_n | graph | 1.00 | 6.68 | 0.2503 | 0.7949 | high | 0.0243 | 18.20 |
 | fmt_ach_share | behaviour | 1.00 | 0.7459 | 0.1140 | 0.8565 | high | 0.0158 | 11.87 |
-| new_cp_n | graph | 1.00 | 1.98 | 0.1103 | 0.7591 | high | 0.0158 | 11.85 |
-| legs_vs_history | history | 0.9984 | 0.6878 | 0.4484 | 0.5804 | high | 0.0114 | 8.59 |
 | fan_in | graph | 1.00 | 2.15 | 0.6453 | 0.5625 | high | 0.0111 | 8.30 |
-| amt_vs_history | history | 0.9984 | 0.3953 | -1.47 | 0.6269 | high | 0.0096 | 7.19 |
 | nb_in_deg | neighbourhood | 1.00 | 2.35 | 0.9306 | 0.5436 | high | 0.0089 | 6.66 |
+| legs_vs_history | history | 1.00 | 0.7991 | 0.6027 | 0.5647 | high | 0.0077 | 5.77 |
 | amt_out | behaviour | 1.00 | 15,867,444.37 | 252,311.48 | 0.5284 | high | 0.0075 | 5.64 |
-| prior_active_windows | history | 1.00 | 11.31 | 18.62 | 0.2509 | low | 0.0073 | 5.44 |
-| prior_leg_rate | history | 0.9984 | 107.82 | 1.20 | 0.2680 | low | 0.0067 | 5.02 |
+| amt_vs_history | history | 1.00 | 3.74 | 0.5990 | 0.7243 | high | 0.0069 | 5.21 |
 | tx_in | behaviour | 1.00 | 2.40 | 1.27 | 0.5053 | high | 0.0065 | 4.90 |
-| new_cp_share | graph | 0.9987 | 0.5354 | 0.0787 | 0.7519 | high | 0.0056 | 4.19 |
 | fmt_cheque_share | behaviour | 1.00 | 0.1250 | 0.4373 | 0.1857 | low | 0.0051 | 3.83 |
+| prior_leg_rate | history | 1.00 | 86.77 | 0.8926 | 0.2984 | low | 0.0043 | 3.24 |
+| new_cp_share | graph | 0.9987 | 0.7075 | 0.1911 | 0.7799 | high | 0.0041 | 3.09 |
+| prior_active_windows | history | 1.00 | 2.47 | 3.96 | 0.2976 | low | 0.0039 | 2.94 |
+| recency_windows | history | 1.00 | 6.49 | 3.74 | 0.6543 | high | 0.0039 | 2.89 |
 | amt_out_max | behaviour | 1.00 | 4,762,744.98 | 201,531.17 | 0.5376 | high | 0.0038 | 2.83 |
 | fmt_credit_card_share | behaviour | 1.00 | 0.0736 | 0.3188 | 0.2487 | low | 0.0029 | 2.16 |
-| age_windows | history | 1.00 | 43.29 | 45.01 | 0.4247 | low | 0.0023 | 1.74 |
 | active_span_h | behaviour | 1.00 | 0.6191 | 0.5138 | 0.4115 | low | 0.0022 | 1.67 |
 | amt_in_max | behaviour | 1.00 | 3,021,584.58 | 215,507.55 | 0.5590 | high | 0.0021 | 1.56 |
 | amt_in | behaviour | 1.00 | 3,099,262.09 | 269,358.33 | 0.5606 | high | 0.0021 | 1.56 |
