@@ -131,11 +131,28 @@ def test_baselines_pipeline_and_reports_on_the_fixture(
     build_features(fixture_paths, "B8")
     build_features(fixture_paths, "B8", view="pooled")
     r = run_with_memory(fixture_paths, reps=50, window_reps=20, linked_draws=2)
-    assert set(r["results"]) == {"random", "activity", "S0-B", "S0-BG", "oracle", "iforest", "pca"}
+    assert set(r["results"]) == {
+        "random",
+        "activity",
+        "S0-B",
+        "S0-BG",
+        "oracle",
+        "iforest",
+        "pca",
+        "S0-BG-noart",
+        "oracle-noart",
+        "S0-BG+pooled-link",
+    }
+    assert "self_tx" not in r["importance"]["oracle-noart"]
     assert r["configurations"]["oracle"]["view"] == "pooled"
     assert r["results"]["S0-BG"]["budgets"][0]["linker"] == "local"
     assert r["results"]["oracle"]["budgets"][0]["linker"] == "pooled"
-    assert set(r["comparisons"]) == {"oracle - S0-BG", "S0-BG - S0-B", "S0-BG - random"}
+    assert set(r["comparisons"]) == {
+        "oracle - S0-BG",
+        "S0-BG - S0-B",
+        "S0-BG - random",
+        "oracle-noart - S0-BG-noart",
+    }
     page = render_baselines(r)
     assert "Gate G1 and PT4b comparisons" in page and "Oracle (pooled data" in page
     s = gap_summary(r)

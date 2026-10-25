@@ -53,11 +53,25 @@ HEADLINE = ("S0-BG", "oracle")
 FeatureFn = Callable[[pl.DataFrame], np.ndarray]
 
 
+# Preregistered artefact ablation (G1): likely simulator quirks of AMLworld.
+ARTEFACT_FEATURES: tuple[str, ...] = (
+    "fmt_ach_share",
+    "fmt_bitcoin_share",
+    "fmt_cash_share",
+    "fmt_cheque_share",
+    "fmt_credit_card_share",
+    "fmt_reinvestment_share",
+    "fmt_wire_share",
+    "self_tx",
+)
+
+
 def feature_sets() -> dict[str, tuple[str, ...]]:
     s = load_schema()
     return {
         "behaviour": (*s.family("behaviour"), *s.family("history")),
         "all": s.names,
+        "no_artefacts": tuple(n for n in s.names if n not in ARTEFACT_FEATURES),
     }
 
 
@@ -219,7 +233,11 @@ def run_baselines(
 
     # Local LightGBM per member: behaviour only, then every feature.
     importance: dict[str, dict[str, float]] = {}
-    for name, cols in (("S0-B", sets["behaviour"]), ("S0-BG", sets["all"])):
+    for name, cols in (
+        ("S0-B", sets["behaviour"]),
+        ("S0-BG", sets["all"]),
+        ("S0-BG-noart", sets["no_artefacts"]),
+    ):
         t0 = time.perf_counter()
         fit, stop = training_rows(store, member_f, cols, windows, seed)
         models: dict[int, GBDT] = {}
@@ -248,17 +266,18 @@ def run_baselines(
             },
         )
 
-    # Pooled oracle: every member's rows, the full graph.
-    t0 = time.perf_counter()
-    fit, stop = training_rows(store, pooled_f, sets["all"], windows, seed)
-    oracle = GBDT(sets["all"], seed).fit(fit.x, fit.y, fit.w, stop.x, stop.y, stop.w)
-    del fit, stop
-    book.add("oracle", "val", score_rows(store, pooled_f, "val", oracle.score))
-    book.add(
-        "oracle", "stop", score_rows(store, pooled_f, "train", oracle.score, windows.stop_from)
-    )
-    importance["oracle"] = oracle.importance()
-    record("oracle", t0, {"view": "pooled", "linker": "pooled", "model": oracle.info})
+    # Pooled oracle: every member's rows, the full graph (and the artefact ablation).
+    for name, cols in (("oracle", sets["all"]), ("oracle-noart", sets["no_artefacts"])):
+        t0 = time.perf_counter()
+        fit, stop = training_rows(store, pooled_f, cols, windows, seed)
+        oracle = GBDT(cols, seed).fit(fit.x, fit.y, fit.w, stop.x, stop.y, stop.w)
+        del fit, stop
+        book.add(name, "val", score_rows(store, pooled_f, "val", oracle.score))
+        book.add(
+            name, "stop", score_rows(store, pooled_f, "train", oracle.score, windows.stop_from)
+        )
+        importance[name] = oracle.importance()
+        record(name, t0, {"view": "pooled", "linker": "pooled", "model": oracle.info})
 
     # Unsupervised floor per member.
     for kind in ("iforest", "pca"):
@@ -309,6 +328,22 @@ def run_baselines(
             outcomes=outcomes[name],
         )
         info[name]["evaluate_seconds"] = round(time.perf_counter() - t0, 1)
+
+    # Decomposition (informational): S0's own alerts, linked with the pooled rule.
+    results["S0-BG+pooled-link"] = evaluate(
+        val,
+        ScoreFrame(book.frame("S0-BG", "val").select(*KEY_COLUMNS, "score")),
+        accounts_per_member=apm,
+        window_hours=plan.window_hours,
+        thresholds={},
+        budgets=(PRIMARY,),
+        delay_windows=DELAY_WINDOWS,
+        reps=reps,
+        window_reps=window_reps,
+        seed=seed,
+        linker=linkers["pooled"],
+        linked_draws=linked_draws,
+    )
 
     sensitivity = {
         name: evaluate(
@@ -362,7 +397,12 @@ def _comparisons(
     seed: int,
 ) -> dict[str, Any]:
     """Paired differences for G1 (oracle vs S0) and PT4b (graph vs behaviour)."""
-    pairs = (("oracle", "S0-BG"), ("S0-BG", "S0-B"), ("S0-BG", "random"))
+    pairs = (
+        ("oracle", "S0-BG"),
+        ("S0-BG", "S0-B"),
+        ("S0-BG", "random"),
+        ("oracle-noart", "S0-BG-noart"),
+    )
     out: dict[str, Any] = {}
     pvalues: list[float] = []
     keys: list[tuple[str, str]] = []

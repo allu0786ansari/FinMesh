@@ -49,6 +49,19 @@ def gap_summary(result: dict[str, Any]) -> dict[str, Any]:
         "pt4b_auprc_gain": comp["S0-BG - S0-B"]["window"]["auprc_difference"]["estimate"],
         "pt4b_low": comp["S0-BG - S0-B"]["window"]["auprc_difference"]["low"],
         "pt4b_high": comp["S0-BG - S0-B"]["window"]["auprc_difference"]["high"],
+        **_ablation(result, primary),
+    }
+
+
+def _ablation(result: dict[str, Any], primary: str) -> dict[str, Any]:
+    """The preregistered artefact ablation, when the artifact has it."""
+    pair = result["comparisons"].get("oracle-noart - S0-BG-noart")
+    if pair is None:
+        return {"ablation_gap": None, "ablation_s0_auprc": None}
+    d = pair["linked"]["difference"]
+    return {
+        "ablation_gap": f"{fmt(d['estimate'])} [{fmt(d['low'])}, {fmt(d['high'])}]",
+        "ablation_s0_auprc": result["results"]["S0-BG-noart"]["window"]["auprc"]["estimate"],
     }
 
 
@@ -110,6 +123,8 @@ def render_g1(summaries: list[dict[str, Any]]) -> str:
                     ("s0_auprc", "S0 AUPRC"),
                     ("oracle_auprc", "Oracle AUPRC"),
                     ("pt4b", "PT4b: graph − behaviour AUPRC"),
+                    ("ablation_gap", "Ablation: oracle − S0 linked"),
+                    ("ablation_s0_auprc", "Ablation: S0 AUPRC"),
                 ],
             ),
             "",

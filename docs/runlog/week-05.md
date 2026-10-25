@@ -2,7 +2,7 @@
 
 **Goal:** the local-only (S0) and pooled-oracle reference points exist, and the targets are frozen.
 
-**State:** code complete and tested on the fixture, on synthetic data with known answers, and at HI-Medium scale. Your run produces the G1 evidence. After you push it, I fill in section 9 of the preregistration and write the G1 decision note, and you confirm before the repository is tagged `g1`.
+**State: done (26 Oct).** Your real-data run passed Gate G1: on HI-Medium validation the oracle beats S0 in linked detection by 0.508 [0.465, 0.550]. Decision note `docs/gates/G1.md`; the preregistration is frozen and tagged `g1`. Two analyses were added at G1, an artefact ablation and a linking decomposition (A12); they first appear in week 6's baselines rerun.
 
 ## Decisions taken at G1 preparation (25 Oct, from the week-4 diagnostics)
 
@@ -152,7 +152,7 @@ Do **not** tag yet: I fill in section 9 of the preregistration from your results
 - [x] Pooled-data oracle GBDT (pooled view)
 - [x] Isolation Forest and PCA-reconstruction baselines
 - [x] Isotonic calibration and per-bank thresholds on validation data (thresholds for test saved in the artifact)
-- [ ] S0 and oracle results on validation, linked and any-alert detection against the random-alert baseline (your step 4)
+- [x] S0 and oracle results on validation, linked and any-alert detection against the random-alert baseline (26 Oct)
 - [x] Time per configuration recorded in the artifact; seed plan fixed (5 seeds for headline configurations, 3 elsewhere)
 - [x] `docs/protocol/preregistration.md` drafted; section 9 waits for step 4
-- [ ] G1 note and tag `g1` (after your run)
+- [x] G1 note (`docs/gates/G1.md`) and tag `g1`

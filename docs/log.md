@@ -24,6 +24,8 @@ Risks or blockers: if the oracle − S0 gap is under 5 points, RQ1's headline ne
 Next week: week 6, the evidence-sharing levels.
 On track for next gate? yes, pending the G1 run.
 
+G1 (26 Oct, real data): passed. HI-Medium oracle − S0 linked detection 0.508 [0.465, 0.550]; LI-Medium 0.538. The gain is almost all cross-member linking (any-alert detection S0 0.864, oracle 0.886). PT4b direction positive. Thresholds unchanged; artefact ablation and linking decomposition added (A12); preregistration frozen, tag `g1`.
+
 ## Week 04 · 16 – 22 Nov 2026
 
 Planned: every account-window at every bank has its behaviour and graph features, within the memory budget.

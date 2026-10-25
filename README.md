@@ -12,8 +12,8 @@ The full research design is in [`docs/proposal/FinMesh_Proposal_v2.md`](docs/pro
 | 2 | 2 – 8 Nov | Visibility model, federation, splits, Gate G0 | Done; **G0 passed** with amendments A5–A7 ([decision](docs/gates/G0.md)) |
 | 3 | 9 – 15 Nov | Labels, sealed test, metrics, budgets, bootstrap | Done; harness verified on real data 25 Oct ([run log](docs/runlog/week-03.md)) |
 | 4 | 16 – 22 Nov | Behaviour, graph and neighbourhood features | Done on real data 25 Oct; diagnostics led to A8–A11 ([run log](docs/runlog/week-04.md)) |
-| 5 | 23 – 29 Nov | Baselines, preregistration, Gate G1 | Code done; awaiting real-data run ([run log](docs/runlog/week-05.md)) |
-| 6–9 | 30 Nov – 27 Dec | Evidence sharing and leakage (headline), Gate G2 | Not started |
+| 5 | 23 – 29 Nov | Baselines, preregistration, Gate G1 | Done; **G1 passed** (oracle − S0 linked +0.51), preregistration frozen, tag `g1` ([decision](docs/gates/G1.md)) |
+| 6–9 | 30 Nov – 27 Dec | Evidence sharing and leakage (headline), Gate G2 | Week 6 in progress |
 | 10–12 | 28 Dec – 17 Jan | Federated DP detection, Gate G3 | Not started |
 | 13–14 | 18 – 31 Jan | Attribution and narrative | Not started |
 | 15–17 | 1 – 21 Feb | Demo path and analyst console | Not started |

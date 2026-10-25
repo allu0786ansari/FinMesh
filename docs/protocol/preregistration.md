@@ -1,6 +1,6 @@
 # FinMesh preregistration
 
-**Status: draft.** It is frozen, committed and tagged `g1` once the Gate G1 evidence (validation only) has been reviewed and section 9 is filled in. After the tag, nothing below changes except through an amendment in `docs/proposal/CHANGES.md` made before the results it affects exist. The sealed test is opened only in week 18.
+**Status: frozen at Gate G1, 26 Oct 2026 (tag `g1`).** Nothing below changes except through an amendment in `docs/proposal/CHANGES.md` made before the results it affects exist. The sealed test is opened only in week 18.
 
 Proposal: `docs/proposal/FinMesh_Proposal_v2.md`, with amendments A1–A11.
 
@@ -79,6 +79,7 @@ Every result is reported whether or not its hypothesis holds; a missed target is
 | Oracle | One LightGBM | all 47, pooled view | every member's rows | pooled |
 | Isolation Forest, PCA | Per member, unsupervised | all 47, signed-log, robust scaling | 200 k-row sample | local |
 | Random, activity | Reference scorers | — | — | local |
+| S0-BG-noart, oracle-noart | As S0-BG and the oracle | without the 7 payment-format shares and `self_tx` (39 features) | as above | as above |
 
 - **LightGBM settings** (`finmesh/models/gbdt.py`): learning rate 0.05, 31 leaves, 50 minimum rows per leaf, feature and bagging fraction 0.8, L2 regularisation 1. At most 1,000 rounds, with early stopping after 50 rounds without gain in average precision on the held-out training windows.
 - **Training rows** (`finmesh/training/data.py`):
@@ -106,7 +107,9 @@ Every result is reported whether or not its hypothesis holds; a missed target is
   - the FPR operating points;
   - the touch label;
   - time to detect;
-  - the Small datasets as replication.
+  - the Small datasets as replication;
+  - **artefact ablation** (added at G1): S0 and the oracle refitted without the payment-format shares and `self_tx`, the two strongest features in every model and likely AMLworld simulator quirks. The oracle − S0 linked-detection gap is reported with and without them.
+- **Decomposition** (informational, no hypothesis): S0 alerts linked with the pooled rule. It separates how much of the oracle gain comes from linking alerts across members and how much from better detection.
 - **Test discipline:** each frozen configuration and seed is evaluated once on test, through `finmesh.eval.sealed.open_sealed_test`, which logs every opening (CC2).
 
 ## 9. Gate G1 (filled in after the validation run)
@@ -115,8 +118,9 @@ Every result is reported whether or not its hypothesis holds; a missed target is
 
 | Item | Value |
 | --- | --- |
-| Oracle − S0 linked detection, HI-Medium validation | *pending* |
-| Criterion met | *pending* |
-| PT4b direction on validation (informational) | *pending* |
-| Provisional thresholds (H1b 60%, H1d 80% and one half, H2a 70%) | *pending: unchanged or revised, with the validation evidence* |
-| Decision | *pending* |
+| Oracle − S0 linked detection, HI-Medium validation | **0.508**, 95% CI [0.465, 0.550] (S0 0.174, oracle 0.682; 551 schemes) |
+| Criterion met | **Yes**; also on LI-Medium: 0.538 [0.441, 0.634] |
+| Where the gap is | Almost all in linking: any-alert detection S0 0.864, oracle 0.886 (difference 0.022 [−0.002, 0.045]); 0.635 of schemes linked across members by the oracle, 0 by S0 by construction |
+| PT4b direction on validation (informational) | Graph features help: S0-BG − S0-B AUPRC +0.036 [0.030, 0.044] on HI-Medium, +0.012 [0.006, 0.018] on LI-Medium |
+| Provisional thresholds (H1b 60%, H1d 80% and one half, H2a 70%) | **Unchanged** (owner, 26 Oct). Validation gives no evidence for H1d or H2a; for H1b the gain is large and mostly cross-member linking, which sharing is designed to provide |
+| Decision | **Proceed to the sharing layer (weeks 6–9)** with RQ1 as the headline. Evidence: `docs/gates/G1_evidence.md`, `docs/eval/baselines_<ds>.md`; note `docs/gates/G1.md` |

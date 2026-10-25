@@ -6,11 +6,25 @@ from typing import Any
 
 from finmesh.reporting import fmt, table
 
-ORDER = ("oracle", "S0-BG", "S0-B", "iforest", "pca", "activity", "random")
+ORDER = (
+    "oracle",
+    "S0-BG",
+    "S0-B",
+    "S0-BG+pooled-link",
+    "oracle-noart",
+    "S0-BG-noart",
+    "iforest",
+    "pca",
+    "activity",
+    "random",
+)
 LABELS = {
     "oracle": "Oracle (pooled data, full graph)",
     "S0-BG": "S0 local GBDT, all features",
     "S0-B": "S0 local GBDT, behaviour only",
+    "S0-BG+pooled-link": "S0 alerts, linked across members (decomposition)",
+    "oracle-noart": "Oracle without format and self-transfer features (ablation)",
+    "S0-BG-noart": "S0 without format and self-transfer features (ablation)",
     "iforest": "Isolation Forest (local)",
     "pca": "PCA reconstruction (local)",
     "activity": "Activity (legs in window)",
