@@ -164,14 +164,20 @@ def cmd_g0(args: argparse.Namespace) -> int:
         print(f"  artifact {artifact}")
         print(f"  report   {report}")
         results.append(result)
-    from finmesh.eval.g0 import load_result
+    from finmesh.eval.g0 import is_current, load_result
 
-    # The summary covers every real dataset with G0 evidence, not just this run's.
+    # The summary covers every real dataset with G0 evidence, not just this run's,
+    # but never mixes in results made under an older selection rule.
     real = []
     for path in sorted((data_root() / "artifacts" / "week02").glob("g0_*.json")):
         name = path.stem.removeprefix("g0_")
-        if name != FIXTURE_DATASET:
-            real.append(load_result(path))
+        if name == FIXTURE_DATASET:
+            continue
+        loaded = load_result(path)
+        if is_current(loaded):
+            real.append(loaded)
+        else:
+            print(f"  skipped  {name}: made before amendment A5; run `finmesh g0 --dataset {name}`")
     if real:
         summary = REPO_ROOT / "docs" / "gates" / "G0_evidence_summary.md"
         summary.write_text(render_summary(real))

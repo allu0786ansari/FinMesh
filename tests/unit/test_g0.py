@@ -13,6 +13,7 @@ from finmesh.eval.g0 import (
     PROCEED_THRESHOLD,
     OptionResult,
     band,
+    is_current,
     render,
     render_summary,
     run_g0,
@@ -56,6 +57,7 @@ def test_run_g0_on_fixture(
     fixture_paths: DatasetPaths, fixture_truth: FixtureTruth, ingested: dict[str, object]
 ) -> None:
     result = run_g0(fixture_paths)
+    assert is_current(result)
     assert result["window_hours"] == 6
     assert result["schemes_total"] == fixture_truth.schemes
     assert result["schemes_truncated"] == fixture_truth.truncated_schemes
@@ -99,3 +101,9 @@ def test_g0_cli_writes_fixture_report_outside_docs(data_env: Path) -> None:
     assert artifact["provenance"]["fixture"] is True
     assert main(["feature-timing", "--dataset", "FIXTURE-Small"]) == 0
     assert main(["feature-timing", "--dataset", "FIXTURE-Small", "--option", "A8"]) == 0
+
+
+def test_results_from_the_week2_rule_are_not_current() -> None:
+    """Week-2 artifacts carry no selection rule; tests and the summary must skip them."""
+    assert not is_current({"selection": {"option": "A64"}})
+    assert not is_current({"selection_rule": "week2", "selection": {"option": "A64"}})

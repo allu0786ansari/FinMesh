@@ -73,6 +73,10 @@ from finmesh.paths import DatasetPaths, artifacts_dir
 from finmesh.reporting import fmt, table
 from finmesh.sysinfo import AnonPeak, timed
 
+# Version of the option-selection rule. Results without it (or with an older
+# value) were made before amendment A5 and must be regenerated with `finmesh g0`.
+SELECTION_RULE = "A5"
+
 PROCEED_THRESHOLD = 100
 CASE_STUDY_THRESHOLD = 40
 
@@ -303,6 +307,7 @@ def run_g0(paths: DatasetPaths, write_split: bool = True) -> dict[str, Any]:
         "bank_sizes_top": sizes.head(20).to_dicts(),
         "banks": sizes.height,
         "options": [r.to_dict() for r in results],
+        "selection_rule": SELECTION_RULE,
         "selection": {"option": chosen.name, "reason": reason},
         "chosen_membership": membership_summary(sizes, chosen_membership).to_dicts(),
         "test": {
@@ -590,3 +595,8 @@ def load_result(path: Path) -> dict[str, Any]:
 
 def is_fixture(name: str) -> bool:
     return name == FIXTURE_DATASET
+
+
+def is_current(result: dict[str, Any]) -> bool:
+    """True when ``result`` was produced by the current selection rule."""
+    return result.get("selection_rule") == SELECTION_RULE

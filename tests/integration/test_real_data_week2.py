@@ -12,6 +12,7 @@ from datetime import datetime
 
 import pytest
 
+from finmesh.eval.g0 import is_current
 from finmesh.paths import artifacts_dir, dataset_paths
 
 # rows, laundering rows, accounts, duplicate extra rows, schemes, tail rows, tail laundering,
@@ -44,6 +45,10 @@ def test_g0_window_and_split(name: str) -> None:
     if not path.exists():
         pytest.skip(f"G0 not run for {name}")
     result = json.loads(path.read_text())["result"]
+    if not is_current(result):
+        pytest.skip(
+            f"G0 result for {name} predates amendment A5; run `finmesh g0 --dataset {name}`"
+        )
     *_, schemes, tail_rows, tail_laundering, days = ANCHORS[name]
     ow = result["observation_window"]
     assert ow["start"] == str(datetime(2022, 9, 1))

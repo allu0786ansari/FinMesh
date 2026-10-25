@@ -8,18 +8,19 @@
 
 ## Licence
 
-- **Status: to confirm on the Kaggle dataset page before any derived data is released (proposal Section 7.1).** The authors describe a Community Data License Agreement (CDLA) licence; the variant (Sharing or Permissive) decides whether derived files may be redistributed.
-- Until confirmed, FinMesh releases **code and aggregate results only**, never raw or derived row-level data.
+- **Community Data License Agreement – Permissive, Version 2.0 (CDLA-Permissive-2.0).** Full text: [`docs/data_License.md`](data_License.md).
+- Derived data may be shared, with or without changes, provided the agreement text goes with it (Section 2.1). Results, including trained models and their outputs, carry no restriction (Section 3.1).
+- FinMesh still releases **code and aggregate results only** by default: raw and row-level derived files are large and add nothing to reproducibility, since `finmesh download` and the pipeline rebuild them. Any row-level release ships `docs/data_License.md` alongside.
 
 | Field | Value |
 | --- | --- |
-| Licence variant | _fill in from the dataset page_ |
-| Checked by / date | _fill in_ |
-| Redistribution of derived data allowed? | _fill in_ |
+| Licence variant | CDLA-Permissive-2.0 |
+| Checked by / date | Allaudin Ansari, 25 Oct 2026 |
+| Redistribution of derived data allowed? | Yes, with the agreement text attached |
 
 ## Files used
 
-Per dataset (`HI-Small`, `LI-Small`; `HI-Medium` only as the G0 fallback):
+Per dataset (`HI-Medium` and `LI-Medium` for headline results, `HI-Small` and `LI-Small` for development; amendment A6):
 
 | File | Content | FinMesh use |
 | --- | --- | --- |

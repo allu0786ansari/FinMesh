@@ -1,6 +1,8 @@
 [project]
 name = "finmesh"
 version = "0.1.0"
+license = "MIT"
+license-files = ["LICENSE"]
 description = "Privacy-preserving cross-bank financial-crime detection: measuring the utility-leakage frontier of evidence sharing."
 readme = "README.md"
 requires-python = ">=3.11,<3.14"

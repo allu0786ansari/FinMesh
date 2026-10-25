@@ -79,7 +79,7 @@ uv sync
 bash scripts/ci_local.sh
 ```
 
-Expected: `local CI: all steps passed`.
+Expected: `local CI: all steps passed`. Until step 2 has run, the G0 check for each real dataset is **skipped** with "predates amendment A5": your week-2 G0 files were made under the old selection rule, and that is expected. (In the first push of week 3 this was a failure, `assert 'A64' == 'B8'`; fixed in the follow-up commit.)
 
 ### 2. Re-run G0 with amendment A5 (6–8 min)
 
@@ -140,6 +140,7 @@ git push
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
 | `membership_B8.parquet missing` | Step 2 not run for that dataset | Run step 2 |
+| G0 test skipped: "predates amendment A5" | G0 file from week 2 | Run step 2 |
 | `labels not built` in harness-check | Step 3 skipped | Run step 3 |
 | `Killed` | WSL memory cap | `.wslconfig` `memory=6GB` (week-2 run log, step 2) |
 | Random scorer far from baseline | Harness or label bug | Stop; send the harness page |
@@ -160,4 +161,4 @@ git push
 ## Open items for you
 
 1. Run steps 1–7 and push.
-2. Still open from week 1: code licence (Apache-2.0 or MIT) and the dataset licence in `docs/data_card.md`.
+2. ~~Code and dataset licence~~: done (MIT; CDLA-Permissive-2.0, recorded in `docs/data_card.md`).

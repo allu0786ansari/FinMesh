@@ -57,3 +57,7 @@ Data never enters git. Everything large lives under `data/` (or wherever `FINMES
 - **Validation before test.** The sealed test split is opened once, in week 18.
 - **Every number has provenance.** Results are JSON artifacts stamped with code commit, data manifest hash, parameters and seed. Anything built from the synthetic fixture is marked and can never pass a gate.
 - **Missed targets are findings.** Gates decide whether to continue, adjust or cut; they are never skipped.
+
+## Licence
+
+Code: [MIT](LICENSE). Data: the IBM AMLworld datasets are under [CDLA-Permissive-2.0](docs/data_License.md); see the [data card](docs/data_card.md).
