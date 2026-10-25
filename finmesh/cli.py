@@ -17,6 +17,13 @@ Week-2 commands:
     finmesh feature-timing --dataset HI-Small
                                            time a prototype per-bank feature pass
     finmesh llm-probe --model llama3.2:3b  latency and JSON validity of a local model
+
+Week-3 commands:
+
+    finmesh labels --dataset HI-Medium     account-window labels per partition (test sealed)
+    finmesh harness-check --dataset HI-Medium
+                                           reference scorers through the full harness
+    finmesh sealed-log --dataset HI-Medium every opening of the sealed test
 """
 
 from __future__ import annotations
@@ -157,12 +164,18 @@ def cmd_g0(args: argparse.Namespace) -> int:
         print(f"  artifact {artifact}")
         print(f"  report   {report}")
         results.append(result)
-    if len(results) > 1:
-        real = [r for r in results if r["dataset"] != FIXTURE_DATASET]
-        if real:
-            summary = REPO_ROOT / "docs" / "gates" / "G0_evidence_summary.md"
-            summary.write_text(render_summary(real))
-            print(f"summary  {summary}")
+    from finmesh.eval.g0 import load_result
+
+    # The summary covers every real dataset with G0 evidence, not just this run's.
+    real = []
+    for path in sorted((data_root() / "artifacts" / "week02").glob("g0_*.json")):
+        name = path.stem.removeprefix("g0_")
+        if name != FIXTURE_DATASET:
+            real.append(load_result(path))
+    if real:
+        summary = REPO_ROOT / "docs" / "gates" / "G0_evidence_summary.md"
+        summary.write_text(render_summary(real))
+        print(f"summary  {summary}")
     return 0
 
 
@@ -182,14 +195,99 @@ def cmd_feature_timing(args: argparse.Namespace) -> int:
 def cmd_llm_probe(args: argparse.Namespace) -> int:
     from finmesh.attribution.llm_probe import run_probe
 
-    result = run_probe(model=args.model, n=args.n, url=args.url)
-    name = f"llm_probe_{args.model.replace(':', '_').replace('/', '_')}.json"
+    result = run_probe(model=args.model, n=args.n, url=args.url, constrained=not args.free)
+    suffix = "_free" if args.free else ""
+    name = f"llm_probe_{args.model.replace(':', '_').replace('/', '_')}{suffix}.json"
     out = (REPO_ROOT / "docs" / "gates" / name) if args.save else (data_root() / "artifacts" / name)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(result, indent=2) + "\n")
     print(json.dumps(result, indent=2))
     print(f"written to {out}")
     return 0 if "error" not in result else 1
+
+
+def cmd_labels(args: argparse.Namespace) -> int:
+    from finmesh.eval.universe import build_universe
+    from finmesh.sysinfo import AnonPeak
+
+    paths = dataset_paths(args.dataset)
+    with AnonPeak() as anon:
+        meta = build_universe(paths, option=args.option)
+    if args.dataset != FIXTURE_DATASET:
+        # Freeze the split: the plan is committed, so later runs can be checked against it.
+        frozen = REPO_ROOT / "docs" / "protocol" / f"split_plan_{args.dataset}.json"
+        frozen.write_text((paths.parquet / "split_plan.json").read_text())
+        counts = REPO_ROOT / "docs" / "protocol" / f"eval_counts_{args.dataset}.json"
+        counts.write_text(
+            json.dumps(
+                {k: meta[k] for k in ("option", "window_hours", "partition_windows", "counts")},
+                indent=2,
+            )
+            + "\n"
+        )
+        print(f"  frozen split plan -> {frozen}")
+    for part, c in meta["counts"].items():
+        print(
+            f"  {part:<5} account-windows {c['account_windows']:,}  positives {c['positives']:,}  "
+            f"masked {c['masked']:,}  schemes {c['schemes']}  "
+            f"multi-member {c['multi_member_schemes']}"
+        )
+    print("  test  sealed (counts in data/sealed/.../meta.json)")
+    print(f"  slices {meta['slices']}  peak memory {anon.mb} MB")
+    return 0
+
+
+def cmd_harness_check(args: argparse.Namespace) -> int:
+    from finmesh.data.manifest import load_manifest
+    from finmesh.eval.harness import harness_check
+    from finmesh.eval.harness_report import render_harness_check
+    from finmesh.eval.provenance import Stamp, write_artifact
+    from finmesh.eval.sealed import EvalStore
+    from finmesh.sysinfo import AnonPeak
+
+    paths = dataset_paths(args.dataset)
+    store = EvalStore(paths, option=args.option)
+    with AnonPeak() as anon:
+        result = harness_check(store, seed=args.seed, reps=args.reps)
+    result["peak_anon_mb"] = anon.mb
+    manifest = load_manifest(paths.manifest)
+    stamp = Stamp(
+        kind="harness_check",
+        dataset=paths.name,
+        manifest_hash=manifest.manifest_hash,
+        fixture=manifest.fixture,
+        seed=args.seed,
+        split=f"w{store.window_hours}",
+        params={"option": args.option, "reps": args.reps},
+    )
+    artifact = write_artifact(
+        data_root() / "artifacts" / "week03" / f"harness_check_{paths.name}.json", stamp, result
+    )
+    if args.dataset == FIXTURE_DATASET:
+        report = data_root() / "artifacts" / "week03" / f"harness_check_{paths.name}.md"
+    else:
+        report = REPO_ROOT / "docs" / "eval" / f"harness_check_{paths.name}.md"
+    report.parent.mkdir(parents=True, exist_ok=True)
+    report.write_text(render_harness_check(result) + f"\nPeak memory {anon.mb} MB.\n")
+    for name, rep in result["scorers"].items():
+        w = rep["window"]
+        auprc = w["auprc"]["estimate"] if w.get("auprc") else None
+        print(f"  {name:<9} prevalence {w['prevalence']:.5f}  AUPRC {auprc}")
+    print(f"  artifact {artifact}")
+    print(f"  report   {report}")
+    print(f"  peak memory {anon.mb} MB")
+    return 0
+
+
+def cmd_sealed_log(args: argparse.Namespace) -> int:
+    from finmesh.eval.sealed import read_access_log
+
+    entries = read_access_log(dataset_paths(args.dataset))
+    if not entries:
+        print("  the sealed test has never been opened")
+    for e in entries:
+        print(f"  {e['time']}  config {e['config_hash'][:12]}  seed {e['seed']}  {e['purpose']}")
+    return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -246,7 +344,26 @@ def build_parser() -> argparse.ArgumentParser:
     lp.add_argument("--n", type=int, default=20)
     lp.add_argument("--url", default="http://localhost:11434")
     lp.add_argument("--save", action="store_true", help="write the result to docs/gates/")
+    lp.add_argument(
+        "--free", action="store_true", help="JSON-only decoding (no schema enum); amendment A7"
+    )
     lp.set_defaults(func=cmd_llm_probe)
+
+    lb = sub.add_parser("labels", help="account-window labels per partition (week 3)")
+    add_dataset(lb)
+    lb.add_argument("--option", default="B8")
+    lb.set_defaults(func=cmd_labels)
+
+    hc = sub.add_parser("harness-check", help="reference scorers through the harness (week 3)")
+    add_dataset(hc)
+    hc.add_argument("--option", default="B8")
+    hc.add_argument("--seed", type=int, default=0)
+    hc.add_argument("--reps", type=int, default=1000)
+    hc.set_defaults(func=cmd_harness_check)
+
+    sl = sub.add_parser("sealed-log", help="show every opening of the sealed test")
+    add_dataset(sl)
+    sl.set_defaults(func=cmd_sealed_log)
     return parser
 
 

@@ -13,5 +13,8 @@ step uv run finmesh fixture
 step uv run finmesh week1 --dataset FIXTURE-Small
 step uv run finmesh g0 --dataset FIXTURE-Small
 step uv run finmesh feature-timing --dataset FIXTURE-Small
+step uv run finmesh labels --dataset FIXTURE-Small
+step uv run finmesh harness-check --dataset FIXTURE-Small --reps 200
+step uv run finmesh sealed-log --dataset FIXTURE-Small
 step uv run finmesh check
 echo; echo "local CI: all steps passed"

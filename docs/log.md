@@ -14,6 +14,16 @@ Next week: <first two tasks>
 On track for next gate? yes / at risk / no
 ```
 
+## Week 03 · 9 – 15 Nov 2026
+
+Planned: a harness that can score any detector at any budget, with test data locked away.
+Done: G0 decided from the week-2 evidence (`docs/gates/G0.md`): headline on HI-Medium with B8 (amendments A5, A6); a bias in my week-2 selection rule found and disclosed; H3b redefined (A7); llama3.2:3b chosen. Built account-window labels with masking, frozen split plans, sealed test entry point with access log, label guard (types plus static check), metrics, per-member budgets with deterministic tie-breaking, scheme detection and linked detection, exact random-alert baseline, bootstrap and Holm. Details in `docs/runlog/week-03.md`.
+Not done: real-data run (G0 under A5, labels, harness check, free LLM probe; run-log steps 2–7).
+Numbers this week: engineering only. At HI-Medium scale: labels 111 s and 1.3 GB, harness check 163 s and 2.4 GB; random scorer AUPRC 0.001158 against prevalence 0.001164, budgets met per member.
+Risks or blockers: none new. HI-Medium account-windows (about 24 M) will need negative subsampling for training (week 5).
+Next week: week 4, the graph feature extractor on member views.
+On track for next gate? yes (G1, week 5).
+
 ## Week 02 · 2 – 8 Nov 2026
 
 Planned: the bank federation is chosen, splits are drafted, and the go/no-go count is known.

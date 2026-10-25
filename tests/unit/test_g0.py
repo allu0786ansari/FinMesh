@@ -41,17 +41,15 @@ def test_bands() -> None:
     assert band(CASE_STUDY_THRESHOLD - 1) == "fallback"
 
 
-def test_selection_prefers_smallest_sufficient_real_bank_option() -> None:
-    results = [_result("A8", 20), _result("A16", 120), _result("A32", 300), _result("B8", 500)]
-    spec, reason = select_option(results)
-    assert spec.name == "A16"
-    assert "smallest real-bank option" in reason
-
-
-def test_selection_falls_back_to_b8() -> None:
-    results = [_result("A8", 3), _result("A64", 99), _result("B4", 400), _result("B8", 200)]
-    spec, _ = select_option(results)
-    assert spec.name == "B8"
+def test_selection_is_fixed_to_b8() -> None:
+    # Amendment A5: counts never change the primary federation.
+    for results in (
+        [_result("A8", 20), _result("A16", 120), _result("B8", 500)],
+        [_result("A64", 99), _result("B4", 400)],
+    ):
+        spec, reason = select_option(results)
+        assert spec.name == "B8"
+        assert "A5" in reason
 
 
 def test_run_g0_on_fixture(
@@ -87,8 +85,8 @@ def test_run_g0_on_fixture(
     md = render(result)
     assert "# G0 evidence · FIXTURE-Small" in md
     assert "## Federation options (train and validation only)" in md
-    summary = render_summary([result, {**result, "dataset": "OTHER"}])
-    assert "Pooled across datasets" in summary
+    summary = render_summary([{**result, "dataset": "HI-Small"}, {**result, "dataset": "LI-Small"}])
+    assert "Pooled HI-Small + LI-Small (B8)" in summary
 
 
 def test_g0_cli_writes_fixture_report_outside_docs(data_env: Path) -> None:

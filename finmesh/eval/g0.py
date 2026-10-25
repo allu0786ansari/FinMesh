@@ -6,19 +6,24 @@ touch two or more federation members, and decides by preregistered bands:
 case study; under 40 fall back (HI-Medium, or lead with RQ2 and RQ3).
 
 Week 1 showed that the federation definition itself must be chosen (finding 3).
-To keep that choice from peeking at the test set, it is made by a rule fixed
-here, before any real numbers exist, and applied to train and validation
-schemes only:
+Amendment A5 (25 Oct 2026, after the first real G0 run) fixes it by design:
 
-1. Compute, for every candidate in ``consortium.CANDIDATES``, the number of
-   *multi-member* schemes (visible to two or more members in their own
-   partition) in train and validation, and project it to the test period by
-   time share.
-2. Choose the smallest real-bank option (A) whose projection reaches
-   ``PROCEED_THRESHOLD``. If none does, choose ``DEFAULT_GROUPED`` (B8, eight
-   grouped institutions, the proposal's "four to eight" members).
-3. Only then count test schemes, for the chosen option alone, and apply the
-   bands.
+* **Primary federation: B8**, all bank IDs grouped into eight institutions
+  balanced by accounts. Every account belongs to a member, as in a national
+  partnership of the largest banks, and it is the proposal's "four to eight"
+  members. Test schemes are counted for B8 only.
+* **Real-bank options (A8-A64) are a secondary analysis** of partial
+  participation: what changes when the consortium holds only a few percent of
+  accounts. They are reported on train and validation schemes only.
+
+A5 replaces the week-2 rule (choose the smallest real-bank option projecting
+100 test schemes). That rule projected from train and validation together,
+which overstates the test count: train schemes are rarely cut by a partition
+end, while validation and test schemes often are, and sparse real-bank
+federations lose the few legs they can see. On HI-Medium it chose A64 on a
+projection of 135, and the test count was 87. The bias is visible in train
+and validation alone (A64: 2.1 multi-member schemes per hour in train, 1.3 in
+validation), so projections now use the validation rate only.
 
 A scheme is visible to a member when one of its in-partition transactions
 touches one of that member's accounts. Transactions masked in a partition
@@ -170,8 +175,9 @@ def evaluate_option(
     legs.update({str(k): int(n) for k, n in legs_df.iter_rows()})
     cov = coverage(attach_members(window_lf, membership))
     acc = account_share(sizes, membership)
-    tv_hours = plan.period("train").hours + plan.period("val").hours
-    projected = (multi["train"] + multi["val"]) * plan.period("test").hours / tv_hours
+    # Validation rate only (A5): validation schemes, like test schemes, are cut
+    # by a partition end; train schemes mostly are not.
+    projected = multi["val"] * plan.period("test").hours / plan.period("val").hours
     result = OptionResult(
         spec=spec,
         members=int(membership["member"].n_unique()),
@@ -186,17 +192,12 @@ def evaluate_option(
 
 
 def select_option(results: list[OptionResult]) -> tuple[ConsortiumSpec, str]:
-    """The preregistered selection rule (module docstring, step 2)."""
-    real = sorted((r for r in results if r.spec.option == "A"), key=lambda r: r.spec.k)
-    for r in real:
-        if r.projected_test_multi_member >= PROCEED_THRESHOLD:
-            return r.spec, (
-                f"smallest real-bank option whose projected test count "
-                f"({r.projected_test_multi_member:.0f}) reaches {PROCEED_THRESHOLD}"
-            )
+    """Amendment A5: the primary federation is fixed by design, not chosen from counts."""
+    del results  # kept in the signature: every option is still evaluated and reported
     return DEFAULT_GROUPED, (
-        f"no real-bank option projects {PROCEED_THRESHOLD} or more multi-member test schemes; "
-        f"default grouped option {DEFAULT_GROUPED.name}"
+        f"primary federation fixed by design (amendment A5): {DEFAULT_GROUPED.name}, "
+        "eight institutions covering every account; real-bank options are a secondary "
+        "partial-participation analysis"
     )
 
 
@@ -542,11 +543,10 @@ def render_summary(results: list[dict[str, Any]]) -> str:
             "band": r["test"]["band"],
             "window_hours": r["window_hours"],
             "schemes": r["schemes_total"],
+            "days": r["observation_window"]["dense_days"],
         }
-        for r in results
+        for r in sorted(results, key=lambda r: str(r["dataset"]))
     ]
-    same_option = len({r["option"] for r in rows}) == 1
-    pooled = sum(r["test_multi"] for r in rows)
     lines = [
         "# G0 evidence · summary",
         "",
@@ -554,6 +554,7 @@ def render_summary(results: list[dict[str, Any]]) -> str:
             rows,
             [
                 ("dataset", "Dataset"),
+                ("days", "Dense days"),
                 ("schemes", "Schemes"),
                 ("window_hours", "Window h"),
                 ("option", "Option"),
@@ -562,16 +563,23 @@ def render_summary(results: list[dict[str, Any]]) -> str:
             ],
         ),
         "",
-        (
-            f"Pooled across datasets (same option {rows[0]['option']}): **{pooled}** multi-member "
-            f"test schemes → band **{band(pooled)}**."
-            if same_option and rows
-            else "Datasets chose different options, so counts are not pooled."
-        ),
-        "",
-        "The decision note is `docs/gates/G0.md`, written from these numbers.",
-        "",
     ]
+    # Pool the HI and LI regimes of the same size, when both used the same option.
+    sizes: dict[str, list[dict[str, Any]]] = {}
+    for r in rows:
+        sizes.setdefault(str(r["dataset"]).split("-", 1)[-1], []).append(r)
+    for size, group in sorted(sizes.items()):
+        if len(group) < 2:
+            continue
+        if len({g["option"] for g in group}) == 1:
+            pooled = sum(int(g["test_multi"]) for g in group)
+            names = " + ".join(str(g["dataset"]) for g in group)
+            lines.append(
+                f"Pooled {names} ({group[0]['option']}): **{pooled}** → band **{band(pooled)}**."
+            )
+        else:
+            lines.append(f"{size}: datasets used different options, so counts are not pooled.")
+    lines += ["", "The decision note is `docs/gates/G0.md`.", ""]
     return "\n".join(lines)
 
 

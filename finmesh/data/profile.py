@@ -207,6 +207,7 @@ def build_profile(paths: DatasetPaths) -> dict[str, Any]:
         "daily": [{**d, "day": str(d["day"])} for d in daily.to_dicts()],
         "ingest_timings": ingest.get("timings"),
         "ingest_peak_rss_mb": ingest.get("peak_rss_mb"),
+        "ingest_peak_anon_mb": ingest.get("peak_anon_mb"),
         "profile_peak_rss_mb": peak_rss_mb(),
     }
 
@@ -312,8 +313,8 @@ def render_markdown(profile: dict[str, Any]) -> str:
         _table(profile["daily"], [("day", "Day"), ("rows", "Rows"), ("laundering", "Laundering")]),
         "",
         f"Resources: ingest {profile['ingest_timings']}, peak memory ingest "
-        f"{_fmt(profile['ingest_peak_rss_mb'])} MB, "
-        f"profile {_fmt(profile['profile_peak_rss_mb'])} MB.",
+        f"{_fmt(profile.get('ingest_peak_anon_mb'))} MB "
+        f"(peak RSS incl. memory-mapped files {_fmt(profile['ingest_peak_rss_mb'])} MB).",
         "",
     ]
     return "\n".join(lines)

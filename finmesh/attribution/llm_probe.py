@@ -117,7 +117,7 @@ def assert_local(url: str) -> None:
 
 
 def call_ollama(
-    url: str, model: str, prompt: str, schema: dict[str, Any], timeout: float
+    url: str, model: str, prompt: str, schema: dict[str, Any] | str, timeout: float
 ) -> dict[str, Any]:
     body = json.dumps(
         {
@@ -142,7 +142,15 @@ def run_probe(
     url: str = "http://localhost:11434",
     seed: int = 7,
     timeout: float = 120.0,
+    constrained: bool = True,
 ) -> dict[str, Any]:
+    """Probe a model.
+
+    ``constrained=True`` passes the JSON schema with the candidate enum to the
+    decoder, so the typology can only be a candidate: grounding is then true by
+    construction and measures nothing. ``constrained=False`` asks only for JSON
+    output (amendment A7): the grounding rate then measures the model itself.
+    """
     assert_local(url)
     rng = random.Random(seed)
     latencies: list[float] = []
@@ -151,14 +159,21 @@ def run_probe(
     # One untimed warm-up call loads the model into memory.
     warm_prompt, warm_cands, _ = make_prompt(random.Random(seed + 1))
     try:
-        call_ollama(url, model, warm_prompt, response_schema(warm_cands), timeout)
+        warm_format: dict[str, Any] | str = response_schema(warm_cands) if constrained else "json"
+        call_ollama(url, model, warm_prompt, warm_format, timeout)
     except (urllib.error.URLError, TimeoutError) as exc:
         return {"model": model, "error": f"cannot reach Ollama at {url}: {exc}"}
     for _ in range(n):
         prompt, candidates, _ = make_prompt(rng)
+        if not constrained:
+            prompt += (
+                '\n\nReply with a JSON object with keys "typology_id", "confidence" '
+                '(0 to 1), "cited_fields" (list of evidence field names) and "rationale".'
+            )
+        fmt: dict[str, Any] | str = response_schema(candidates) if constrained else "json"
         start = time.perf_counter()
         try:
-            reply = call_ollama(url, model, prompt, response_schema(candidates), timeout)
+            reply = call_ollama(url, model, prompt, fmt, timeout)
         except (urllib.error.URLError, TimeoutError) as exc:
             errors.append(str(exc))
             continue
@@ -169,6 +184,7 @@ def run_probe(
     ordered = sorted(latencies)
     return {
         "model": model,
+        "decoding": "schema-constrained" if constrained else "json-only",
         "calls": n,
         "completed": done,
         "errors": errors[:5],
