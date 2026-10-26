@@ -13,7 +13,7 @@ from collections import Counter
 from dataclasses import dataclass, fields
 from typing import Any
 
-LEVELS: tuple[str, ...] = ("S0", "S1", "S2")
+LEVELS: tuple[str, ...] = ("S0", "S1", "S2", "S4")
 PURPOSES: tuple[str, ...] = ("alert_triage",)
 STATUSES: tuple[str, ...] = ("ok", "no_record", "refused")
 
@@ -76,7 +76,7 @@ class EvidenceRecordWire:
     """The minimised record (S2): buckets only, named by the requester's token."""
 
     token: bytes
-    values: tuple[int, ...]  # finmesh.sharing.evidence.WIRE_FIELDS, in order
+    values: tuple[int, ...]  # WIRE_FIELDS (S2) or S4_FIELDS (S4), in order
 
 
 @dataclass(frozen=True)

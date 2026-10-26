@@ -13,7 +13,8 @@ The full research design is in [`docs/proposal/FinMesh_Proposal_v2.md`](docs/pro
 | 3 | 9 – 15 Nov | Labels, sealed test, metrics, budgets, bootstrap | Done; harness verified on real data 25 Oct ([run log](docs/runlog/week-03.md)) |
 | 4 | 16 – 22 Nov | Behaviour, graph and neighbourhood features | Done on real data 25 Oct; diagnostics led to A8–A11 ([run log](docs/runlog/week-04.md)) |
 | 5 | 23 – 29 Nov | Baselines, preregistration, Gate G1 | Done; **G1 passed** (oracle − S0 linked +0.51), preregistration frozen, tag `g1` ([decision](docs/gates/G1.md)) |
-| 6 | 30 Nov – 6 Dec | Token service, evidence records, S1 and S2 | Code done; awaiting real-data run ([run log](docs/runlog/week-06.md)) |
+| 6 | 30 Nov – 6 Dec | Token service, evidence records, S1 and S2 | Done on real data 26 Oct; S1 reaches the pooled-linking bound (0.85 of the oracle gain on HI-Medium) ([run log](docs/runlog/week-06.md)) |
+| 7 | 7 – 13 Dec | Fusion and triage, S4, propagation, X1 and the first frontier | Code done (amendment A13); awaiting real-data run ([run log](docs/runlog/week-07.md)) |
 | 7–9 | 7 – 27 Dec | Fusion, triage, S3, progressive disclosure, attacks, Gate G2 | Not started |
 | 10–12 | 28 Dec – 17 Jan | Federated DP detection, Gate G3 | Not started |
 | 13–14 | 18 – 31 Jan | Attribution and narrative | Not started |

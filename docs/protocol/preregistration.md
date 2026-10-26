@@ -2,7 +2,7 @@
 
 **Status: frozen at Gate G1, 26 Oct 2026 (tag `g1`).** Nothing below changes except through an amendment in `docs/proposal/CHANGES.md` made before the results it affects exist. The sealed test is opened only in week 18.
 
-Proposal: `docs/proposal/FinMesh_Proposal_v2.md`, with amendments A1–A11.
+Proposal: `docs/proposal/FinMesh_Proposal_v2.md`, with amendments A1–A11; A12 and A13 were added after the freeze, through `docs/proposal/CHANGES.md`.
 
 ## 1. Data, federation and splits
 
@@ -47,7 +47,7 @@ Proposal: `docs/proposal/FinMesh_Proposal_v2.md`, with amendments A1–A11.
 - **Incidents:**
   - **S0:** a member links its own alerted account-windows when the accounts transacted directly within the 72 h ending at the later window, and the windows are less than 72 h apart. One account's alerts within 72 h form one case. Incidents are the connected components (`finmesh/fusion/local.py`).
   - **Oracle:** the same rule with every member's alerts visible.
-  - **S1–S4 and PD:** the fusion layer of week 7. Its rule is fixed and committed before any X1 result exists.
+  - **S1–S4 and PD:** the fusion layer of week 7, fixed by amendment A13 (section 6a) before any real-data X1 result: triage by a cross-fitted per-member stacker, then the pooled linking rule.
 - **Random-alert baselines:**
   - Any-alert detection: exact, 1 − Π(1 − p) over the scheme's account-windows at member alert rates p.
   - Linked detection: 20 draws of random alerts with the same count per member and window, linked by the same rule as the scorer.
@@ -88,6 +88,19 @@ Every result is reported whether or not its hypothesis holds; a missed target is
   - Every positive is kept. Negatives are kept with probability 0.1, by a fixed hash, and weighted ×10.
 - **Calibration:** isotonic per member, fitted on validation and applied at test.
 - **Later configurations** (federated neural scorer, sharing levels, fusion, attribution) are specified in their own weeks, before their results exist, and recorded here by amendment.
+
+## 6a. Fusion layer (amendment A13, week 7)
+
+- **Candidates:** every validation account-window with calibrated probability ≥ 0.01 (the evidence floor) or an S0 alert. Each asks, through the protocol of week 6, about its counterparties at other members within the 72 h lookback.
+- **Evidence features per candidate** (`finmesh/fusion/triage.py`):
+  - S1: own logit; requests sent, refused, answered with an alert flag; inbound requests about the candidate and the highest requester bucket.
+  - S2: S1 plus, over counterparty records, the count, highest and summed probability bucket, highest deviation magnitude, fan-in, fan-out and pass-through buckets.
+  - S4: S2 plus the mean counterparty embedding (8 dimensions).
+- **Primary fusion:** per member, `StandardScaler` + `LogisticRegression` (L2, C = 1, `lbfgs`), fitted on unmasked candidates of one validation half (windows 39–44 or 45–50) and scoring the other. Non-candidates keep their S0 probability; each member cuts at the primary budget.
+- **Linking:** S1+ and propagation use the pooled rule of section 4; S0 the local rule.
+- **Secondary fusion rules** (reported, never selected): noisy-OR and k-of-n (k = 1), defined in `finmesh/fusion/triage.py`.
+- **Propagation (PD):** plaintext score propagation, own probability + 0.5 × the strongest cross-member counterparty probability in the lookback.
+- **X1 on validation:** seeds 0–2; H1b recovery (level − S0) / (oracle − S0) in linked detection with a scheme bootstrap. Only test decides H1b.
 
 ## 7. Seeds and statistics
 

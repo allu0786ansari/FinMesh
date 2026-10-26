@@ -528,6 +528,54 @@ def cmd_share(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_x1(args: argparse.Namespace) -> int:
+    from finmesh.data.manifest import load_manifest
+    from finmesh.eval.provenance import Stamp, write_artifact
+    from finmesh.training.x1 import run_x1
+    from finmesh.training.x1_report import frontier_figure, render_x1
+
+    paths = dataset_paths(args.dataset)
+    seeds = tuple(int(s) for s in args.seeds.split(","))
+    result = run_x1(
+        paths, option=args.option, seeds=seeds, reps=args.reps, progress=lambda m: print(f"  {m}")
+    )
+    manifest = load_manifest(paths.manifest)
+    stamp = Stamp(
+        kind="x1",
+        dataset=paths.name,
+        manifest_hash=manifest.manifest_hash,
+        fixture=manifest.fixture,
+        split="val",
+        params={"option": args.option, "seeds": list(seeds), "reps": args.reps},
+    )
+    artifact = write_artifact(
+        data_root() / "artifacts" / "week07" / f"x1_{paths.name}.json", stamp, result
+    )
+    if args.dataset == FIXTURE_DATASET:
+        out_dir = data_root() / "artifacts" / "week07"
+    else:
+        out_dir = REPO_ROOT / "docs" / "eval"
+    figure = frontier_figure(result, out_dir / f"frontier_{paths.name}.png")
+    report = out_dir / f"x1_{paths.name}.md"
+    report.write_text(render_x1(result, figure.name))
+    for name in ("S0", "S1/stacker", "S2/stacker", "S4/stacker", "propagation", "oracle"):
+        v = result["summary"].get(name)
+        if v:
+            print(f"  {name:<12} linked {v['linked']['estimate']:.3f}")
+    h = result["summary"]["H1b"]["S2/stacker"]
+    if h["estimate"] is None:
+        print("  S2 recovery undefined: the oracle shows no linked gain over S0")
+    else:
+        print(
+            f"  S2 recovers {h['estimate']:.2f} [{h['low']:.2f}, {h['high']:.2f}]"
+            " of the oracle gain"
+        )
+    print(f"  {result['seconds']:.0f} s, peak memory {result['peak_anon_mb']} MB")
+    print(f"  artifact {artifact}")
+    print(f"  report   {report}")
+    return 0
+
+
 def cmd_sealed_log(args: argparse.Namespace) -> int:
     from finmesh.eval.sealed import read_access_log
 
@@ -649,6 +697,13 @@ def build_parser() -> argparse.ArgumentParser:
     sh.add_argument("--seed", type=int, default=0)
     sh.add_argument("--reps", type=int, default=1000, help="bootstrap replicates")
     sh.set_defaults(func=cmd_share)
+
+    x1 = sub.add_parser("x1", help="X1 sharing ladder on validation, with the frontier (week 7)")
+    x1.add_argument("--dataset", required=True)
+    x1.add_argument("--option", default="B8")
+    x1.add_argument("--seeds", default="0,1,2", help="comma-separated seeds")
+    x1.add_argument("--reps", type=int, default=1000, help="bootstrap replicates")
+    x1.set_defaults(func=cmd_x1)
 
     sl = sub.add_parser("sealed-log", help="show every opening of the sealed test")
     add_dataset(sl)

@@ -50,6 +50,7 @@ class AnonPeak:
     def __init__(self, interval_s: float = 0.05) -> None:
         self.interval_s = interval_s
         self.peak_kb: int | None = _anon_kb()
+        self.overall_kb: int | None = self.peak_kb
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._run, daemon=True)
 
@@ -58,6 +59,7 @@ class AnonPeak:
             kb = _anon_kb()
             if kb is not None:
                 self.peak_kb = max(self.peak_kb or 0, kb)
+                self.overall_kb = max(self.overall_kb or 0, kb)
             self._stop.wait(self.interval_s)
 
     def lap(self) -> float | None:
@@ -78,7 +80,9 @@ class AnonPeak:
 
     @property
     def mb(self) -> float | None:
-        return None if self.peak_kb is None else round(self.peak_kb / 1024, 1)
+        """Peak over the whole block, across laps."""
+        peak = max((k for k in (self.overall_kb, self.peak_kb) if k is not None), default=None)
+        return None if peak is None else round(peak / 1024, 1)
 
 
 @contextmanager

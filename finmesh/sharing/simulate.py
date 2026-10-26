@@ -44,6 +44,16 @@ class ShareRun:
     level: str
     links: pl.DataFrame
     stats: dict[str, Any]
+    # One row per informative answer (alert, record or refusal): requester member,
+    # window, its accounts (list), responder member, status, alert flag, record
+    # values (list or null).
+    # ``cp`` is the counterparty account, kept for the harness's evaluation only.
+    responses: pl.DataFrame | None = None
+    # Per responder: its own record rows a peer asked about, with requester buckets.
+    inbound: pl.DataFrame | None = None
+    # Per request group: requester member, window, its accounts and the number of
+    # requests sent (one per epoch the lookback spans). Includes "no record" answers.
+    asked: pl.DataFrame | None = None
 
 
 def counterparty_requests(alerts: pl.DataFrame, edges: pl.DataFrame, lookback: int) -> pl.DataFrame:
@@ -84,13 +94,19 @@ def counterparty_requests(alerts: pl.DataFrame, edges: pl.DataFrame, lookback: i
 
 def simulate(
     level: str,
-    alerts: pl.DataFrame,
+    requesters: pl.DataFrame,
     records: dict[int, pl.DataFrame],
     edges: pl.DataFrame,
     first_window: int,
     lookback: int,
 ) -> ShareRun:
-    """Run one sharing level. ``alerts``: member, account, window, prob_bucket."""
+    """Run one sharing level.
+
+    ``requesters``: member, account, window, prob_bucket: the account-windows
+    that ask about their counterparties (week 6: alerts; week 7: every
+    account-window with an evidence record).
+    """
+    alerts = requesters
     t0 = time.perf_counter()
     bus = Bus()
     service = TokenService()
@@ -110,38 +126,93 @@ def simulate(
     if level == "S0":
         return ShareRun(level, empty, {"level": level, "requests": 0})
 
-    index_tokens = {m: node.build_index() for m, node in nodes.items()}
     plan = counterparty_requests(alerts, edges, lookback)
+    # A member without records (none above the floor) still answers: "no_record".
+    if records:
+        blank = next(iter(records.values())).clear()
+        for m in set(plan["cp_member"].to_list()) | set(plan["member"].to_list()):
+            if int(m) not in nodes:
+                nodes[int(m)] = BankNode(
+                    int(m),
+                    level,
+                    TokenClient(int(m), transport),
+                    RequestGuard(int(m), issuer.public_key),
+                    blank,
+                )
+    index_tokens = {m: node.build_index() for m, node in nodes.items()}
+
+    # Requests run in time order, so rate limits and retention act as they would live.
+    plan = plan.sort("window", "member", "cp_member", "cp")
 
     # Requesters tokenise counterparties in one batch per (member, epoch).
     needed: dict[tuple[int, int], set[int]] = defaultdict(set)
-    jobs = []
-    for m, w, cp, cp_m, accts, bucket in plan.iter_rows():
-        for epoch, lo, hi in request_epochs(int(w), first_window, lookback):
+    for m, w, cp in plan.select("member", "window", "cp").iter_rows():
+        for epoch, _, _ in request_epochs(int(w), first_window, lookback):
             needed[(int(m), epoch)].add(int(cp))
-            jobs.append((int(m), int(w), int(cp), int(cp_m), accts, int(bucket), epoch, lo, hi))
     request_tokens = 0
-    tok: dict[tuple[int, int, int], bytes] = {}
+    tok: dict[tuple[int, int], dict[int, bytes]] = {}
     for (m, epoch), cps in needed.items():
         ordered = sorted(cps)
         before = nodes[m].tokens.queries
-        for cp, t in zip(
-            ordered, nodes[m].tokens.tokens(epoch, [identifier(c) for c in ordered]), strict=True
-        ):
-            tok[(m, epoch, cp)] = t
+        tok[(m, epoch)] = dict(
+            zip(
+                ordered,
+                nodes[m].tokens.tokens(epoch, [identifier(c) for c in ordered]),
+                strict=True,
+            )
+        )
         request_tokens += nodes[m].tokens.queries - before
+    del needed
 
     links: list[tuple[int, int, int, int, int, int]] = []
     status: Counter[str] = Counter()
-    for m, w, cp, cp_m, accts, bucket, epoch, lo, hi in jobs:
-        request = bus.send(issuer.issue(m, cp_m, tok[(m, epoch, cp)], epoch, lo, hi, bucket, now=w))
-        response = bus.send(nodes[cp_m].respond(request, now=w))
-        nodes[m].received.add(w, response)
-        status[f"{response.status}{'_alert' if response.alert else ''}"] += 1
-        if response.alert:
-            links.extend((m, a, w, cp_m, cp, response.alert_window) for a in accts)
+    # Only informative answers are kept row by row; "no record" answers are counted
+    # per request group in ``asked`` below.
+    answered: list[tuple[Any, ...]] = []
+    n_requests = 0
+    current = None
+    purged = 0
+    for m, w, cp, cp_m, accts, bucket in plan.iter_rows():
+        m, w, cp, cp_m = int(m), int(w), int(cp), int(cp_m)
+        if w != current:
+            purged += sum(node.received.purge(w) for node in nodes.values())
+            current = w
+        for epoch, lo, hi in request_epochs(w, first_window, lookback):
+            n_requests += 1
+            request = bus.send(
+                issuer.issue(m, cp_m, tok[(m, epoch)][cp], epoch, lo, hi, int(bucket), now=w)
+            )
+            response = bus.send(nodes[cp_m].respond(request, now=w))
+            nodes[m].received.add(w, response)
+            status[f"{response.status}{'_alert' if response.alert else ''}"] += 1
+            if response.status == "no_record" and not response.alert:
+                continue
+            record = list(response.record.values) if response.record is not None else None
+            answered.append((m, w, accts, cp_m, cp, response.status, response.alert, record))
+            if response.alert:
+                links.extend((m, a, w, cp_m, cp, response.alert_window) for a in accts)
+    del tok
+    asked = (
+        plan.with_columns(
+            pl.col("window")
+            .map_elements(
+                lambda w: len(request_epochs(int(w), first_window, lookback)),
+                return_dtype=pl.Int32,
+            )
+            .alias("n")
+        ).select("member", "window", pl.col("account").alias("accounts"), "n")
+        if plan.height
+        else pl.DataFrame(
+            schema={
+                "member": pl.Int32,
+                "window": pl.Int32,
+                "accounts": pl.List(pl.UInt64),
+                "n": pl.Int32,
+            }
+        )
+    )
     last = int(alerts["window"].cast(pl.Int64).max() or 0) if alerts.height else 0  # type: ignore[arg-type]
-    purged = sum(node.received.purge(last) for node in nodes.values())
+    purged += sum(node.received.purge(last) for node in nodes.values())
     refusals: Counter[str] = Counter()
     for node in nodes.values():
         refusals.update(node.guard.refusals)
@@ -150,7 +221,7 @@ def simulate(
         "level": level,
         "alerts": alerts.height,
         "request_groups": plan.height,
-        "requests": len(jobs),
+        "requests": n_requests,
         "responses": dict(status),
         "refusals": dict(refusals),
         "tokens_index": sum(index_tokens.values()),
@@ -163,4 +234,28 @@ def simulate(
         "received_purged": purged,
         "seconds": round(time.perf_counter() - t0, 1),
     }
-    return ShareRun(level, link_frame, stats)
+    responses = pl.DataFrame(
+        answered,
+        schema={
+            "member": pl.Int32,
+            "window": pl.Int32,
+            "accounts": pl.List(pl.UInt64),
+            "cp_member": pl.Int32,
+            "cp": pl.UInt64,
+            "status": pl.String,
+            "alert": pl.Boolean,
+            "record": pl.List(pl.Int64),
+        },
+        orient="row",
+    )
+    inbound_rows = [
+        (m, int(node._acct[row]), int(node._win[row]), b)
+        for m, node in nodes.items()
+        for row, b in node.inbound
+    ]
+    inbound = pl.DataFrame(
+        inbound_rows,
+        schema={"member": pl.Int32, "account": pl.UInt64, "window": pl.Int32, "bucket": pl.Int8},
+        orient="row",
+    )
+    return ShareRun(level, link_frame, stats, responses, inbound, asked)

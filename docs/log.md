@@ -14,6 +14,16 @@ Next week: <first two tasks>
 On track for next gate? yes / at risk / no
 ```
 
+## Week 07 · 7 – 13 Dec 2026
+
+Planned: fusion and triage, S4, plaintext propagation, X1 on validation and the first frontier.
+Done: week 6 reviewed (S1 reaches the pooled-linking bound: 0.604 linked on HI-Medium, 0.85 of the oracle gain; 0.68 on LI-Medium; no token refusals). Fusion rule fixed before results as amendment A13: candidates (probability ≥ 0.01 or alerted) ask before alerting; a per-member logistic stacker cross-fitted on validation halves re-ranks each queue; noisy-OR and k-of-n secondary; pooled linking at S1+. S4 records with autoencoder embeddings; inbound-request tracking; plaintext propagation; `finmesh x1` with seeds, scheme bootstrap, paired gains, H1b recovery and the frontier figure. Details in `docs/runlog/week-07.md`.
+Not done: real-data X1 on HI-Medium and LI-Medium (run-log step 3); owner confirmation of A13.
+Numbers this week: engineering only. Stress scale (32 M rows, one seed): 2,472 s, peak 3.6 GB (first attempt 4.3 GB), 1.49 M requests per level, no token refusals, 0.12% rate-limited.
+Risks or blockers: if S2 does not beat S1 on validation, H1b rests on S1-level evidence; week 8's S3 noise would then cost little, which is itself a finding.
+Next week: week 8, S3 (randomised response on records) and the leakage audit A1–A3.
+On track for next gate? yes.
+
 ## Week 06 · 30 Nov – 6 Dec 2026
 
 Planned: banks can match accounts through OPRF tokens and exchange S1 and S2 evidence in the harness.

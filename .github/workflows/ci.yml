@@ -37,6 +37,7 @@ jobs:
           uv run finmesh features --dataset FIXTURE-Small --view pooled
           uv run finmesh baselines --dataset FIXTURE-Small --reps 200 --draws 5
           uv run finmesh share --dataset FIXTURE-Small --reps 200
+          uv run finmesh x1 --dataset FIXTURE-Small --seeds 0,1 --reps 200
           uv run finmesh check
 
   secret-scan:

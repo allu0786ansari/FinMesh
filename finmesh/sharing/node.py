@@ -7,6 +7,12 @@ The node answers an :class:`EvidenceRequest` at its sharing level:
   alert in the requested windows, and the latest such window.
 * **S2**: the full minimised record of the latest account-window in range
   (alerted or above the evidence floor), plus the alert flag.
+* **S4**: the S2 record plus the autoencoder's window embedding (the leakage
+  upper reference).
+
+Answering a request also tells the responder that a peer asked about one of
+its records, and the requester's score bucket (``inbound``); its own triage
+may use that, which is itself a disclosure the attacks of weeks 8-9 measure.
 
 The token index maps (epoch, token) to the node's own records; it is built by
 tokenising the node's own accounts through the token service. The account
@@ -22,7 +28,7 @@ from typing import Any
 import polars as pl
 
 from finmesh.matching.tokens import EPOCH_WINDOWS, TokenClient, epoch_of, identifier
-from finmesh.sharing.evidence import WIRE_FIELDS
+from finmesh.sharing.evidence import S4_FIELDS, WIRE_FIELDS
 from finmesh.sharing.messages import EvidenceRecordWire, EvidenceRequest, EvidenceResponse
 from finmesh.sharing.requests import ReceivedStore, RequestGuard
 
@@ -36,6 +42,9 @@ class BankNode:
     records: pl.DataFrame
     received: ReceivedStore = field(default_factory=ReceivedStore)
     index: dict[tuple[int, bytes], list[int]] = field(default_factory=dict)
+    # What a responder learns from requests: which of its own records a peer asked
+    # about, and the requester's score bucket (row, bucket). Used by its own triage.
+    inbound: list[tuple[int, int]] = field(default_factory=list)
     _win: Any = None
     _alert_arr: Any = None
     _acct: Any = None
@@ -50,7 +59,8 @@ class BankNode:
         self._win = self.records["window"].to_numpy()
         self._alert_arr = self.records["alert"].to_numpy()
         self._acct = self.records["account"].to_numpy()
-        self._wire = self.records.select(WIRE_FIELDS).cast(pl.Int64).to_numpy()
+        fields = S4_FIELDS if self.level == "S4" else WIRE_FIELDS
+        self._wire = self.records.select(fields).cast(pl.Int64).to_numpy()
         index: dict[tuple[int, bytes], list[int]] = defaultdict(list)
         for (epoch,), part in recs.sort("window").group_by(["epoch"], maintain_order=True):
             accounts = part["account"].to_list()
@@ -72,18 +82,21 @@ class BankNode:
         alerted = [r for r in rows if self._alert(r)]
         alert_window = max((self._window(r) for r in alerted), default=-1)
         if self.level == "S1":
+            if rows:
+                self.inbound.append((max(rows, key=self._window), request.requester_bucket))
             status = "ok" if alerted else "no_record"
             return EvidenceResponse(
                 request.request_id, self.member, "S1", status, bool(alerted), alert_window
             )
         if not rows:
-            return EvidenceResponse(request.request_id, self.member, "S2", "no_record")
+            return EvidenceResponse(request.request_id, self.member, self.level, "no_record")
         latest = max(rows, key=self._window)
+        self.inbound.append((latest, request.requester_bucket))
         values = tuple(int(v) for v in self._wire[latest])
         return EvidenceResponse(
             request.request_id,
             self.member,
-            "S2",
+            self.level,
             "ok",
             bool(alerted),
             alert_window,

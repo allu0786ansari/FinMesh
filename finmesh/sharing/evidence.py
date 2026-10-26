@@ -76,11 +76,13 @@ def build_records(
     top_idx: np.ndarray[Any, Any],
     top_dir: np.ndarray[Any, Any],
     top_err: np.ndarray[Any, Any],
+    embedding: np.ndarray[Any, Any] | None = None,
 ) -> pl.DataFrame:
     """Records for the rows of ``frame`` (member, account, window, counter features).
 
     ``prob`` are calibrated probabilities, ``alerted`` the member's own alert
-    decisions, ``top_*`` the autoencoder's top deviations for the same rows.
+    decisions, ``top_*`` the autoencoder's top deviations for the same rows,
+    ``embedding`` its bottleneck activations (S4 only; stored as int x 100).
     Rows below the evidence floor are dropped unless alerted.
     """
     s = load_evidence_schema()
@@ -99,8 +101,13 @@ def build_records(
         cols[f"dev{k}_magnitude"] = mag[:, k]
     for name, feature, edges in s.counters:
         cols[f"c_{name}"] = bucket(frame[feature].cast(pl.Float64).to_numpy()[keep], edges)
+    emb = np.zeros((int(keep.sum()), EMBED_DIM)) if embedding is None else embedding[keep]
+    for i in range(EMBED_DIM):
+        cols[f"emb{i}"] = np.clip(np.round(emb[:, i] * 100), -32767, 32767).astype(np.int16)
     return pl.DataFrame(cols)
 
+
+EMBED_DIM = 8  # finmesh.models.autoencoder bottleneck
 
 WIRE_FIELDS: tuple[str, ...] = (
     "window",
@@ -109,3 +116,6 @@ WIRE_FIELDS: tuple[str, ...] = (
     *(f"dev{k}_{p}" for k in range(3) for p in ("feature", "direction", "magnitude")),
     *(f"c_{c['name']}" for c in json.loads(SCHEMA_PATH.read_text())["counters"]),
 )
+
+# S4 shares the record plus the window embedding (the leakage upper reference).
+S4_FIELDS: tuple[str, ...] = (*WIRE_FIELDS, *(f"emb{i}" for i in range(EMBED_DIM)))
