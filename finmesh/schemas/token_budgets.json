@@ -1,0 +1,10 @@
+{
+  "name": "finmesh-token-budgets",
+  "version": 1,
+  "amendment": "A16",
+  "rule": "Per bank and epoch: twice the largest legitimate use by any member, measured on validation (week-8 X1 run, seed 0, all candidates asking). Fixed before any test run.",
+  "measured_peak": {"HI-Medium": 37255, "LI-Medium": 43790},
+  "budgets": {"HI-Medium": 74510, "LI-Medium": 87580},
+  "default": 250000,
+  "default_note": "Datasets without a measured peak (the Small sets, stress sets and the fixture) keep the week-6 placeholder."
+}

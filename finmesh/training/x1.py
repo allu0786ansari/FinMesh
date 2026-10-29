@@ -44,6 +44,7 @@ from finmesh.eval.stats import interval_from, paired_difference, scheme_rate_ci
 from finmesh.features.build import FeatureStore
 from finmesh.fusion.local import Linker, link_edges
 from finmesh.fusion.triage import evidence_features, feature_names, k_of_n, noisy_or
+from finmesh.matching.tokens import token_budget
 from finmesh.models.autoencoder import Autoencoder
 from finmesh.models.gbdt import GBDT
 from finmesh.paths import DatasetPaths
@@ -51,6 +52,7 @@ from finmesh.sharing.evidence import bucket, build_records, load_evidence_schema
 from finmesh.sharing.ldp import EPSILONS
 from finmesh.sharing.simulate import TokenEnv, counterparty_requests, simulate
 from finmesh.sysinfo import AnonPeak
+from finmesh.training.attacks import a5_membership
 from finmesh.training.audit import Auditor
 from finmesh.training.baselines import (
     DELAY_WINDOWS,
@@ -226,6 +228,11 @@ def run_seed(
         for m in members
         if sample.filter(pl.col("member") == m).height > 100
     }
+    a5_result = None
+    if audit:  # A5: what S4 discloses about the autoencoders' training rows
+        pool = sample_rows(feats, cols, windows, AE_SAMPLE, seed + 7919)
+        a5_result = a5_membership(encoders, sample, pool, schema.magnitude_edges, schema.top, seed)
+        del pool
     del sample
     keep = (prob >= schema.floor) | alerted
     counter_cols = [c[1] for c in schema.counters]
@@ -283,8 +290,13 @@ def run_seed(
     flag_q = _flag_precision(
         alerted[rows], label[rows], usable[rows], candidates["member"].to_numpy(), fold
     )
-    tokens = TokenEnv.new()  # one token service per seed; levels reuse the OPRF work
+    # One token service per seed (levels reuse the OPRF work), at the dataset's sized budget.
+    tokens = TokenEnv.new(token_budget(paths.name))
     auditor = Auditor(paths, option, plan, keys, lookback, v0, v1, seed) if audit else None
+    if auditor is not None:
+        auditor.own = (candidates, label[rows], usable[rows])
+        auditor.n_features = len(cols)
+        auditor.a5 = a5_result
     for name, level, params in level_runs(sweeps):
         t0 = time.perf_counter()
         run = simulate(
@@ -494,6 +506,12 @@ def combine(seeds: list[dict[str, Any]], reps: int) -> dict[str, Any]:
         for ceiling in ("oracle-relational", "oracle")
         if ceiling in stack
     }
+    # Sensitivity: the stronger of the two pooled relational configurations (week 9).
+    pooled = [c for c in ("oracle-relational", "oracle+propagation") if c in stack]
+    if len(pooled) == 2:
+        best = max(pooled, key=lambda c: float(stack[c]["linked"].mean()))
+        summary["H1b_strongest_pooled"] = best
+        summary["H1b"]["strongest-pooled"] = {lv: _recovery(stack, lv, reps, best) for lv in levels}
     # H1d: progressive disclosure against S2 (gain share and disclosure volume).
     if "S2/stacker" in stack and any(lv.startswith("PD[") for lv in levels):
         s2_acc = [s["protocol"]["S2"]["accounts_disclosed"] for s in seeds]

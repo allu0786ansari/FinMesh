@@ -14,6 +14,7 @@ from finmesh.sharing.ldp import (
     EPSILON_CAP,
     LDP_FIELDS,
     LdpReleaser,
+    dummy_wire,
     field_domains,
     k_rr,
     keep_probability,
@@ -71,7 +72,7 @@ def test_k_rr_keeps_the_true_value_at_the_stated_rate() -> None:
 def test_releases_are_memoised_and_budgeted_per_account_epoch() -> None:
     wire = tuple(_valid_wire(5, True))
     rel = LdpReleaser(epsilon=4.0, n_features=N_FEATURES, seed=1)
-    first = rel.release(0, account=9, epoch=0, wire=wire)
+    first = rel.release(0, subject=9, epoch=0, wire=wire)
     assert first is not None and rel.release(0, 9, 0, wire) == first  # memoised: no new spend
     assert first[WIRE_FIELDS.index("window")] == 5 and first[WIRE_FIELDS.index("alert")] == 1
     assert rel.release(1, 9, 0, wire) is not None  # second record: 8 = cap
@@ -111,6 +112,25 @@ def test_s3_responses_are_noised_memoised_and_allowlisted() -> None:
         if f in dom:
             assert v in dom[f]
     assert node.disclosed == {1}
+    assert r1.record.values[WIRE_FIELDS.index("window")] == 9  # end of range, not the record's
+
+
+def test_s3_answers_with_a_dummy_when_no_record_exists() -> None:
+    """A16: existence is protected; the reply looks like any other S3 reply."""
+    issuer, node, service = _node("S3", ldp=LdpReleaser(0.5, N_FEATURES, seed=4))
+    client = _client(service, 0)
+    known = client.tokens(0, [identifier(20)])[0]
+    unknown = client.tokens(0, [identifier(99)])[0]  # an account with no record at this node
+    for token, lo, hi in ((unknown, 0, 9), (known, 6, 8)):  # (20 has records only at 5 and 9)
+        r = node.respond(issuer.issue(0, 1, token, 0, lo, hi, 3, now=hi), now=hi)
+        check(r)
+        assert r.status == "ok" and r.record is not None and not r.alert
+        assert r.record.values[WIRE_FIELDS.index("window")] == hi
+        again = node.respond(issuer.issue(0, 1, token, 0, lo, hi, 3, now=hi), now=hi)
+        assert again.record is not None and again.record.values == r.record.values  # memoised
+    assert node.disclosed == set()  # dummies are not disclosures of a real record
+    assert node.ldp is not None and len(node.ldp.ledger) == 2  # each dummy spent ε once
+    assert dummy_wire(7)[WIRE_FIELDS.index("prob_bucket")] == 0
 
 
 @pytest.mark.parametrize(("bucket", "has_record"), [(1, False), (2, False), (3, True), (4, True)])

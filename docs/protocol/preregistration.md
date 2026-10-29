@@ -2,7 +2,7 @@
 
 **Status: frozen at Gate G1, 26 Oct 2026 (tag `g1`).** Nothing below changes except through an amendment in `docs/proposal/CHANGES.md` made before the results it affects exist. The sealed test is opened only in week 18.
 
-Proposal: `docs/proposal/FinMesh_Proposal_v2.md`, with amendments A1–A11; A12–A15 were added after the freeze, through `docs/proposal/CHANGES.md`.
+Proposal: `docs/proposal/FinMesh_Proposal_v2.md`, with amendments A1–A11; A12–A16 were added after the freeze, through `docs/proposal/CHANGES.md`.
 
 ## 1. Data, federation and splits
 
@@ -122,6 +122,15 @@ Every result is reported whether or not its hypothesis holds; a missed target is
   - A2 and A3 adversary: a gradient-boosted classifier trained on the true attributes of half the queried accounts (split by account), tested on the other half. Baseline: a prior-only classifier on its own accounts in the request, its score bucket, the window and the two banks.
   - At most 200,000 targets, sampled by account hash. Metrics: TPR at 0.1% and 1% FPR and AUC, with an account-cluster bootstrap (200 replicates).
 - **H1c margin:** the upper 95% bound of (attack − prior) TPR at 1% FPR is at most 0.05 on every assessable target.
+
+### Amendment A16 (week 9)
+
+- **S3:** every request gets a record. Accounts without one get a dummy (probability bucket 0, no deviation, counters missing). The time field is the end of the requested range. Releases are memoised per record and epoch.
+- **Token budgets** (`finmesh/schemas/token_budgets.json`): twice the largest legitimate per-bank, per-epoch use on validation. HI-Medium 74,510; LI-Medium 87,580; 250,000 elsewhere. PT2 is judged at these budgets.
+- **A4:** rotation simulated at mid-validation. Each second-half record is ranked among up to 99 first-half records from the same responder by similarity (negative Hamming distance over the fields; at S4, distance over the standardised fields and embedding). Reported as hit@1 against chance. S3 is released afresh in each half.
+- **A5:** a classifier on S4's disclosure (deviation indices, directions, magnitude buckets, embedding) separating each member's autoencoder training rows from its other training rows. At most 5,000 of each per member; train on half by account.
+- **A6:** the responder predicts its own candidate's label from its own score, then from its own score plus the requests it received (count, highest requester bucket). The gain is reported.
+- **H1b** is also reported against the stronger of the relational oracle and oracle + propagation (sensitivity).
 
 ## 7. Seeds and statistics
 

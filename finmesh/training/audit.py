@@ -48,6 +48,7 @@ from finmesh.fusion.local import link_edges
 from finmesh.matching.tokens import QUERY_BUDGET, HashTokenClient, TokenClient, identifier
 from finmesh.paths import DatasetPaths
 from finmesh.sharing.evidence import S4_FIELDS, WIRE_FIELDS
+from finmesh.training.attacks import a4_linkability, a6_query_leakage
 from finmesh.training.data import slices
 from finmesh.training.sharing_run import store_membership
 
@@ -136,6 +137,13 @@ class Auditor:
     targets: pl.DataFrame | None = None
     test_scores: dict[str, dict[str, np.ndarray]] = field(default_factory=dict)
     levels: dict[str, str] = field(default_factory=dict)
+    # Week 9: A4 per record level, A5 (set by the caller), A6 from the S1 run.
+    own: tuple[pl.DataFrame, np.ndarray, np.ndarray] | None = None  # candidates, label, usable
+    a4: dict[str, Any] = field(default_factory=dict)
+    a5: dict[str, Any] | None = None
+    a6: dict[str, Any] | None = None
+    n_features: int = 47
+    _s2: pl.DataFrame | None = None
 
     # --- ground truth (harness only) -------------------------------------------------
 
@@ -260,6 +268,18 @@ class Auditor:
         )
         train = joined["split"].to_numpy() == 0
         self.levels[name] = level
+        if level == "S2":
+            self._s2 = run.responses.filter(pl.col("record").is_not_null())
+        if level in ("S2", "S4", "PD"):
+            self.a4[name] = a4_linkability(level, run.responses, self.v0, self.v1, self.seed)
+        if level == "S3" and self._s2 is not None:
+            eps = float(name.split("=")[1].rstrip("]"))
+            self.a4[name] = a4_linkability(
+                "S3", self._s2, self.v0, self.v1, self.seed, eps, self.n_features
+            )
+        if level == "S1" and self.own is not None and self.a6 is None:
+            cands, lab, use = self.own
+            self.a6 = a6_query_leakage(cands, lab, use, run.inbound, self.seed)
         if "prior" not in self.test_scores:
             self.test_scores["prior"] = {}
             for target in TARGETS:
@@ -279,7 +299,14 @@ class Auditor:
     def finish(
         self, tokens: Any = None, records: dict[int, pl.DataFrame] | None = None
     ) -> dict[str, Any]:
-        out: dict[str, Any] = {"seed": self.seed, "margin": MARGIN, "levels": self.levels}
+        out: dict[str, Any] = {
+            "seed": self.seed,
+            "margin": MARGIN,
+            "levels": self.levels,
+            "A4": self.a4,
+            "A5": self.a5,
+            "A6": self.a6,
+        }
         if self.targets is not None and self.test_scores:
             test = self.targets.filter(pl.col("split") == 1)
             clusters = test["cp"].to_numpy()
@@ -434,6 +461,7 @@ def a1_reidentification(
     for (bank, _epoch), used in tokens.service.used.items():
         legit[int(bank)] = max(legit.get(int(bank), 0), int(used))
     sized = int(SIZED_BUDGET_FACTOR * max(legit.values(), default=0))
+    protocol = int(tokens.service.budget)
     rows = []
     hit_frames = []
     for adv in sorted(targets["holder"].unique().to_list()):
@@ -449,7 +477,11 @@ def a1_reidentification(
             "hash": hit / n_t if n_t else 0.0,
             "legit_queries": legit.get(int(adv), 0),
         }
-        for label, budget in (("oprf_deployed", QUERY_BUDGET), ("oprf_sized", sized)):
+        for label, budget in (
+            ("oprf_protocol", protocol),
+            ("oprf_sized", sized),
+            ("oprf_250k", QUERY_BUDGET),
+        ):
             spare = max(0, budget - legit.get(int(adv), 0))
             row[label] = (hit * min(1.0, spare / n_c) / n_t) if n_t and n_c else 0.0
             row[f"{label}_attack_queries"] = min(spare, n_c)
@@ -457,19 +489,23 @@ def a1_reidentification(
     total_t = sum(r["targets"] for r in rows)
     pooled = {
         k: (sum(r[k] * r["targets"] for r in rows) / total_t if total_t else 0.0)
-        for k in ("hash", "oprf_deployed", "oprf_sized")
+        for k in ("hash", "oprf_protocol", "oprf_sized", "oprf_250k")
     }
     check = _token_check(tokens, pl.concat(hit_frames) if hit_frames else None, sample)
     return {
         "per_adversary": rows,
         "pooled": pooled,
-        "deployed_budget": QUERY_BUDGET,
+        "protocol_budget": protocol,
+        "placeholder_budget": QUERY_BUDGET,
         "sized_budget": sized,
         "ratio_hash_to_oprf_sized": (pooled["hash"] / pooled["oprf_sized"])
         if pooled["oprf_sized"]
         else None,
-        "ratio_hash_to_oprf_deployed": (pooled["hash"] / pooled["oprf_deployed"])
-        if pooled["oprf_deployed"]
+        "ratio_hash_to_oprf_protocol": (pooled["hash"] / pooled["oprf_protocol"])
+        if pooled["oprf_protocol"]
+        else None,
+        "ratio_hash_to_oprf_250k": (pooled["hash"] / pooled["oprf_250k"])
+        if pooled["oprf_250k"]
         else None,
         "mechanism_check": check,
     }

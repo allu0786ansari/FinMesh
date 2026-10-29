@@ -23,17 +23,28 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import json
 import secrets
 from collections import defaultdict
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from finmesh.matching import oprf
 
 EPOCH_WINDOWS = 28  # 7 days of 6 h windows: one key per epoch
-QUERY_BUDGET = 250_000  # blinded evaluations per bank and epoch
+QUERY_BUDGET = 250_000  # week-6 placeholder; sized budgets per dataset in token_budgets.json
+BUDGETS_PATH = Path(__file__).resolve().parent.parent / "schemas" / "token_budgets.json"
+
+
+def token_budget(dataset: str) -> int:
+    """The per-bank, per-epoch query budget fixed for ``dataset`` (amendment A16)."""
+    doc = json.loads(BUDGETS_PATH.read_text())
+    return int(doc["budgets"].get(dataset, doc["default"]))
+
+
 TOKEN_BYTES = 16  # truncated PRF output; collisions are negligible at AMLworld scale
 
 Transport = Callable[[int, int, list[bytes]], list[bytes]]

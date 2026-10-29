@@ -359,8 +359,9 @@ def render_x1(r: dict[str, Any], figure: str | None) -> str:
         "",
         "(level − S0) / (ceiling − S0) in linked detection, scheme bootstrap. The relational "
         "oracle (pooled data with the same re-ranking, plaintext) is the ceiling from A14; the "
-        "preregistered oracle is kept for comparison. Target: at least 0.60 for S2, judged on "
-        "test.",
+        "preregistered oracle is kept for comparison, and `strongest-pooled` uses whichever "
+        f"pooled relational configuration links more ({s.get('H1b_strongest_pooled', '—')}) "
+        "as a sensitivity check. Target: at least 0.60 for S2, judged on test.",
         "",
         table(
             h1b_rows,
@@ -583,46 +584,153 @@ def render_audit(r: dict[str, Any], figure: str | None) -> str:
         ]
     a1 = a.get("A1")
     if a1:
+        lines += render_a1(a1)
+    lines += render_a4_a6(a)
+    return "\n".join(lines)
+
+
+def render_a1(a1: dict[str, Any]) -> list[str]:
+    """A1 section; reads week-8 artifacts (deployed = 250,000) and later ones (A16 budgets)."""
+    protocol_key = "oprf_protocol" if "oprf_protocol" in a1["pooled"] else "oprf_deployed"
+    protocol_budget = a1.get("protocol_budget", a1.get("deployed_budget"))
+    rows = [
+        {
+            **x,
+            "hash": fmt(x["hash"]),
+            "protocol": fmt(x[protocol_key]),
+            "sized": fmt(x["oprf_sized"]),
+            "placeholder": fmt(x.get("oprf_250k", x.get("oprf_deployed"))),
+        }
+        for x in a1["per_adversary"]
+    ]
+    p = a1["pooled"]
+    ratio = a1.get("ratio_hash_to_oprf_protocol", a1.get("ratio_hash_to_oprf_deployed"))
+    return [
+        "## A1 token re-identification",
+        "",
+        "Targets: the tokens of every other member's evidence records. Candidates: every "
+        "account at another member that the adversary's customers traded with up to the end of "
+        "validation. Hashing: all candidates tokenised offline, unmetered. OPRF: candidates "
+        "tokenised within the spare per-epoch budget, every query logged; expected "
+        "re-identification with candidates queried in random order. Budgets: the protocol's "
+        f"({protocol_budget:,}; A16 sizes it to twice the largest legitimate use on validation), "
+        f"twice the largest legitimate use in this run ({a1['sized_budget']:,}), and the week-6 "
+        "placeholder (250,000).",
+        "",
+        table(
+            rows,
+            [
+                ("adversary", "Adversary"),
+                ("targets", "Target tokens"),
+                ("candidates", "Candidates"),
+                ("legit_queries", "Legitimate queries"),
+                ("hash", "Hashing"),
+                ("protocol", "OPRF, protocol budget"),
+                ("sized", "OPRF, sized in this run"),
+                ("placeholder", "OPRF, 250,000"),
+            ],
+        ),
+        "",
+        f"Pooled: hashing {fmt(p['hash'])}, OPRF at the protocol budget "
+        f"{fmt(p[protocol_key])}, sized in this run {fmt(p['oprf_sized'])}. Hashing ÷ OPRF at "
+        f"the protocol budget: **{fmt(ratio)}** (PT2 asks for at least 10).",
+        "",
+        f"Mechanism check on real tokens: {a1['mechanism_check']}.",
+        "",
+    ]
+
+
+def render_a4_a6(a: dict[str, Any]) -> list[str]:
+    """Week-9 attacks; absent from week-8 artifacts."""
+    out: list[str] = []
+    a4 = a.get("A4") or {}
+    if a4:
         rows = [
             {
-                **x,
-                "hash": fmt(x["hash"]),
-                "oprf_deployed": fmt(x["oprf_deployed"]),
-                "oprf_sized": fmt(x["oprf_sized"]),
+                "level": _short(name),
+                "queries": v.get("queries"),
+                "chance": v.get("chance_hit1"),
+                "hit1": (
+                    f"{fmt(v['hit1'])} [{fmt(v['hit1_low'])}, {fmt(v['hit1_high'])}]"
+                    if v.get("queries")
+                    else "—"
+                ),
+                "mrr": v.get("mrr"),
             }
-            for x in a1["per_adversary"]
+            for name, v in a4.items()
         ]
-        p = a1["pooled"]
-        lines += [
-            "## A1 token re-identification",
+        out += [
+            "## A4 linkability across epochs",
             "",
-            "Targets: the tokens of every other member's evidence records. Candidates: every "
-            "account at another member that the adversary's customers traded with up to the end "
-            "of validation. Hashing: all candidates tokenised offline, unmetered. OPRF: "
-            "candidates tokenised within the spare per-epoch budget (deployed "
-            f"{a1['deployed_budget']:,}; sized to twice the largest legitimate use, "
-            f"{a1['sized_budget']:,}), every query logged. Expected re-identification with "
-            "candidates queried in random order.",
+            "Validation lies inside one 7-day epoch, so key rotation is simulated at its "
+            "midpoint. Each second-half record an adversary received is ranked among up to 99 "
+            "first-half records from the same responder by similarity of the record's fields "
+            "(and embedding at S4); hit@1 is how often the true account comes first. S3 records "
+            "are released afresh after a rotation (memoised per record and epoch), so they are "
+            "re-noised independently in each half. Positive control: without rotation, equal "
+            "tokens link every pair (hit@1 = 1).",
             "",
             table(
                 rows,
                 [
-                    ("adversary", "Adversary"),
-                    ("targets", "Target tokens"),
-                    ("candidates", "Candidates"),
-                    ("legit_queries", "Legitimate queries"),
-                    ("hash", "Hashing"),
-                    ("oprf_deployed", "OPRF, deployed budget"),
-                    ("oprf_sized", "OPRF, sized budget"),
-                    ("oprf_sized_attack_queries", "Attack queries (sized)"),
+                    ("level", "Level"),
+                    ("queries", "Queries"),
+                    ("chance", "Chance hit@1"),
+                    ("hit1", "Hit@1 [95% CI]"),
+                    ("mrr", "Mean reciprocal rank"),
                 ],
             ),
             "",
-            f"Pooled: hashing {fmt(p['hash'])}, OPRF deployed {fmt(p['oprf_deployed'])}, OPRF "
-            f"sized {fmt(p['oprf_sized'])}. Hashing ÷ OPRF (sized): "
-            f"{fmt(a1['ratio_hash_to_oprf_sized'])} (PT2 asks for at least 10).",
+        ]
+    a5 = a.get("A5") or {}
+    if a5.get("rows"):
+        m = a5["S4"]
+        out += [
+            "## A5 membership inference on S4 disclosures",
             "",
-            f"Mechanism check on real tokens: {a1['mechanism_check']}.",
+            "Can a peer tell whether an account-window was in another member's autoencoder "
+            "training sample from what S4 discloses (top deviations, magnitude buckets, "
+            f"embedding)? {a5['rows']:,} rows, half members; strong adversary trained on half "
+            f"and tested on {a5['test']:,}. Chance: TPR equals FPR, AUC 0.5. The global DP "
+            "model's membership inference is X5 (weeks 10–12).",
+            "",
+            f"TPR at 0.1% FPR {_ci(m.get('tpr_0.001'))}; TPR at 1% FPR {_ci(m.get('tpr_0.01'))}; "
+            f"AUC {_ci(m.get('auc'))}.",
             "",
         ]
-    return "\n".join(lines)
+    a6 = a.get("A6") or {}
+    if a6.get("rows"):
+        att = a6["attack"]
+        out += [
+            "## A6 query leakage",
+            "",
+            "What does being asked reveal? The request carries the requester's score bucket in "
+            "the clear (by design: PD needs it). Here a responder predicts whether its own "
+            "candidate account-window is laundering from its own score, then from its own score "
+            "plus the requests it received about it. Measured, not prevented.",
+            "",
+            f"{a6['rows']:,} candidate account-windows; {fmt(a6['asked_share'])} were asked "
+            f"about at least once, {fmt(a6['positives_asked_share'])} of the laundering ones.",
+            "",
+            table(
+                [
+                    {
+                        "view": name,
+                        "auc": _ci(att[name].get("auc")),
+                        "tpr001": _ci(att[name].get("tpr_0.001")),
+                        "tpr01": _ci(att[name].get("tpr_0.01")),
+                    }
+                    for name in ("own", "own+requests")
+                ],
+                [
+                    ("view", "Responder sees"),
+                    ("auc", "AUC"),
+                    ("tpr001", "TPR at 0.1% FPR"),
+                    ("tpr01", "TPR at 1% FPR"),
+                ],
+            ),
+            "",
+            f"Gain from requests, TPR at 1% FPR: {_ci(att.get('gain_tpr_0.01'))}.",
+            "",
+        ]
+    return out

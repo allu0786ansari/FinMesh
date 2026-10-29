@@ -23,5 +23,7 @@ step uv run finmesh features --dataset FIXTURE-Small --view pooled
 step uv run finmesh baselines --dataset FIXTURE-Small --reps 200 --draws 5
 step uv run finmesh share --dataset FIXTURE-Small --reps 200
 step uv run finmesh x1 --dataset FIXTURE-Small --seeds 0,1 --reps 200
+step uv run finmesh demo-slice --dataset FIXTURE-Small --alerts 20
+step uv run finmesh g2
 step uv run finmesh check
 echo; echo "local CI: all steps passed"

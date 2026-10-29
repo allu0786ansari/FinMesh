@@ -206,6 +206,7 @@ def test_x1_pipeline_on_the_fixture(
     build_features(fixture_paths, "B8")
     build_features(fixture_paths, "B8", view="pooled")
     monkeypatch.setattr(x1, "PRIMARY", Budget("per_1000_per_day", 300.0))
+    monkeypatch.setattr(x1, "AE_SAMPLE", 3000)  # below the fixture's rows, so A5 has non-members
     r = x1.run_x1(fixture_paths, seeds=(0, 1), reps=50, window_reps=20)
     s = r["summary"]
     expected = {"S0", "oracle", "oracle-relational", "oracle+propagation", "propagation"} | {
@@ -214,7 +215,7 @@ def test_x1_pipeline_on_the_fixture(
     expected |= {f"{n}/stacker" for n, _, _ in x1.level_runs(True)}
     assert expected <= set(s)
     assert s["oracle"]["linked"]["estimate"] > 0
-    assert set(s["H1b"]) == {"oracle-relational", "oracle"}
+    assert set(s["H1b"]) == {"oracle-relational", "oracle", "strongest-pooled"}
     assert {"S1", "PD[tau=2]", "PD[tau=3]", "PD[tau=4]"} <= set(s["H1d"])
     runs = {n for n, _, _ in x1.level_runs(True)}
     for seed in r["per_seed"]:
@@ -235,6 +236,9 @@ def test_x1_pipeline_on_the_fixture(
         "A3_pass_through",
     }
     assert {"prior", "S1", "S2", "S4"} <= set(audit["attacks"]["A2_third_party"])
+    assert audit["A5"]["rows"] > 0 and "tpr_0.01" in audit["A5"]["S4"]
+    assert audit["A6"]["rows"] > 0 and "gain_tpr_0.01" in audit["A6"]["attack"]
+    assert any(v.get("queries", 0) > 0 for v in audit["A4"].values())
     a1 = audit["A1"]
     assert a1["pooled"]["hash"] >= a1["pooled"]["oprf_sized"]
     check = a1["mechanism_check"]
@@ -249,3 +253,25 @@ def test_x1_pipeline_on_the_fixture(
     assert ladder_figure(r, tmp_path / "l.png").stat().st_size > 1000
     assert x3_figure(r, tmp_path / "x3.png") is not None
     assert frontier_figure(r, tmp_path / "f.png").stat().st_size > 1000  # type: ignore[union-attr]
+
+
+def test_demo_slice_on_the_fixture(
+    fixture_paths: DatasetPaths, ingested: dict[str, object], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import finmesh.training.x1 as x1
+    from finmesh.demo.slice import render_slice, run_slice
+    from finmesh.eval.budgets import Budget
+    from finmesh.eval.g0 import run_g0
+    from finmesh.eval.universe import build_universe
+    from finmesh.features.build import build_features
+
+    run_g0(fixture_paths)
+    build_universe(fixture_paths, "B8")
+    build_features(fixture_paths, "B8")
+    monkeypatch.setattr(x1, "PRIMARY", Budget("per_1000_per_day", 300.0))
+    r = run_slice(fixture_paths, n_alerts=5)
+    assert r["sessions"] == 5 and r["pt6_met"]
+    card = r["example"]
+    assert card["requests"] >= card["counterparties_asked"] > 0
+    assert 0.0 <= card["fused_score"] <= 1.0 and card["typology"]
+    assert "Example incident card" in render_slice(r)

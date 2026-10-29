@@ -568,10 +568,10 @@ def cmd_x1(args: argparse.Namespace) -> int:
         },
     )
     artifact = write_artifact(
-        data_root() / "artifacts" / "week08" / f"x1_{paths.name}.json", stamp, result
+        data_root() / "artifacts" / "week09" / f"x1_{paths.name}.json", stamp, result
     )
     if args.dataset == FIXTURE_DATASET:
-        out_dir = data_root() / "artifacts" / "week08"
+        out_dir = data_root() / "artifacts" / "week09"
     else:
         out_dir = REPO_ROOT / "docs" / "eval"
     name = paths.name
@@ -615,6 +615,61 @@ def cmd_x1(args: argparse.Namespace) -> int:
     print(f"  artifact {artifact}")
     for page in pages:
         print(f"  report   {page}")
+    return 0
+
+
+def cmd_g2(args: argparse.Namespace) -> int:
+    from finmesh.eval.g2 import DATASETS, load, run_g2, summarise
+
+    out = run_g2(REPO_ROOT / "docs" / "gates" / "G2_evidence.md")
+    for ds in DATASETS:
+        got = load(ds)
+        if got is None:
+            print(f"  {ds:<10} no X1 artifact yet; run `finmesh x1 --dataset {ds}` first")
+            continue
+        s = summarise(ds, *got)
+        flags = {k: s[k] for k in s if k.endswith("_met") or k.endswith("_ok")}
+        print(f"  {ds:<10} ({s['week']}) " + ", ".join(f"{k}={v}" for k, v in flags.items()))
+    print(f"  report   {out}" if out else "  no real-data X1 artifact: G2 page left unchanged")
+    return 0
+
+
+def cmd_demo_slice(args: argparse.Namespace) -> int:
+    from finmesh.data.manifest import load_manifest
+    from finmesh.demo.slice import render_slice, run_slice
+    from finmesh.eval.provenance import Stamp, write_artifact
+
+    paths = dataset_paths(args.dataset)
+    result = run_slice(paths, option=args.option, n_alerts=args.alerts, seed=args.seed)
+    manifest = load_manifest(paths.manifest)
+    stamp = Stamp(
+        kind="demo_slice",
+        dataset=paths.name,
+        manifest_hash=manifest.manifest_hash,
+        fixture=manifest.fixture,
+        split="val",
+        params={"option": args.option, "alerts": args.alerts, "seed": args.seed},
+    )
+    artifact = write_artifact(
+        data_root() / "artifacts" / "week09" / f"demo_slice_{paths.name}.json", stamp, result
+    )
+    out_dir = (
+        data_root() / "artifacts" / "week09"
+        if args.dataset == FIXTURE_DATASET
+        else REPO_ROOT / "docs" / "eval"
+    )
+    report = out_dir / f"demo_slice_{paths.name}.md"
+    report.write_text(render_slice(result))
+    lat = result["latency"]
+    if result["sessions"]:
+        print(
+            f"  {result['sessions']} sessions; latency p50 {lat['p50']:.3f} s, "
+            f"p95 {lat['p95']:.3f} s; PT6 {'met' if result['pt6_met'] else 'not met'}"
+        )
+    else:
+        print("  no alert with a counterparty at another member (expected on the fixture)")
+    print(f"  artifact {artifact}")
+    print(f"  report   {report}")
     return 0
 
 
@@ -732,6 +787,16 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("g1", help="Gate G1 evidence from the baseline artifacts (week 5)").set_defaults(
         func=cmd_g1
     )
+
+    sub.add_parser("g2", help="Gate G2 evidence from the X1 artifacts (week 9)").set_defaults(
+        func=cmd_g2
+    )
+    ds = sub.add_parser("demo-slice", help="thin demo slice: one alert end to end (week 9)")
+    ds.add_argument("--dataset", required=True)
+    ds.add_argument("--option", default="B8")
+    ds.add_argument("--alerts", type=int, default=50, help="sessions to time")
+    ds.add_argument("--seed", type=int, default=0)
+    ds.set_defaults(func=cmd_demo_slice)
 
     sh = sub.add_parser("share", help="in-process sharing protocol run, S0/S1/S2 (week 6)")
     sh.add_argument("--dataset", required=True)

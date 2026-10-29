@@ -10,7 +10,9 @@ The node answers an :class:`EvidenceRequest` at its sharing level:
 * **S3**: the S2 record released through local differential privacy
   (``finmesh.sharing.ldp``): every field but the time bucket and alert flag
   through k-ary randomised response, memoised per record, with a per-account
-  epoch budget; over budget, the S1 answer.
+  epoch budget; over budget, the S1 answer. Every request gets a record: a
+  dummy when none exists, and the time field is the end of the requested
+  range (A16), so existence is as private as the values.
 * **S4**: the S2 record plus the autoencoder's window embedding (the leakage
   upper reference).
 * **PD** (progressive disclosure): the S1 answer by default; the S2 record
@@ -35,7 +37,7 @@ import polars as pl
 
 from finmesh.matching.tokens import EPOCH_WINDOWS, TokenClient, epoch_of, identifier
 from finmesh.sharing.evidence import S4_FIELDS, WIRE_FIELDS
-from finmesh.sharing.ldp import LdpReleaser
+from finmesh.sharing.ldp import LdpReleaser, dummy_wire
 from finmesh.sharing.messages import EvidenceRecordWire, EvidenceRequest, EvidenceResponse
 from finmesh.sharing.requests import ReceivedStore, RequestGuard
 
@@ -96,15 +98,14 @@ class BankNode:
         )
         if rows:
             self.inbound.append((max(rows, key=self._window), request.requester_bucket))
+        if self.level == "S3":
+            return self._respond_s3(request, rows, alerted, alert_window)
         if not rows:
             return EvidenceResponse(request.request_id, self.member, self.level, "no_record")
         latest = max(rows, key=self._window)
         values: tuple[int, ...] | None = None
         if not flag_only:
             values = tuple(int(v) for v in self._wire[latest])
-            if self.level == "S3":
-                assert self.ldp is not None, "S3 needs an LdpReleaser"
-                values = self.ldp.release(latest, int(self._acct[latest]), request.epoch, values)
         if values is None:  # S1 content: the alert flag and its time bucket
             status = "ok" if alerted else "no_record"
             return EvidenceResponse(
@@ -115,6 +116,41 @@ class BankNode:
             request.request_id,
             self.member,
             self.level,
+            "ok",
+            bool(alerted),
+            alert_window,
+            EvidenceRecordWire(request.token, values),
+        )
+
+    def _respond_s3(
+        self, request: EvidenceRequest, rows: list[int], alerted: list[int], alert_window: int
+    ) -> EvidenceResponse:
+        """Every request gets an ε-LDP record: the latest real one, or a dummy (A16)."""
+        assert self.ldp is not None, "S3 needs an LdpReleaser"
+        window_field = WIRE_FIELDS.index("window")
+        epoch_rows = self.index.get((request.epoch, request.token), [])
+        subject: Any = int(self._acct[epoch_rows[0]]) if epoch_rows else request.token
+        if rows:
+            latest = max(rows, key=self._window)
+            wire = [int(v) for v in self._wire[latest]]
+            memo: Any = (latest, request.epoch)  # fresh noise after key rotation
+        else:
+            latest = -1
+            wire = list(dummy_wire(request.window_hi))
+            memo = ("dummy", subject, request.epoch)
+        wire[window_field] = request.window_hi  # the record's own window would reveal existence
+        values = self.ldp.release(memo, subject, request.epoch, tuple(wire))
+        if values is None:  # over the account's epoch budget: the S1 answer
+            status = "ok" if alerted else "no_record"
+            return EvidenceResponse(
+                request.request_id, self.member, "S3", status, bool(alerted), alert_window
+            )
+        if latest >= 0:
+            self.disclosed.add(latest)
+        return EvidenceResponse(
+            request.request_id,
+            self.member,
+            "S3",
             "ok",
             bool(alerted),
             alert_window,

@@ -24,7 +24,7 @@ from typing import Any
 
 import polars as pl
 
-from finmesh.matching.tokens import TokenClient, TokenService, identifier
+from finmesh.matching.tokens import QUERY_BUDGET, TokenClient, TokenService, identifier
 from finmesh.sharing.ldp import LdpReleaser
 from finmesh.sharing.messages import BlindedAnswer, BlindedQuery, Bus
 from finmesh.sharing.node import BankNode, request_epochs
@@ -38,6 +38,20 @@ LINK_SCHEMA = {
     "account_b": pl.UInt64,
     "window_b": pl.Int32,
 }
+
+
+# Record values fit in 16 bits (buckets, indices, windows, embeddings clipped to int16).
+RESPONSE_SCHEMA: dict[str, Any] = {
+    "member": pl.Int32,
+    "window": pl.Int32,
+    "accounts": pl.List(pl.UInt64),
+    "cp_member": pl.Int32,
+    "cp": pl.UInt64,
+    "status": pl.String,
+    "alert": pl.Boolean,
+    "record": pl.List(pl.Int16),
+}
+RESPONSE_CHUNK = 200_000
 
 
 @dataclass
@@ -54,8 +68,8 @@ class TokenEnv:
     clients: dict[int, TokenClient]
 
     @classmethod
-    def new(cls) -> TokenEnv:
-        return cls(TokenService(), Bus(), {})
+    def new(cls, budget: int = QUERY_BUDGET) -> TokenEnv:
+        return cls(TokenService(budget=budget), Bus(), {})
 
     def client(self, bank: int) -> TokenClient:
         if bank not in self.clients:
@@ -218,6 +232,7 @@ def simulate(
     # Only informative answers are kept row by row; "no record" answers are counted
     # per request group in ``asked`` below.
     answered: list[tuple[Any, ...]] = []
+    chunks: list[pl.DataFrame] = []
     n_requests = 0
     current = None
     purged = 0
@@ -236,8 +251,11 @@ def simulate(
             status[f"{response.status}{'_alert' if response.alert else ''}"] += 1
             if response.status == "no_record" and not response.alert:
                 continue
-            record = list(response.record.values) if response.record is not None else None
+            record = response.record.values if response.record is not None else None
             answered.append((m, w, accts, cp_m, cp, response.status, response.alert, record))
+            if len(answered) >= RESPONSE_CHUNK:  # bound the Python objects held at once
+                chunks.append(pl.DataFrame(answered, schema=RESPONSE_SCHEMA, orient="row"))
+                answered = []
             if response.alert:
                 links.extend((m, a, w, cp_m, cp, response.alert_window) for a in accts)
     del tok
@@ -305,20 +323,9 @@ def simulate(
         "tau": tau,
         "seconds": round(time.perf_counter() - t0, 1),
     }
-    responses = pl.DataFrame(
-        answered,
-        schema={
-            "member": pl.Int32,
-            "window": pl.Int32,
-            "accounts": pl.List(pl.UInt64),
-            "cp_member": pl.Int32,
-            "cp": pl.UInt64,
-            "status": pl.String,
-            "alert": pl.Boolean,
-            "record": pl.List(pl.Int64),
-        },
-        orient="row",
-    )
+    chunks.append(pl.DataFrame(answered, schema=RESPONSE_SCHEMA, orient="row"))
+    responses = pl.concat(chunks)
+    del answered, chunks
     inbound_rows = [
         (m, int(node._acct[row]), int(node._win[row]), b)
         for m, node in nodes.items()

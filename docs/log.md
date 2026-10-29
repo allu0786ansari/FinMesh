@@ -14,6 +14,16 @@ Next week: <first two tasks>
 On track for next gate? yes / at risk / no
 ```
 
+## Week 09 · 21 – 27 Dec 2026
+
+Planned: attacks A4–A6, Gate G2 evidence and the thin demo slice.
+Done: week 8 reviewed. H1b holds against the relational oracle (S2 recovers 0.98 on HI-Medium, 0.83 on LI-Medium; 0.78 against the stronger pooled configuration on LI). S3 and PD cost almost no detection; S1 alone gets 0.94–0.98 of S2's gain. Two problems surfaced: S3 answered "no record" in the clear, so its leakage did not fall with ε; and the 250,000 token budget made the OPRF only 2× safer than hashing. The owner chose to fix S3 and to size budgets to twice the legitimate peak (A16). A4 found a second S3 flaw (memo per record links across rotations), fixed by memoising per record and epoch. Built: A4–A6, the G2 evidence page, the thin demo slice. Details in `docs/runlog/week-09.md`.
+Not done: real-data rerun of X1–X3 with A1–A6, demo slice and G2 evidence (run-log steps 2–5); G2 decision note.
+Numbers this week: week-8 validation as above; stress scale (32 M rows, one seed): 119 min for everything; S3 releases vectorised (376 → 15 µs) and responses chunked with 16-bit records (S3 phase 5.4 → 2.8 GB); A4 confirms S3 is at chance after the fix.
+Risks or blockers: PT2 is likely to fail on LI-Medium (7.8× at the sized budget). S1's flags leak fan-in beyond the margin on LI-Medium, so H1c may fail at test for S1 itself. Both are findings, reported either way.
+Next week: week 10, the federated DP neural scorer (G3 track), after the G2 note.
+On track for next gate? yes (G2 evidence pending the owner's run).
+
 ## Week 08 · 14 – 20 Dec 2026
 
 Planned: S3 (local DP), progressive disclosure, the X3 curves and the leakage audit A1–A3.
