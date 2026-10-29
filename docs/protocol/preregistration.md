@@ -2,7 +2,7 @@
 
 **Status: frozen at Gate G1, 26 Oct 2026 (tag `g1`).** Nothing below changes except through an amendment in `docs/proposal/CHANGES.md` made before the results it affects exist. The sealed test is opened only in week 18.
 
-Proposal: `docs/proposal/FinMesh_Proposal_v2.md`, with amendments A1–A11; A12 and A13 were added after the freeze, through `docs/proposal/CHANGES.md`.
+Proposal: `docs/proposal/FinMesh_Proposal_v2.md`, with amendments A1–A11; A12–A15 were added after the freeze, through `docs/proposal/CHANGES.md`.
 
 ## 1. Data, federation and splits
 
@@ -59,8 +59,8 @@ From the proposal, sections 4.2 and 11.3. Thresholds marked *provisional* may be
 | ID | Statement | Test |
 | --- | --- | --- |
 | H1a / PT1 | At the primary budget, S2 raises linked scheme detection over S0, and is above the random-alert baseline | Paired bootstrap over schemes, 95% CI excluding 0, Holm across the sharing levels compared with S0 |
-| H1b / PT1 | S2 recovers at least **60%** (provisional) of the oracle gain: (S2 − S0) / (oracle − S0) in linked detection | Ratio with a bootstrap CI; reported only if oracle − S0 meets the G1 criterion |
-| H1c / PT2 | Inference attacks on S1 and S3 (ε ≤ 2) stay within the stated margin of prior-only baselines at 1% FPR; S4 is significantly higher; S3 is monotone in ε | Attack TPR at 0.1% and 1% FPR with CIs |
+| H1b / PT1 | S2 recovers at least **60%** (provisional) of the oracle gain: (S2 − S0) / (oracle − S0) in linked detection. **A14:** the ceiling is the relational oracle (section 6a); the preregistered oracle ratio is reported alongside | Ratio with a bootstrap CI; reported only if oracle − S0 meets the G1 criterion |
+| H1c / PT2 | Inference attacks on S1 and S3 (ε ≤ 2) stay within the stated margin of prior-only baselines at 1% FPR; S4 is significantly higher; S3 is monotone in ε. **A15:** margin 0.05 on the upper 95% bound of (attack − prior) TPR at 1% FPR, every assessable A2/A3 target (section 6b) | Attack TPR at 0.1% and 1% FPR with CIs |
 | H1d / PT3 | Progressive disclosure reaches at least **80%** (provisional) of the S2 gain with full evidence disclosed on fewer than **half** (provisional) as many accounts | Ratio and disclosure count with CIs |
 | H2a / PT4 | Federated DP neural scorer at ε ≤ 10 reaches at least **70%** (provisional) of the centralised non-private AUPRC and exceeds the mean local-only neural AUPRC | AUPRC ratio with CI |
 | PT4b | S0 GBDT on every feature beats S0 GBDT on behaviour and history only, in AUPRC | Paired account bootstrap, CI excluding 0 |
@@ -101,6 +101,27 @@ Every result is reported whether or not its hypothesis holds; a missed target is
 - **Secondary fusion rules** (reported, never selected): noisy-OR and k-of-n (k = 1), defined in `finmesh/fusion/triage.py`.
 - **Propagation (PD):** plaintext score propagation, own probability + 0.5 × the strongest cross-member counterparty probability in the lookback.
 - **X1 on validation:** seeds 0–2; H1b recovery (level − S0) / (oracle − S0) in linked detection with a scheme bootstrap. Only test decides H1b.
+
+### Relational oracle (amendment A14)
+
+- Pooled oracle probabilities, isotonic-calibrated per member on the held-out end of training.
+- Candidates: calibrated oracle probability ≥ 0.01, or an oracle alert.
+- Features (`finmesh/training/relational.py`): own oracle logit; over every counterparty in the federation (any member, both directions) within the lookback, their number, how many the oracle alerted, the highest and the summed oracle probability.
+- The section-6a stacker, cross-fitted on the validation halves; pooled linking. It is H1b's ceiling. `oracle+propagation` (own + 0.5 × strongest counterparty) is reported alongside.
+
+## 6b. Evidence privacy and the leakage audit (amendment A15, week 8)
+
+- **S3** (`finmesh/sharing/ldp.py`): every record field except the time bucket and alert flag through k-ary randomised response at ε / 20 per field. Releases are memoised per record. At most ε = 8 per account and epoch, then the S1 answer. Sweep ε ∈ {0.5, 1, 2, 4, 8}.
+- **PD** (`finmesh/sharing/node.py`): the S1 answer, plus the S2 record when the requester's score bucket is at least τ. Sweep τ ∈ {2, 3, 4}.
+- **Fusion** for S3 and PD: the section-6a stacker on the S2 feature set, fitted on evidence released through the same mechanism.
+- **H1d:** PD's share of S2's gain over S0, and its accounts disclosed as a share of S2's. S1 is reported as the reference.
+- **Attacks** (`finmesh/training/audit.py`, seed 0 of each X1 run):
+  - A1: targets are the tokens of other members' evidence records. Candidates are the accounts at other members that the adversary's customers traded with up to the end of validation. Hashing tokenises every candidate offline. The OPRF tokenises only within the spare per-epoch budget, deployed (250,000) and sized (2 × the largest legitimate use). Reported as expected re-identification.
+  - A2: the queried account transacted with a third member in the window its answer describes.
+  - A3: outgoing amount in the top decile; fan-in in the top decile; pass-through ratio ≥ 0.9.
+  - A2 and A3 adversary: a gradient-boosted classifier trained on the true attributes of half the queried accounts (split by account), tested on the other half. Baseline: a prior-only classifier on its own accounts in the request, its score bucket, the window and the two banks.
+  - At most 200,000 targets, sampled by account hash. Metrics: TPR at 0.1% and 1% FPR and AUC, with an account-cluster bootstrap (200 replicates).
+- **H1c margin:** the upper 95% bound of (attack − prior) TPR at 1% FPR is at most 0.05 on every assessable target.
 
 ## 7. Seeds and statistics
 

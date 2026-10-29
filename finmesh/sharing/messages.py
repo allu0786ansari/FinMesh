@@ -13,7 +13,7 @@ from collections import Counter
 from dataclasses import dataclass, fields
 from typing import Any
 
-LEVELS: tuple[str, ...] = ("S0", "S1", "S2", "S4")
+LEVELS: tuple[str, ...] = ("S0", "S1", "S2", "S3", "S4", "PD")
 PURPOSES: tuple[str, ...] = ("alert_triage",)
 STATUSES: tuple[str, ...] = ("ok", "no_record", "refused")
 
@@ -76,7 +76,7 @@ class EvidenceRecordWire:
     """The minimised record (S2): buckets only, named by the requester's token."""
 
     token: bytes
-    values: tuple[int, ...]  # WIRE_FIELDS (S2) or S4_FIELDS (S4), in order
+    values: tuple[int, ...]  # WIRE_FIELDS (S2, S3 noised, PD) or S4_FIELDS (S4), in order
 
 
 @dataclass(frozen=True)

@@ -7,8 +7,14 @@ The node answers an :class:`EvidenceRequest` at its sharing level:
   alert in the requested windows, and the latest such window.
 * **S2**: the full minimised record of the latest account-window in range
   (alerted or above the evidence floor), plus the alert flag.
+* **S3**: the S2 record released through local differential privacy
+  (``finmesh.sharing.ldp``): every field but the time bucket and alert flag
+  through k-ary randomised response, memoised per record, with a per-account
+  epoch budget; over budget, the S1 answer.
 * **S4**: the S2 record plus the autoencoder's window embedding (the leakage
   upper reference).
+* **PD** (progressive disclosure): the S1 answer by default; the S2 record
+  only when the requester's score bucket is at least ``tau``.
 
 Answering a request also tells the responder that a peer asked about one of
 its records, and the requester's score bucket (``inbound``); its own triage
@@ -29,6 +35,7 @@ import polars as pl
 
 from finmesh.matching.tokens import EPOCH_WINDOWS, TokenClient, epoch_of, identifier
 from finmesh.sharing.evidence import S4_FIELDS, WIRE_FIELDS
+from finmesh.sharing.ldp import LdpReleaser
 from finmesh.sharing.messages import EvidenceRecordWire, EvidenceRequest, EvidenceResponse
 from finmesh.sharing.requests import ReceivedStore, RequestGuard
 
@@ -45,6 +52,9 @@ class BankNode:
     # What a responder learns from requests: which of its own records a peer asked
     # about, and the requester's score bucket (row, bucket). Used by its own triage.
     inbound: list[tuple[int, int]] = field(default_factory=list)
+    ldp: LdpReleaser | None = None  # S3 only
+    tau: int | None = None  # PD only: lowest requester bucket that gets a record
+    disclosed: set[int] = field(default_factory=set)  # record rows released at S2+ (any form)
     _win: Any = None
     _alert_arr: Any = None
     _acct: Any = None
@@ -81,18 +91,26 @@ class BankNode:
         ]
         alerted = [r for r in rows if self._alert(r)]
         alert_window = max((self._window(r) for r in alerted), default=-1)
-        if self.level == "S1":
-            if rows:
-                self.inbound.append((max(rows, key=self._window), request.requester_bucket))
-            status = "ok" if alerted else "no_record"
-            return EvidenceResponse(
-                request.request_id, self.member, "S1", status, bool(alerted), alert_window
-            )
+        flag_only = self.level == "S1" or (
+            self.level == "PD" and request.requester_bucket < (self.tau or 0)
+        )
+        if rows:
+            self.inbound.append((max(rows, key=self._window), request.requester_bucket))
         if not rows:
             return EvidenceResponse(request.request_id, self.member, self.level, "no_record")
         latest = max(rows, key=self._window)
-        self.inbound.append((latest, request.requester_bucket))
-        values = tuple(int(v) for v in self._wire[latest])
+        values: tuple[int, ...] | None = None
+        if not flag_only:
+            values = tuple(int(v) for v in self._wire[latest])
+            if self.level == "S3":
+                assert self.ldp is not None, "S3 needs an LdpReleaser"
+                values = self.ldp.release(latest, int(self._acct[latest]), request.epoch, values)
+        if values is None:  # S1 content: the alert flag and its time bucket
+            status = "ok" if alerted else "no_record"
+            return EvidenceResponse(
+                request.request_id, self.member, self.level, status, bool(alerted), alert_window
+            )
+        self.disclosed.add(latest)
         return EvidenceResponse(
             request.request_id,
             self.member,

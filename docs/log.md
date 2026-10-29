@@ -14,6 +14,16 @@ Next week: <first two tasks>
 On track for next gate? yes / at risk / no
 ```
 
+## Week 08 · 14 – 20 Dec 2026
+
+Planned: S3 (local DP), progressive disclosure, the X3 curves and the leakage audit A1–A3.
+Done: week 7 reviewed. Every sharing level and plaintext propagation beat the preregistered oracle in linked detection on validation (HI-Medium S2 0.736, oracle 0.672), so H1b would pass trivially. The owner chose a relational oracle as the ceiling (A14). S2 adds little over S1 (+0.009 HI, +0.032 LI); S4 is slightly below S2. Built: the relational oracle; S3 (k-RR per field, memoised releases, per-account ε cap 8) and PD (τ on the requester bucket); X3 sweeps; attacks A1–A3 with a strong adversary and prior-only baselines; the utility–leakage frontier. S3, PD and attack specifications, and the H1c margin (0.05), were fixed before results as A15. Token work is shared across levels within a seed. Details in `docs/runlog/week-08.md`.
+Not done: real-data X1–X3 and audit (run-log step 3); owner confirmation of A15.
+Numbers this week: engineering only. Stress scale (32 M rows, one seed): 86 min for 25 configurations, 11 protocol runs and the audit; peak 4.1 GB, cut by streaming A1 per adversary; token reuse saves about 40% per later level.
+Risks or blockers: A1 may show that the deployed token budget (250,000 per epoch) does not limit re-identification when candidate lists are smaller; the sized budget and query logging are then the protection, which week 9 should state plainly. If S1 is nearly as useful as S2, H1d is uninformative, and the frontier's best operating point may be S1 or PD.
+Next week: week 9, attacks A4–A6, Gate G2 evidence and the thin demo slice.
+On track for next gate? yes (G2, week 9).
+
 ## Week 07 · 7 – 13 Dec 2026
 
 Planned: fusion and triage, S4, plaintext propagation, X1 on validation and the first frontier.

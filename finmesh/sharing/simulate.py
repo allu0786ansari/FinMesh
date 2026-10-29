@@ -25,6 +25,7 @@ from typing import Any
 import polars as pl
 
 from finmesh.matching.tokens import TokenClient, TokenService, identifier
+from finmesh.sharing.ldp import LdpReleaser
 from finmesh.sharing.messages import BlindedAnswer, BlindedQuery, Bus
 from finmesh.sharing.node import BankNode, request_epochs
 from finmesh.sharing.requests import RequestGuard, RequestIssuer
@@ -40,6 +41,36 @@ LINK_SCHEMA = {
 
 
 @dataclass
+class TokenEnv:
+    """One token service and one client per bank, shared by several protocol runs.
+
+    Runs of different levels on the same candidates tokenise the same accounts;
+    sharing the clients' caches does the OPRF work once (about half the protocol
+    time). Token statistics then belong to the first run that needed them.
+    """
+
+    service: TokenService
+    bus: Bus
+    clients: dict[int, TokenClient]
+
+    @classmethod
+    def new(cls) -> TokenEnv:
+        return cls(TokenService(), Bus(), {})
+
+    def client(self, bank: int) -> TokenClient:
+        if bank not in self.clients:
+
+            def transport(b: int, epoch: int, points: list[bytes]) -> list[bytes]:
+                self.bus.send(BlindedQuery(b, epoch, tuple(points)))
+                answer = self.service.evaluate(b, epoch, points)
+                self.bus.send(BlindedAnswer(tuple(answer)))
+                return answer
+
+            self.clients[bank] = TokenClient(bank, transport)
+        return self.clients[bank]
+
+
+@dataclass
 class ShareRun:
     level: str
     links: pl.DataFrame
@@ -51,8 +82,9 @@ class ShareRun:
     responses: pl.DataFrame | None = None
     # Per responder: its own record rows a peer asked about, with requester buckets.
     inbound: pl.DataFrame | None = None
-    # Per request group: requester member, window, its accounts and the number of
-    # requests sent (one per epoch the lookback spans). Includes "no record" answers.
+    # Per request group: requester member, window, its accounts, the number of
+    # requests sent (one per epoch the lookback spans) and the counterparty asked
+    # about (``cp``: harness only, for the audit's ground truth). Includes "no record".
     asked: pl.DataFrame | None = None
 
 
@@ -99,29 +131,52 @@ def simulate(
     edges: pl.DataFrame,
     first_window: int,
     lookback: int,
+    *,
+    epsilon: float | None = None,
+    tau: int | None = None,
+    n_features: int | None = None,
+    ldp_seed: int = 0,
+    tokens: TokenEnv | None = None,
 ) -> ShareRun:
     """Run one sharing level.
 
     ``requesters``: member, account, window, prob_bucket: the account-windows
     that ask about their counterparties (week 6: alerts; week 7: every
-    account-window with an evidence record).
+    account-window with an evidence record). S3 needs ``epsilon`` and
+    ``n_features`` (the deviation-index domain); PD needs ``tau``.
     """
     alerts = requesters
     t0 = time.perf_counter()
     bus = Bus()
-    service = TokenService()
-
-    def transport(bank: int, epoch: int, points: list[bytes]) -> list[bytes]:
-        bus.send(BlindedQuery(bank, epoch, tuple(points)))
-        answer = service.evaluate(bank, epoch, points)
-        bus.send(BlindedAnswer(tuple(answer)))
-        return answer
+    env = tokens if tokens is not None else TokenEnv.new()
+    service = env.service
+    evaluated_before = sum(e.evaluated for e in service.log)
+    token_messages_before = Counter(env.bus.counts)
+    refused_before = sum(e.refused for e in service.log)
+    if level == "S3" and (epsilon is None or n_features is None):
+        raise ValueError("S3 needs epsilon and n_features")
+    if level == "PD" and tau is None:
+        raise ValueError("PD needs tau")
 
     issuer = RequestIssuer()
-    nodes = {
-        m: BankNode(m, level, TokenClient(m, transport), RequestGuard(m, issuer.public_key), recs)
-        for m, recs in records.items()
-    }
+
+    def make_node(m: int, recs: pl.DataFrame) -> BankNode:
+        ldp = (
+            LdpReleaser(float(epsilon), int(n_features), seed=ldp_seed * 1009 + m)  # type: ignore[arg-type]
+            if level == "S3"
+            else None
+        )
+        return BankNode(
+            m,
+            level,
+            env.client(m),
+            RequestGuard(m, issuer.public_key),
+            recs,
+            ldp=ldp,
+            tau=tau,
+        )
+
+    nodes = {m: make_node(m, recs) for m, recs in records.items()}
     empty = pl.DataFrame(schema=LINK_SCHEMA)
     if level == "S0":
         return ShareRun(level, empty, {"level": level, "requests": 0})
@@ -132,13 +187,7 @@ def simulate(
         blank = next(iter(records.values())).clear()
         for m in set(plan["cp_member"].to_list()) | set(plan["member"].to_list()):
             if int(m) not in nodes:
-                nodes[int(m)] = BankNode(
-                    int(m),
-                    level,
-                    TokenClient(int(m), transport),
-                    RequestGuard(int(m), issuer.public_key),
-                    blank,
-                )
+                nodes[int(m)] = make_node(int(m), blank)
     index_tokens = {m: node.build_index() for m, node in nodes.items()}
 
     # Requests run in time order, so rate limits and retention act as they would live.
@@ -200,7 +249,15 @@ def simulate(
                 return_dtype=pl.Int32,
             )
             .alias("n")
-        ).select("member", "window", pl.col("account").alias("accounts"), "n")
+        ).select(
+            "member",
+            "window",
+            pl.col("account").alias("accounts"),
+            "n",
+            "cp_member",
+            "cp",
+            pl.col("prob_bucket").alias("bucket"),
+        )
         if plan.height
         else pl.DataFrame(
             schema={
@@ -208,6 +265,9 @@ def simulate(
                 "window": pl.Int32,
                 "accounts": pl.List(pl.UInt64),
                 "n": pl.Int32,
+                "cp_member": pl.Int32,
+                "cp": pl.UInt64,
+                "bucket": pl.Int8,
             }
         )
     )
@@ -226,12 +286,23 @@ def simulate(
         "refusals": dict(refusals),
         "tokens_index": sum(index_tokens.values()),
         "tokens_requests": request_tokens,
-        "service_evaluations": int(sum(e.evaluated for e in service.log)),
-        "service_refused": int(sum(e.refused for e in service.log)),
+        "service_evaluations": int(sum(e.evaluated for e in service.log) - evaluated_before),
+        "service_refused": int(sum(e.refused for e in service.log) - refused_before),
         "max_bank_epoch_queries": max(service.used.values(), default=0),
-        "messages": dict(bus.counts),
+        "messages": dict(bus.counts + (Counter(env.bus.counts) - token_messages_before)),
         "links": link_frame.height,
         "received_purged": purged,
+        "records_disclosed": sum(len(n.disclosed) for n in nodes.values()),
+        "accounts_disclosed": sum(
+            len({int(n._acct[r]) for r in n.disclosed}) for n in nodes.values()
+        ),
+        "ldp_withheld": sum(n.ldp.withheld for n in nodes.values() if n.ldp is not None),
+        "ldp_max_account_epsilon": max(
+            (n.ldp.max_account_epsilon for n in nodes.values() if n.ldp is not None),
+            default=0.0,
+        ),
+        "epsilon": epsilon,
+        "tau": tau,
         "seconds": round(time.perf_counter() - t0, 1),
     }
     responses = pl.DataFrame(

@@ -48,8 +48,10 @@ from finmesh.models.autoencoder import Autoencoder
 from finmesh.models.gbdt import GBDT
 from finmesh.paths import DatasetPaths
 from finmesh.sharing.evidence import bucket, build_records, load_evidence_schema
-from finmesh.sharing.simulate import counterparty_requests, simulate
+from finmesh.sharing.ldp import EPSILONS
+from finmesh.sharing.simulate import TokenEnv, counterparty_requests, simulate
 from finmesh.sysinfo import AnonPeak
+from finmesh.training.audit import Auditor
 from finmesh.training.baselines import (
     DELAY_WINDOWS,
     PRIMARY,
@@ -59,13 +61,26 @@ from finmesh.training.baselines import (
     score_rows,
 )
 from finmesh.training.data import sample_rows, slices, training_rows, training_windows
+from finmesh.training.relational import FLOOR as RELATIONAL_FLOOR
+from finmesh.training.relational import RELATIONAL_FEATURES, neighbour_features, propagate
 from finmesh.training.sharing_run import _calibrators, store_membership
 
 SHARING_LEVELS: tuple[str, ...] = ("S1", "S2", "S4")
+PD_TAUS: tuple[int, ...] = (2, 3, 4)  # requester bucket: p >= 0.05, 0.2, 0.5
+REL_FLOOR = RELATIONAL_FLOOR
 FUSIONS: tuple[str, ...] = ("stacker", "noisy_or", "kofn")  # stacker is primary (A13)
 PROPAGATION_WEIGHT = 0.5
 AE_SAMPLE = 200_000
 DEFAULT_SEEDS: tuple[int, ...] = (0, 1, 2)
+
+
+def level_runs(sweeps: bool = True) -> list[tuple[str, str, dict[str, Any]]]:
+    """(configuration name, protocol level, parameters) for every protocol run of a seed."""
+    runs: list[tuple[str, str, dict[str, Any]]] = [(lv, lv, {}) for lv in SHARING_LEVELS]
+    if sweeps:
+        runs += [(f"S3[eps={e:g}]", "S3", {"epsilon": e}) for e in EPSILONS]
+        runs += [(f"PD[tau={t}]", "PD", {"tau": t}) for t in PD_TAUS]
+    return runs
 
 
 def _halves(windows: np.ndarray, v0: int, v1: int) -> np.ndarray:
@@ -122,6 +137,8 @@ def run_seed(
     reps: int,
     window_reps: int,
     meter: AnonPeak | None = None,
+    sweeps: bool = True,
+    audit: bool = False,
 ) -> dict[str, Any]:
     """Every configuration for one seed: scores and per-scheme outcomes."""
     t_start = time.perf_counter()
@@ -167,8 +184,38 @@ def run_seed(
     oracle = GBDT(cols, seed).fit(fit.x, fit.y, fit.w, stop.x, stop.y, stop.w)
     del fit, stop
     oracle_score = score_rows(store, pooled_f, "val", oracle.score)["score"].to_numpy()
+    oracle_cal = _calibrators(score_rows(store, pooled_f, "train", oracle.score, windows.stop_from))
+    del oracle
+    oracle_prob = np.zeros(len(oracle_score))
+    for m, cal in oracle_cal.items():
+        idx = member_arr == m
+        oracle_prob[idx] = cal(oracle_score[idx])
+    oracle_alerted = _alerts(keys, oracle_score, apm, plan.window_hours)
     seconds["oracle"] = round(time.perf_counter() - t0, 1)
     lap("oracle")
+
+    # Relational oracle (A14): pooled scores re-ranked from every counterparty's.
+    t0 = time.perf_counter()
+    rel_rows = np.nonzero((oracle_prob >= REL_FLOOR) | oracle_alerted)[0]
+    rel_edges = link_edges(
+        paths.transactions, plan, v0, v1, lookback, touching=keys[rel_rows].select("account")
+    )
+    rel = neighbour_features(keys, oracle_prob, oracle_alerted, rel_rows, rel_edges, lookback)
+    del rel_edges
+    rel_fold = _halves(rel["window"].to_numpy(), v0, v1)
+    row_scores: dict[str, tuple[str, np.ndarray, np.ndarray]] = {
+        "oracle-relational": (
+            "oracle_prob",
+            rel_rows,
+            stacker_scores(
+                rel, RELATIONAL_FEATURES, label[rel_rows], usable[rel_rows], rel_fold, seed
+            ),
+        ),
+        "oracle+propagation": ("oracle_prob", rel_rows, propagate(rel, PROPAGATION_WEIGHT)),
+    }
+    del rel
+    seconds["relational"] = round(time.perf_counter() - t0, 1)
+    lap("relational")
 
     # Records and candidates (with S4 embeddings).
     t0 = time.perf_counter()
@@ -230,48 +277,75 @@ def run_seed(
     # Scores per configuration. Fusion and propagation change candidate rows only, so
     # they are kept for those rows and expanded one at a time (memory at scale).
     full_scores: dict[str, np.ndarray] = {"S0": prob, "oracle": oracle_score}
-    row_scores: dict[str, np.ndarray] = {}
+    bases = {"prob": prob, "oracle_prob": oracle_prob}
     protocol: dict[str, Any] = {}
     fold = _halves(candidates["window"].to_numpy(), v0, v1)
     flag_q = _flag_precision(
         alerted[rows], label[rows], usable[rows], candidates["member"].to_numpy(), fold
     )
-    for level in SHARING_LEVELS:
+    tokens = TokenEnv.new()  # one token service per seed; levels reuse the OPRF work
+    auditor = Auditor(paths, option, plan, keys, lookback, v0, v1, seed) if audit else None
+    for name, level, params in level_runs(sweeps):
         t0 = time.perf_counter()
         run = simulate(
-            level, candidates.select(*KEY_COLUMNS, "prob_bucket"), records, edges, v0, lookback
+            level,
+            candidates.select(*KEY_COLUMNS, "prob_bucket"),
+            records,
+            edges,
+            v0,
+            lookback,
+            n_features=len(cols),
+            ldp_seed=seed,
+            tokens=tokens,
+            **params,
         )
         assert run.responses is not None and run.inbound is not None and run.asked is not None
         ev = evidence_features(level, candidates, run.responses, run.inbound, run.asked)
-        q = np.array(
-            [flag_q[(int(m), int(1 - k))] for m, k in zip(ev["member"], fold, strict=True)]
-        )  # precision on the *other* fold, as the stacker
+        if auditor is not None:
+            auditor.observe(name, level, run, ev)
         variants = {
             "stacker": stacker_scores(
                 ev, feature_names(level), label[rows], usable[rows], fold, seed
-            ),
-            "noisy_or": _noisy_or_per_row(ev, level, q),
-            "kofn": k_of_n(ev),
+            )
         }
-        for fusion, s in variants.items():
-            row_scores[f"{level}/{fusion}"] = np.asarray(s, dtype=np.float64)
-        protocol[level] = {k: v for k, v in run.stats.items() if k not in ("messages",)} | {
+        if level in SHARING_LEVELS:
+            q = np.array(
+                [flag_q[(int(m), int(1 - k))] for m, k in zip(ev["member"], fold, strict=True)]
+            )  # precision on the *other* fold, as the stacker
+            variants["noisy_or"] = _noisy_or_per_row(ev, level, q)
+            variants["kofn"] = k_of_n(ev)
+        for fusion, sc in variants.items():
+            row_scores[f"{name}/{fusion}"] = ("prob", rows, np.asarray(sc, dtype=np.float64))
+        protocol[name] = {k: v for k, v in run.stats.items() if k not in ("messages",)} | {
             "messages": sum(run.stats.get("messages", {}).values()),
             "seconds_total": round(time.perf_counter() - t0, 1),
         }
-        lap(level)
+        lap(name)
         del run, ev
+
+    audit_result = None
+    if auditor is not None:
+        t0 = time.perf_counter()
+        audit_result = auditor.finish(tokens, records)
+        audit_result["seconds"] = round(time.perf_counter() - t0, 1)
+        del auditor
+        lap("audit")
 
     # Plaintext score propagation (no cryptography): own + w * max counterparty prob.
     t0 = time.perf_counter()
-    row_scores["propagation"] = _propagation(prob, keys, candidates, rows, edges, lookback)[rows]
+    row_scores["propagation"] = (
+        "prob",
+        rows,
+        _propagation(prob, keys, candidates, rows, edges, lookback)[rows],
+    )
     names = [*full_scores, *row_scores]
 
     def score_of(name: str) -> np.ndarray:
         if name in full_scores:
             return full_scores[name]
-        out = prob.copy()
-        out[rows] = row_scores[name]
+        base, at, values = row_scores[name]
+        out = bases[base].copy()
+        out[at] = values
         return out
 
     seconds["propagation"] = round(time.perf_counter() - t0, 1)
@@ -326,6 +400,7 @@ def run_seed(
         "alerts": int(alerted.sum()),
         "seconds": seconds,
         "memory_mb": memory,
+        "audit": audit_result,
         "auprc": auprc,
     }
 
@@ -411,17 +486,46 @@ def combine(seeds: list[dict[str, Any]], reps: int) -> dict[str, Any]:
                 stack[name]["linked"].mean(axis=1), stack["S0"]["linked"].mean(axis=1), reps
             )
             summary[name]["linked_gain"] = {"difference": diff.to_dict(), "p": p}
+    levels = [n for n in names if n.endswith("/stacker")]
+    # H1b: share of the ceiling's gain over S0. A14 makes the relational oracle the
+    # ceiling; the preregistered oracle is kept alongside.
     summary["H1b"] = {
-        level: _recovery(stack, level, reps) for level in ("S1/stacker", "S2/stacker", "S4/stacker")
+        ceiling: {lv: _recovery(stack, lv, reps, ceiling) for lv in levels}
+        for ceiling in ("oracle-relational", "oracle")
+        if ceiling in stack
     }
+    # H1d: progressive disclosure against S2 (gain share and disclosure volume).
+    if "S2/stacker" in stack and any(lv.startswith("PD[") for lv in levels):
+        s2_acc = [s["protocol"]["S2"]["accounts_disclosed"] for s in seeds]
+        # S1 discloses no record; if it alone reaches 80% of S2's gain, H1d is uninformative.
+        summary["H1d"] = {
+            "S1": {"gain_share_of_S2": _recovery(stack, "S1/stacker", reps, "S2/stacker")}
+        }
+        for lv in levels:
+            if not lv.startswith("PD["):
+                continue
+            pd_name = lv.split("/")[0]
+            pd_acc = [s["protocol"][pd_name]["accounts_disclosed"] for s in seeds]
+            share = float(np.mean([a / b for a, b in zip(pd_acc, s2_acc, strict=True) if b]))
+            gain = _recovery(stack, lv, reps, "S2/stacker")
+            summary["H1d"][pd_name] = {
+                "gain_share_of_S2": gain,
+                "disclosure_share_of_S2": share,
+                "accounts_disclosed_mean": float(np.mean(pd_acc)),
+                "met_on_validation": bool(
+                    gain["estimate"] is not None and gain["estimate"] >= 0.8 and share < 0.5
+                ),
+            }
     return summary
 
 
-def _recovery(stack: dict[str, dict[str, np.ndarray]], level: str, reps: int) -> dict[str, Any]:
-    """(level - S0) / (oracle - S0) in linked detection, scheme bootstrap."""
+def _recovery(
+    stack: dict[str, dict[str, np.ndarray]], level: str, reps: int, ceiling: str = "oracle"
+) -> dict[str, Any]:
+    """(level - S0) / (ceiling - S0) in linked detection, scheme bootstrap."""
     s0 = stack["S0"]["linked"].mean(axis=1)
     lv = stack[level]["linked"].mean(axis=1)
-    orc = stack["oracle"]["linked"].mean(axis=1)
+    orc = stack[ceiling]["linked"].mean(axis=1)
     point = (lv.mean() - s0.mean()) / max(orc.mean() - s0.mean(), 1e-12)
     rng = np.random.default_rng(0)
     n = len(s0)
@@ -444,12 +548,23 @@ def run_x1(
     reps: int = 1000,
     window_reps: int = 200,
     progress: Callable[[str], None] | None = None,
+    sweeps: bool = True,
+    audit: bool = True,
 ) -> dict[str, Any]:
     t0 = time.perf_counter()
     with AnonPeak() as anon:
         per_seed = []
         for seed in seeds:
-            r = run_seed(paths, option, seed, reps, window_reps, anon)
+            r = run_seed(
+                paths,
+                option,
+                seed,
+                reps,
+                window_reps,
+                anon,
+                sweeps=sweeps,
+                audit=audit and seed == seeds[0],
+            )
             per_seed.append(r)
             if progress:
                 progress(f"seed {seed}: {r['seconds']['total']:.0f} s")
@@ -464,6 +579,11 @@ def run_x1(
         "primary_budget": PRIMARY.name,
         "delay_windows": DELAY_WINDOWS,
         "primary_fusion": "stacker",
+        "h1b_ceiling": "oracle-relational",  # amendment A14
+        "sweeps": sweeps,
+        "audit": per_seed[0]["audit"],
+        "epsilons": list(EPSILONS) if sweeps else [],
+        "taus": list(PD_TAUS) if sweeps else [],
         "summary": summary,
         "random": random_ref,
         "per_seed": [

@@ -166,8 +166,9 @@ def test_combine_and_recovery() -> None:
     out = combine(seeds, reps=200)
     assert out["S2/stacker"]["linked"]["estimate"] == pytest.approx(0.6)
     assert out["S2/stacker"]["linked_gain"]["difference"]["estimate"] == pytest.approx(0.6)
-    assert out["H1b"]["S2/stacker"]["estimate"] == pytest.approx(0.75)
-    assert out["H1b"]["S1/stacker"]["estimate"] == pytest.approx(0.5)
+    assert out["H1b"]["oracle"]["S2/stacker"]["estimate"] == pytest.approx(0.75)
+    assert out["H1b"]["oracle"]["S1/stacker"]["estimate"] == pytest.approx(0.5)
+    assert "oracle-relational" not in out["H1b"]  # not in these outcomes
     stack = {
         n: {
             "linked": np.column_stack(
@@ -191,7 +192,14 @@ def test_x1_pipeline_on_the_fixture(
     from finmesh.eval.g0 import run_g0
     from finmesh.eval.universe import build_universe
     from finmesh.features.build import build_features
-    from finmesh.training.x1_report import frontier_figure, render_x1
+    from finmesh.training.x1_report import (
+        frontier_figure,
+        ladder_figure,
+        render_audit,
+        render_x1,
+        render_x3,
+        x3_figure,
+    )
 
     run_g0(fixture_paths)
     build_universe(fixture_paths, "B8")
@@ -200,15 +208,44 @@ def test_x1_pipeline_on_the_fixture(
     monkeypatch.setattr(x1, "PRIMARY", Budget("per_1000_per_day", 300.0))
     r = x1.run_x1(fixture_paths, seeds=(0, 1), reps=50, window_reps=20)
     s = r["summary"]
-    expected = {"S0", "oracle", "propagation"} | {
+    expected = {"S0", "oracle", "oracle-relational", "oracle+propagation", "propagation"} | {
         f"{lv}/{f}" for lv in ("S1", "S2", "S4") for f in ("stacker", "noisy_or", "kofn")
     }
+    expected |= {f"{n}/stacker" for n, _, _ in x1.level_runs(True)}
     assert expected <= set(s)
     assert s["oracle"]["linked"]["estimate"] > 0
+    assert set(s["H1b"]) == {"oracle-relational", "oracle"}
+    assert {"S1", "PD[tau=2]", "PD[tau=3]", "PD[tau=4]"} <= set(s["H1d"])
+    runs = {n for n, _, _ in x1.level_runs(True)}
     for seed in r["per_seed"]:
         assert seed["candidates"] > 0 and seed["alerts"] > 0
-        assert set(seed["protocol"]) == {"S1", "S2", "S4"}
+        assert set(seed["protocol"]) == runs
         assert all(p["requests"] > 0 for p in seed["protocol"].values())
-    page = render_x1(r, "f.png")
-    assert "H1b on validation" in page and "Secondary fusion rules" in page
-    assert frontier_figure(r, tmp_path / "f.png").stat().st_size > 1000
+        assert seed["protocol"]["S1"]["accounts_disclosed"] == 0
+        assert (
+            seed["protocol"]["PD[tau=4]"]["accounts_disclosed"]
+            <= seed["protocol"]["S2"]["accounts_disclosed"]
+        )
+        assert seed["protocol"]["S3[eps=8]"]["ldp_max_account_epsilon"] <= 8.0 + 1e-9
+    audit = r["audit"]
+    assert set(audit["attacks"]) == {
+        "A2_third_party",
+        "A3_amount_top",
+        "A3_fan_in_top",
+        "A3_pass_through",
+    }
+    assert {"prior", "S1", "S2", "S4"} <= set(audit["attacks"]["A2_third_party"])
+    a1 = audit["A1"]
+    assert a1["pooled"]["hash"] >= a1["pooled"]["oprf_sized"]
+    check = a1["mechanism_check"]
+    assert check["hash_matches"] == check["oprf_matches"] == check["checked"] > 0
+    import json
+
+    json.loads(json.dumps(r), parse_constant=lambda c: (_ for _ in ()).throw(ValueError(c)))
+    assert "H1b on validation" in render_x1(r, "f.png")
+    assert "PD: recall versus disclosure volume" in render_x3(r, "x3.png")
+    page = render_audit(r, "frontier.png")
+    assert "A1 token re-identification" in page and "H1c on validation" in page
+    assert ladder_figure(r, tmp_path / "l.png").stat().st_size > 1000
+    assert x3_figure(r, tmp_path / "x3.png") is not None
+    assert frontier_figure(r, tmp_path / "f.png").stat().st_size > 1000  # type: ignore[union-attr]

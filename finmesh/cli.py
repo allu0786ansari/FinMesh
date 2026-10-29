@@ -532,12 +532,25 @@ def cmd_x1(args: argparse.Namespace) -> int:
     from finmesh.data.manifest import load_manifest
     from finmesh.eval.provenance import Stamp, write_artifact
     from finmesh.training.x1 import run_x1
-    from finmesh.training.x1_report import frontier_figure, render_x1
+    from finmesh.training.x1_report import (
+        frontier_figure,
+        ladder_figure,
+        render_audit,
+        render_x1,
+        render_x3,
+        x3_figure,
+    )
 
     paths = dataset_paths(args.dataset)
     seeds = tuple(int(s) for s in args.seeds.split(","))
     result = run_x1(
-        paths, option=args.option, seeds=seeds, reps=args.reps, progress=lambda m: print(f"  {m}")
+        paths,
+        option=args.option,
+        seeds=seeds,
+        reps=args.reps,
+        progress=lambda m: print(f"  {m}"),
+        sweeps=not args.no_sweeps,
+        audit=not args.no_audit,
     )
     manifest = load_manifest(paths.manifest)
     stamp = Stamp(
@@ -546,33 +559,62 @@ def cmd_x1(args: argparse.Namespace) -> int:
         manifest_hash=manifest.manifest_hash,
         fixture=manifest.fixture,
         split="val",
-        params={"option": args.option, "seeds": list(seeds), "reps": args.reps},
+        params={
+            "option": args.option,
+            "seeds": list(seeds),
+            "reps": args.reps,
+            "sweeps": not args.no_sweeps,
+            "audit": not args.no_audit,
+        },
     )
     artifact = write_artifact(
-        data_root() / "artifacts" / "week07" / f"x1_{paths.name}.json", stamp, result
+        data_root() / "artifacts" / "week08" / f"x1_{paths.name}.json", stamp, result
     )
     if args.dataset == FIXTURE_DATASET:
-        out_dir = data_root() / "artifacts" / "week07"
+        out_dir = data_root() / "artifacts" / "week08"
     else:
         out_dir = REPO_ROOT / "docs" / "eval"
-    figure = frontier_figure(result, out_dir / f"frontier_{paths.name}.png")
-    report = out_dir / f"x1_{paths.name}.md"
-    report.write_text(render_x1(result, figure.name))
-    for name in ("S0", "S1/stacker", "S2/stacker", "S4/stacker", "propagation", "oracle"):
-        v = result["summary"].get(name)
+    name = paths.name
+    ladder = ladder_figure(result, out_dir / f"ladder_{name}.png")
+    (out_dir / f"x1_{name}.md").write_text(render_x1(result, ladder.name))
+    pages = [out_dir / f"x1_{name}.md"]
+    if result.get("sweeps"):
+        fig = x3_figure(result, out_dir / f"x3_{name}.png")
+        (out_dir / f"x3_{name}.md").write_text(render_x3(result, fig.name if fig else None))
+        pages.append(out_dir / f"x3_{name}.md")
+    if result.get("audit"):
+        fig = frontier_figure(result, out_dir / f"frontier_{name}.png")
+        (out_dir / f"audit_{name}.md").write_text(render_audit(result, fig.name if fig else None))
+        pages.append(out_dir / f"audit_{name}.md")
+    s = result["summary"]
+    for key in (
+        "S0",
+        "S1/stacker",
+        "S2/stacker",
+        "S4/stacker",
+        "propagation",
+        "oracle",
+        "oracle-relational",
+    ):
+        v = s.get(key)
         if v:
-            print(f"  {name:<12} linked {v['linked']['estimate']:.3f}")
-    h = result["summary"]["H1b"]["S2/stacker"]
-    if h["estimate"] is None:
-        print("  S2 recovery undefined: the oracle shows no linked gain over S0")
-    else:
-        print(
-            f"  S2 recovers {h['estimate']:.2f} [{h['low']:.2f}, {h['high']:.2f}]"
-            " of the oracle gain"
-        )
+            print(f"  {key:<18} linked {v['linked']['estimate']:.3f}")
+    for ceiling, per in s.get("H1b", {}).items():
+        h = per.get("S2/stacker") or {}
+        if h.get("estimate") is None:
+            print(f"  S2 recovery against {ceiling}: undefined (no linked gain over S0)")
+        else:
+            print(
+                f"  S2 recovers {h['estimate']:.2f} [{h['low']:.2f}, {h['high']:.2f}]"
+                f" of the {ceiling} gain"
+            )
+    h1c = (result.get("audit") or {}).get("H1c", {})
+    if h1c:
+        print(f"  H1c: S1 and S3 (eps <= 2) within margin: {h1c.get('S1_and_S3_le2_within')}")
     print(f"  {result['seconds']:.0f} s, peak memory {result['peak_anon_mb']} MB")
     print(f"  artifact {artifact}")
-    print(f"  report   {report}")
+    for page in pages:
+        print(f"  report   {page}")
     return 0
 
 
@@ -698,11 +740,15 @@ def build_parser() -> argparse.ArgumentParser:
     sh.add_argument("--reps", type=int, default=1000, help="bootstrap replicates")
     sh.set_defaults(func=cmd_share)
 
-    x1 = sub.add_parser("x1", help="X1 sharing ladder on validation, with the frontier (week 7)")
+    x1 = sub.add_parser(
+        "x1", help="X1-X3 on validation: sharing ladder, S3/PD sweeps, audit A1-A3 (weeks 7-8)"
+    )
     x1.add_argument("--dataset", required=True)
     x1.add_argument("--option", default="B8")
     x1.add_argument("--seeds", default="0,1,2", help="comma-separated seeds")
     x1.add_argument("--reps", type=int, default=1000, help="bootstrap replicates")
+    x1.add_argument("--no-sweeps", action="store_true", help="skip the S3 and PD sweeps (X3)")
+    x1.add_argument("--no-audit", action="store_true", help="skip the leakage audit (X2)")
     x1.set_defaults(func=cmd_x1)
 
     sl = sub.add_parser("sealed-log", help="show every opening of the sealed test")

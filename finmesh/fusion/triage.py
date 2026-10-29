@@ -40,7 +40,7 @@ S4_EXTRA = tuple(f"cp_emb{i}" for i in range(EMBED_DIM))
 def feature_names(level: str) -> tuple[str, ...]:
     if level == "S1":
         return COMMON
-    if level == "S2":
+    if level in ("S2", "S3", "PD"):  # S3: noisy records; PD: records when escalated
         return (*COMMON, *S2_EXTRA)
     if level == "S4":
         return (*COMMON, *S2_EXTRA, *S4_EXTRA)
@@ -74,7 +74,7 @@ def evidence_features(
         (pl.col("status") == "refused").sum().alias("n_refused"),
         pl.col("alert").sum().alias("n_cp_alert"),
     ]
-    if level in ("S2", "S4"):
+    if level in ("S2", "S3", "S4", "PD"):
         rec = pl.col("record")
         prob = rec.list.get(_field("prob_bucket"), null_on_oob=True)
         dev = pl.max_horizontal(
@@ -125,7 +125,7 @@ def noisy_or(feats: pl.DataFrame, level: str, flag_q: float | np.ndarray) -> np.
     p = feats["prob"].to_numpy()
     flags = feats["n_cp_alert"].to_numpy()
     keep = (1 - p) * (1 - flag_q) ** flags
-    if level in ("S2", "S4"):
+    if level in ("S2", "S3", "S4", "PD"):
         mid = np.asarray(BUCKET_MID)
         has = feats["n_cp_record"].to_numpy() > 0
         b = np.clip(feats["max_cp_prob"].to_numpy().astype(int), 0, len(mid) - 1)
