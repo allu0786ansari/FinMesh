@@ -16,7 +16,14 @@ from typing import Any
 import numpy as np
 
 from finmesh.federation.accountant import Accountant
-from finmesh.federation.dpsgd import Adam, ClientData, UnitIndex, local_training
+from finmesh.federation.dpsgd import (
+    BATCH,
+    LEARNING_RATE,
+    Adam,
+    ClientData,
+    UnitIndex,
+    local_training,
+)
 from finmesh.models.neural import Encoder
 
 ROUNDS = 50
@@ -32,11 +39,13 @@ def fedavg(
     local_steps: int = LOCAL_STEPS,
     dp: dict[int, dict[str, Any]] | None = None,
     on_round: Callable[[int], None] | None = None,
+    lr: float = LEARNING_RATE,
+    batch: int = BATCH,
 ) -> tuple[list[np.ndarray], dict[str, Any]]:
-    """Global weights after ``rounds``; ``dp`` maps client -> {rate, noise, accountant}."""
+    """Global weights after ``rounds``; ``dp`` maps client -> {rate, noise, accountant, clip}."""
     params = [w.copy() for w in init]
     rngs = {c: np.random.default_rng([seed, c]) for c in clients}
-    opts = {c: Adam() for c in clients}  # client optimiser state stays on the client
+    opts = {c: Adam(lr=lr) for c in clients}  # client optimiser state stays on the client
     index = {c: UnitIndex(d.unit) for c, d in clients.items()} if dp else {}
     clipped: dict[int, float] = {c: 0.0 for c in clients}
     for r in range(rounds):
@@ -45,7 +54,9 @@ def fedavg(
             cfg = None
             if dp is not None:
                 cfg = {**dp[c], "index": index[c]}
-            w, stats = local_training(params, data, enc, local_steps, rngs[c], opts[c], cfg)
+            w, stats = local_training(
+                params, data, enc, local_steps, rngs[c], opts[c], cfg, batch=batch
+            )
             clipped[c] += stats["clipped_share"] / rounds
             updates.append(w)
             if dp is not None:

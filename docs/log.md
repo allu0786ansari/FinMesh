@@ -14,6 +14,16 @@ Next week: <first two tasks>
 On track for next gate? yes / at risk / no
 ```
 
+## Week 11 · 4 – 10 Jan 2027
+
+Planned: account unit, degree cap, indirect influence, X5.
+Done: week 10 reviewed. The non-private MLP is close to the GBDT (HI 0.310 vs 0.337; LI 0.087 vs 0.085) and FedAvg beats local-only, but DP-SGD collapsed (HI ε = 10: 0.153) because the a-priori clip norm was far above the gradients (3% clipped). The owner chose to tune DP on the Small federations as public proxy data (A18). Built: `dp-tune` (15-setting grid, frozen per regime), the account unit (bags of 8), degree-capped features (D = 16, partitioned to bound memory), the indirect-influence measurement by feature recomputation with 200 accounts removed, and X5 (units × cap × ε, H2a tuned, H2b). Details in `docs/runlog/week-11.md`.
+Not done: tuning, influence and X5 on real data (run-log steps 2–4).
+Numbers this week: engineering only. Stress: capped build 8 min and 2.0 GB after partitioning (was out of memory); influence 28 min and 3.4 GB (group size median 9, max 393 uncapped; median 2.5, max 11 capped, synthetic graph); X5 36 min per seed at 2.6 GB; the tuning grid now gives every setting the same example budget.
+Risks or blockers: the proxy-tuned settings may transfer imperfectly to the Medium sets; the cap may remove fan patterns the detector needs.
+Next week: week 12, membership inference on the trained model, the IID arm, the stacked ensemble, Gate G3.
+On track for next gate? yes (G3, week 12).
+
 ## Week 10 · 28 Dec 2026 – 3 Jan 2027
 
 Planned: Gate G2 decision; the federated DP neural scorer, window unit, ε sweep, X4 on validation.

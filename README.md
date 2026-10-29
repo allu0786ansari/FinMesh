@@ -17,7 +17,8 @@ The full research design is in [`docs/proposal/FinMesh_Proposal_v2.md`](docs/pro
 | 7 | 7 – 13 Dec | Fusion and triage, S4, propagation, X1 and the first frontier | Done on real data 26 Oct; sharing beats the pooled oracle, so A14 adds a relational oracle ([run log](docs/runlog/week-07.md)) |
 | 8 | 14 – 20 Dec | Relational oracle, S3 (local DP), progressive disclosure, X3, audit A1–A3 | Done on real data 29 Oct; H1b 0.98 (HI) and 0.83 (LI) of the relational ceiling; S3 existence leak and token budget led to A16 ([run log](docs/runlog/week-08.md)) |
 | 9 | 21 – 27 Dec | S3 fix, sized budgets, attacks A4–A6, Gate G2 evidence, demo slice | Done on real data 29 Oct; **G2 passed** ([decision](docs/gates/G2.md), [run log](docs/runlog/week-09.md)) |
-| 10 | 28 Dec – 3 Jan | Neural scorer, DP-SGD with persistent accounting, FedAvg, X4 part 1 | Code done (A17); awaiting real-data run ([run log](docs/runlog/week-10.md)) |
+| 10 | 28 Dec – 3 Jan | Neural scorer, DP-SGD with persistent accounting, FedAvg, X4 part 1 | Done on real data 30 Oct; MLP near the GBDT without privacy, DP collapsed with the a-priori clip norm, which led to A18 ([run log](docs/runlog/week-10.md)) |
+| 11 | 4 – 10 Jan | DP tuning on the proxy, account unit, degree cap, indirect influence, X5 | Code done (A18); awaiting real-data run ([run log](docs/runlog/week-11.md)) |
 | 7–9 | 7 – 27 Dec | Fusion, triage, S3, progressive disclosure, attacks, Gate G2 | Not started |
 | 10–12 | 28 Dec – 17 Jan | Federated DP detection, Gate G3 | Not started |
 | 13–14 | 18 – 31 Jan | Attribution and narrative | Not started |

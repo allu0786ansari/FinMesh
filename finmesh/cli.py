@@ -292,7 +292,14 @@ def cmd_features(args: argparse.Namespace) -> int:
     from finmesh.features.report import render_build
 
     paths = dataset_paths(args.dataset)
-    meta = build_features(paths, option=args.option, view=args.view)
+    if args.degree_cap:
+        from finmesh.features.variants import degree_cap
+
+        variant = degree_cap(args.degree_cap)
+        meta = build_features(paths, option=args.option, variant=variant)
+        args.view = variant[0]
+    else:
+        meta = build_features(paths, option=args.option, view=args.view)
     manifest = load_manifest(paths.manifest)
     stamp = Stamp(
         kind="features",
@@ -724,6 +731,153 @@ def cmd_x4(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_dp_tune(args: argparse.Namespace) -> int:
+    from finmesh.data.manifest import load_manifest
+    from finmesh.eval.provenance import Stamp, write_artifact
+    from finmesh.training.dp_tune import PROXY_DATASETS, render_tuning, run_tuning
+    from finmesh.training.neural import DpHparams, write_dp_hparams
+
+    if args.dataset not in (*PROXY_DATASETS, FIXTURE_DATASET):
+        print(f"  dp-tune runs on the proxy federations only: {', '.join(PROXY_DATASETS)} (A18)")
+        return 2
+    paths = dataset_paths(args.dataset)
+    out_root = data_root() / "artifacts" / "week11"
+    grid = None
+    if args.quick:  # CI: two settings, few steps
+        grid = [(0.1, 512), (1.0, 512)]
+    result = run_tuning(
+        paths,
+        out_root,
+        option=args.option,
+        rounds=args.rounds,
+        local_steps=args.local_steps,
+        grid=grid,
+        progress=lambda m: print(f"  {m}"),
+    )
+    manifest = load_manifest(paths.manifest)
+    stamp = Stamp(
+        kind="dp_tune",
+        dataset=paths.name,
+        manifest_hash=manifest.manifest_hash,
+        fixture=manifest.fixture,
+        split="train",
+        params={"option": args.option, "rounds": args.rounds, "local_steps": args.local_steps},
+    )
+    artifact = write_artifact(out_root / f"dp_tune_{paths.name}.json", stamp, result)
+    out_dir = out_root if args.dataset == FIXTURE_DATASET else REPO_ROOT / "docs" / "eval"
+    report = out_dir / f"dp_tune_{paths.name}.md"
+    report.write_text(render_tuning(result))
+    best = result["best"]
+    if best and args.dataset != FIXTURE_DATASET:
+        hp = DpHparams(
+            best["clip"], best["batch"], result["lr"], f"dp-tune {paths.name}", best["local_steps"]
+        )
+        path = write_dp_hparams(
+            paths.name,
+            hp,
+            {"run_id": result["run_id"], "holdout_auprc": best["holdout_auprc"]},
+        )
+        print(f"  chosen: clip {best['clip']:g}, batch {best['batch']} -> {path}")
+    print(f"  {result['seconds']:.0f} s, peak memory {result['peak_anon_mb']} MB")
+    print(f"  artifact {artifact}")
+    print(f"  report   {report}")
+    return 0
+
+
+def cmd_influence(args: argparse.Namespace) -> int:
+    from finmesh.data.manifest import load_manifest
+    from finmesh.eval.provenance import Stamp, write_artifact
+    from finmesh.training.influence import render_influence, run_influence
+
+    paths = dataset_paths(args.dataset)
+    result = run_influence(paths, option=args.option, cap=args.cap, sample=args.sample)
+    manifest = load_manifest(paths.manifest)
+    stamp = Stamp(
+        kind="influence",
+        dataset=paths.name,
+        manifest_hash=manifest.manifest_hash,
+        fixture=manifest.fixture,
+        split="train",
+        params={"option": args.option, "cap": args.cap, "sample": args.sample},
+    )
+    out_root = data_root() / "artifacts" / "week11"
+    artifact = write_artifact(out_root / f"influence_{paths.name}.json", stamp, result)
+    out_dir = out_root if args.dataset == FIXTURE_DATASET else REPO_ROOT / "docs" / "eval"
+    report = out_dir / f"influence_{paths.name}.md"
+    report.write_text(render_influence(result))
+    for view, v in result["views"].items():
+        g = v["group_size"]
+        print(
+            f"  {view:<8} group size median {g['q50']:.0f}, p99 {g['q99']:.0f}, max {g['q100']:.0f}"
+        )
+    print(f"  {result['seconds']:.0f} s")
+    print(f"  artifact {artifact}")
+    print(f"  report   {report}")
+    return 0
+
+
+def cmd_x5(args: argparse.Namespace) -> int:
+    from finmesh.data.manifest import load_manifest
+    from finmesh.eval.provenance import Stamp, write_artifact
+    from finmesh.training.neural import dp_hparams
+    from finmesh.training.x5 import run_x5
+    from finmesh.training.x5_report import render_x5
+
+    paths = dataset_paths(args.dataset)
+    hp = dp_hparams(paths.name)
+    if hp.source == "A17 defaults" and args.dataset != FIXTURE_DATASET:
+        print(
+            "  no tuned DP settings for this regime; run `finmesh dp-tune` on the Small set first"
+        )
+        return 2
+    seeds = tuple(int(s) for s in args.seeds.split(","))
+    out_root = data_root() / "artifacts" / "week11"
+    result = run_x5(
+        paths,
+        out_root,
+        option=args.option,
+        seeds=seeds,
+        reps=args.reps,
+        cap=args.cap,
+        rounds=args.rounds,
+        local_steps=args.local_steps,
+        progress=lambda m: print(f"  {m}"),
+    )
+    manifest = load_manifest(paths.manifest)
+    stamp = Stamp(
+        kind="x5",
+        dataset=paths.name,
+        manifest_hash=manifest.manifest_hash,
+        fixture=manifest.fixture,
+        split="val",
+        params={
+            "option": args.option,
+            "seeds": list(seeds),
+            "cap": args.cap,
+            "rounds": args.rounds,
+            "local_steps": args.local_steps,
+            "hparams": hp.to_dict(),
+            "run_id": result["run_id"],
+        },
+    )
+    artifact = write_artifact(out_root / f"x5_{paths.name}.json", stamp, result)
+    out_dir = out_root if args.dataset == FIXTURE_DATASET else REPO_ROOT / "docs" / "eval"
+    report = out_dir / f"x5_{paths.name}.md"
+    report.write_text(render_x5(result))
+    s = result["summary"]
+    for eps, v in s["H2a"].items():
+        b = s["H2b"][eps]
+        print(
+            f"  eps {eps}: window {v['share_of_centralised']['estimate']:.2f} of centralised "
+            f"(H2a {v['met_on_validation']}); window - account "
+            f"{b['window_minus_account']['estimate']:+.4f} (H2b {b['met_on_validation']})"
+        )
+    print(f"  {result['seconds']:.0f} s, peak memory {result['peak_anon_mb']} MB")
+    print(f"  artifact {artifact}")
+    print(f"  report   {report}")
+    return 0
+
+
 def cmd_sealed_log(args: argparse.Namespace) -> int:
     from finmesh.eval.sealed import read_access_log
 
@@ -815,6 +969,12 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("member", "pooled"),
         help="member: what each bank sees; pooled: the oracle's full graph (needs member first)",
     )
+    fe.add_argument(
+        "--degree-cap",
+        type=int,
+        default=0,
+        help="member view with at most D counterparties per account (week 11; needs member)",
+    )
     fe.set_defaults(func=cmd_features)
 
     fr = sub.add_parser("feature-report", help="single-feature signal on validation (week 4)")
@@ -848,6 +1008,37 @@ def build_parser() -> argparse.ArgumentParser:
     ds.add_argument("--alerts", type=int, default=50, help="sessions to time")
     ds.add_argument("--seed", type=int, default=0)
     ds.set_defaults(func=cmd_demo_slice)
+
+    dt = sub.add_parser(
+        "dp-tune", help="DP clip norm and batch on the proxy federation, HI/LI-Small (week 11)"
+    )
+    dt.add_argument("--dataset", required=True)
+    dt.add_argument("--option", default="B8")
+    dt.add_argument("--rounds", type=int, default=50)
+    dt.add_argument(
+        "--local-steps", type=int, default=None, help="override 20 × 512 / batch (CI only)"
+    )
+    dt.add_argument("--quick", action="store_true", help="two settings only (CI)")
+    dt.set_defaults(func=cmd_dp_tune)
+
+    inf = sub.add_parser(
+        "influence", help="indirect influence of an account, with and without the cap (week 11)"
+    )
+    inf.add_argument("--dataset", required=True)
+    inf.add_argument("--option", default="B8")
+    inf.add_argument("--cap", type=int, default=16)
+    inf.add_argument("--sample", type=int, default=200, help="accounts removed")
+    inf.set_defaults(func=cmd_influence)
+
+    x5 = sub.add_parser("x5", help="X5: privacy unit and degree cap, tuned DP (week 11)")
+    x5.add_argument("--dataset", required=True)
+    x5.add_argument("--option", default="B8")
+    x5.add_argument("--seeds", default="0,1,2")
+    x5.add_argument("--reps", type=int, default=200)
+    x5.add_argument("--cap", type=int, default=16)
+    x5.add_argument("--rounds", type=int, default=50)
+    x5.add_argument("--local-steps", type=int, default=20)
+    x5.set_defaults(func=cmd_x5)
 
     x4 = sub.add_parser("x4", help="X4 part 1: neural scorer, FedAvg and DP-SGD (week 10)")
     x4.add_argument("--dataset", required=True)

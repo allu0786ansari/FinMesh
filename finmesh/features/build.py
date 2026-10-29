@@ -51,6 +51,7 @@ from finmesh.features.edges import (
 )
 from finmesh.features.neighbourhood import NEIGHBOURHOOD_COUNTS, window_features
 from finmesh.features.schema import KEYS, FeatureSchema, load_schema
+from finmesh.features.variants import EdgeFilter
 from finmesh.paths import DatasetPaths
 from finmesh.sysinfo import AnonPeak
 
@@ -229,8 +230,20 @@ def _finish(
     return schema.cast(full).with_columns(full["partition"])
 
 
-def build_features(paths: DatasetPaths, option: str = "B8", view: str = "member") -> dict[str, Any]:
-    """Member view (what each bank sees) or pooled view (the oracle's full graph)."""
+def build_features(
+    paths: DatasetPaths,
+    option: str = "B8",
+    view: str = "member",
+    variant: tuple[str, EdgeFilter] | None = None,
+) -> dict[str, Any]:
+    """Member view (what each bank sees) or pooled view (the oracle's full graph).
+
+    ``variant`` = (tag, edge filter) builds a member-view variant from a filtered
+    edge table (``finmesh.features.variants``), stored as view ``tag`` and aligned
+    row for row with the member build, which must exist.
+    """
+    if variant is not None:
+        return _build_member(paths, option, variant)
     if view not in VIEWS:
         raise ValueError(f"view must be one of {VIEWS}")
     if view == "pooled":
@@ -238,11 +251,26 @@ def build_features(paths: DatasetPaths, option: str = "B8", view: str = "member"
     return _build_member(paths, option)
 
 
-def _build_member(paths: DatasetPaths, option: str) -> dict[str, Any]:
+def _fill_empty(frame: pl.DataFrame, schema: FeatureSchema) -> pl.DataFrame:
+    """Rows that lost every leg in a variant: counts and sums 0, everything else null."""
+    counts = set(schema.counts())
+    exprs = [
+        pl.col(n).fill_null(0)
+        for n in schema.names
+        if n in counts or (n.startswith("amt_") and n != "amt_vs_history")
+    ]
+    return frame.with_columns(exprs) if exprs else frame
+
+
+def _build_member(
+    paths: DatasetPaths, option: str, variant: tuple[str, EdgeFilter] | None = None
+) -> dict[str, Any]:
     """Write the current feature schema for every account-window; return the build summary."""
     schema = load_schema()
     plan = load_plan(paths)
-    layout = FeatureLayout(paths, plan.window_hours, option, schema.version)
+    view = "member" if variant is None else variant[0]
+    base = None if variant is None else FeatureStore(paths, option, "member")
+    layout = FeatureLayout(paths, plan.window_hours, option, schema.version, view)
     membership = _membership(paths, option)
     if layout.root.exists():
         shutil.rmtree(layout.root)
@@ -256,10 +284,13 @@ def _build_member(paths: DatasetPaths, option: str) -> dict[str, Any]:
         rates = chain_rates(names, ratios, str(schema.params["reference_currency"]))
         edges = layout.work / "edges.parquet"
         edge_rows = write_edges(paths.transactions, plan, edges, rates, names)
+        variant_info = variant[1](edges) if variant is not None else None
+        if variant_info is not None:
+            edge_rows = int(variant_info["edges_after"])
         timings["edges"] = {"seconds": round(time.perf_counter() - t0, 1)}
     timings["edges"]["peak_anon_mb"] = anon.mb
 
-    slices = slice_count(paths)
+    slices = slice_count(paths) if base is None else int(base.meta["slices"])
     with AnonPeak() as anon:
         t0 = time.perf_counter()
         nb = _neighbourhood_pass(edges, membership, plan, schema, slices, layout.work)
@@ -294,6 +325,16 @@ def _build_member(paths: DatasetPaths, option: str) -> dict[str, Any]:
             del pieces, nbr
             for p in PARTITIONS:
                 frame = full.filter(pl.col("partition") == p).drop("partition").sort(*KEYS)
+                if base is not None:  # same rows as the member build, row for row
+                    keys = pl.read_parquet(
+                        base.layout.partition_dir(p) / f"feat_{d:03d}.parquet", columns=list(KEYS)
+                    )
+                    frame = schema.cast(
+                        _fill_empty(
+                            keys.join(frame, on=list(KEYS), how="left", maintain_order="left"),
+                            schema,
+                        )
+                    )
                 FeatureFrame(frame)  # refuses label columns, by construction
                 frame.write_parquet(layout.partition_dir(p) / f"feat_{d:03d}.parquet")
                 counts[p] += frame.height
@@ -305,7 +346,8 @@ def _build_member(paths: DatasetPaths, option: str) -> dict[str, Any]:
     meta: dict[str, Any] = {
         "dataset": paths.name,
         "option": option,
-        "view": "member",
+        "view": view,
+        "variant": variant_info,
         "window_hours": plan.window_hours,
         "schema_version": schema.version,
         "schema_sha256": schema.sha256,

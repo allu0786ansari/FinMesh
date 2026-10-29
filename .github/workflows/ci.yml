@@ -41,6 +41,10 @@ jobs:
           uv run finmesh demo-slice --dataset FIXTURE-Small --alerts 20
           uv run finmesh g2
           uv run finmesh x4 --dataset FIXTURE-Small --seeds 0 --reps 50 --rounds 5 --local-steps 5
+          uv run finmesh dp-tune --dataset FIXTURE-Small --quick --rounds 5 --local-steps 5
+          uv run finmesh features --dataset FIXTURE-Small --degree-cap 16
+          uv run finmesh influence --dataset FIXTURE-Small --sample 20
+          uv run finmesh x5 --dataset FIXTURE-Small --seeds 0 --reps 50 --rounds 5 --local-steps 5
           uv run finmesh check
 
   secret-scan:

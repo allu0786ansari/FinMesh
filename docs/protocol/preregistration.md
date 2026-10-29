@@ -2,7 +2,7 @@
 
 **Status: frozen at Gate G1, 26 Oct 2026 (tag `g1`).** Nothing below changes except through an amendment in `docs/proposal/CHANGES.md` made before the results it affects exist. The sealed test is opened only in week 18.
 
-Proposal: `docs/proposal/FinMesh_Proposal_v2.md`, with amendments A1–A11; A12–A17 were added after the freeze, through `docs/proposal/CHANGES.md`.
+Proposal: `docs/proposal/FinMesh_Proposal_v2.md`, with amendments A1–A11; A12–A18 were added after the freeze, through `docs/proposal/CHANGES.md`.
 
 ## 1. Data, federation and splits
 
@@ -146,6 +146,20 @@ Every result is reported whether or not its hypothesis holds; a missed target is
   - The window unit comes in week 10. The account unit (one account's bag of at most k windows) and the degree cap come in week 11, specified before their results.
 - **X4 (part 1):** centralised, local-only, FedAvg and FedAvg + DP MLPs, and the local GBDT, on validation. AUPRC is pooled over the federation's account-windows, averaged over seeds 0–2, with a paired Poisson bootstrap over accounts.
 - **H2a:** FedAvg + DP at ε ≤ 10 reaches at least 0.70 of the centralised MLP's AUPRC and exceeds the local-only MLP's.
+
+### Amendment A18 (week 11)
+
+- **DP settings:**
+  - Chosen on HI-Small and LI-Small (public proxy federations) by `finmesh dp-tune`: clip ∈ {0.01, 0.03, 0.1, 0.3, 1} × expected batch ∈ {512, 2048, 8192}, at ε = 3, window unit, seed 0, 50 rounds with 20 × 512 / batch local steps (a fixed example budget). Each is scored by AUPRC on the proxy's training hold-out.
+  - The choice is frozen per regime in `finmesh/schemas/dp_hparams.json`, and every DP run on a Medium set uses it.
+- **Account unit:** one account's bag of at most 8 training windows, picked by a fixed hash.
+- **Degree cap:** D = 16 distinct counterparties per account over the observation, with features rebuilt (`finmesh features --degree-cap 16`).
+- **Indirect influence:**
+  - 200 training accounts (half with a laundering row) are removed and the features rebuilt, for both views.
+  - Group size = 1 + other same-member training accounts within two hops whose rows change.
+  - Reported as quantiles, with the formal group bound (g ε, g e^((g−1)ε) δ).
+- **X5:** window and account units × member and capped features × ε ∈ {1, 3, 10}, plus the non-private references, seeds 0–2.
+- **Hypotheses:** H2a is judged with the tuned settings. H2b holds when the paired window − account AUPRC difference has a 95% CI above 0 at the same ε.
 
 ## 7. Seeds and statistics
 

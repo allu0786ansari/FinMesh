@@ -147,7 +147,11 @@ def local_training(
     dp: dict[str, Any] | None = None,
     batch: int = BATCH,
 ) -> tuple[list[np.ndarray], dict[str, float]]:
-    """``steps`` local steps from ``params`` (copied); ``dp`` = {rate, noise, accountant, index}."""
+    """``steps`` local steps from ``params`` (copied).
+
+    ``dp`` = {rate, noise, accountant, index, clip}; under DP the expected batch is
+    ``rate`` × units, so ``batch`` applies to the non-private step only.
+    """
     p = [w.copy() for w in params]
     opt = opt if opt is not None else Adam()
     stats: dict[str, float] = {"clipped_share": 0.0}
@@ -156,7 +160,16 @@ def local_training(
             plain_step(p, opt, data, enc, batch, rng)
         else:
             s = dp_step(
-                p, opt, data, dp["index"], enc, dp["rate"], dp["noise"], rng, dp["accountant"]
+                p,
+                opt,
+                data,
+                dp["index"],
+                enc,
+                dp["rate"],
+                dp["noise"],
+                rng,
+                dp["accountant"],
+                dp.get("clip", CLIP),
             )
             stats["clipped_share"] += s["clipped_share"] / steps
     return p, stats
