@@ -40,6 +40,7 @@ jobs:
           uv run finmesh x1 --dataset FIXTURE-Small --seeds 0,1 --reps 200
           uv run finmesh demo-slice --dataset FIXTURE-Small --alerts 20
           uv run finmesh g2
+          uv run finmesh x4 --dataset FIXTURE-Small --seeds 0 --reps 50 --rounds 5 --local-steps 5
           uv run finmesh check
 
   secret-scan:

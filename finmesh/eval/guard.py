@@ -41,6 +41,7 @@ LABEL_FREE_PACKAGES: tuple[str, ...] = (
     "finmesh/sharing",
     "finmesh/matching",
     "finmesh/fusion",
+    "finmesh/federation",
 )
 
 # Columns that identify an account-window; shared by features, scores and labels.

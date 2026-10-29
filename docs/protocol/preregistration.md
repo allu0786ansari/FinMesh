@@ -2,7 +2,7 @@
 
 **Status: frozen at Gate G1, 26 Oct 2026 (tag `g1`).** Nothing below changes except through an amendment in `docs/proposal/CHANGES.md` made before the results it affects exist. The sealed test is opened only in week 18.
 
-Proposal: `docs/proposal/FinMesh_Proposal_v2.md`, with amendments A1–A11; A12–A16 were added after the freeze, through `docs/proposal/CHANGES.md`.
+Proposal: `docs/proposal/FinMesh_Proposal_v2.md`, with amendments A1–A11; A12–A17 were added after the freeze, through `docs/proposal/CHANGES.md`.
 
 ## 1. Data, federation and splits
 
@@ -131,6 +131,21 @@ Every result is reported whether or not its hypothesis holds; a missed target is
 - **A5:** a classifier on S4's disclosure (deviation indices, directions, magnitude buckets, embedding) separating each member's autoencoder training rows from its other training rows. At most 5,000 of each per member; train on half by account.
 - **A6:** the responder predicts its own candidate's label from its own score, then from its own score plus the requests it received (count, highest requester bucket). The gain is reported.
 - **H1b** is also reported against the stronger of the relational oracle and oracle + propagation (sensitivity).
+
+## 6c. Neural scorer and federated DP (amendment A17, weeks 10–12)
+
+- **Engine:**
+  - NumPy DP-SGD with exact per-unit clipping (`finmesh/models/neural.py`, `finmesh/federation/dpsgd.py`);
+  - the `dp-accounting` RDP accountant for the Poisson-subsampled Gaussian mechanism (`finmesh/federation/accountant.py`);
+  - FedAvg in process, equal weights, all members every round (`finmesh/federation/fedavg.py`).
+- **Model:** a fixed piecewise-linear encoding of every feature (bins by feature kind, a missing indicator, nothing estimated from data). Then an MLP 64-32-1 with ReLU and no batch normalisation. Weighted cross-entropy, weight 10 on positives.
+- **Training rows:** those of the GBDT (section 6). Adam, lr 1e-3; batch 512 per client step; 50 rounds × 20 local steps; clip norm 1. The centralised reference takes 1,000 steps of 512 × members rows.
+- **Privacy:**
+  - ε ∈ {1, 3, 10}; δ = 0.1 / N per client; the noise multiplier is calibrated once for 1,000 steps.
+  - Accountants persist, a budget guard refuses extra steps, and every private training is appended to a privacy ledger.
+  - The window unit comes in week 10. The account unit (one account's bag of at most k windows) and the degree cap come in week 11, specified before their results.
+- **X4 (part 1):** centralised, local-only, FedAvg and FedAvg + DP MLPs, and the local GBDT, on validation. AUPRC is pooled over the federation's account-windows, averaged over seeds 0–2, with a paired Poisson bootstrap over accounts.
+- **H2a:** FedAvg + DP at ε ≤ 10 reaches at least 0.70 of the centralised MLP's AUPRC and exceeds the local-only MLP's.
 
 ## 7. Seeds and statistics
 

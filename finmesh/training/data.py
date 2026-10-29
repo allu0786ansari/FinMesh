@@ -87,6 +87,8 @@ class Rows:
     y: np.ndarray[Any, Any]
     w: np.ndarray[Any, Any]
     member: np.ndarray[Any, Any]
+    account: np.ndarray[Any, Any] | None = None  # privacy units (week 10+)
+    window: np.ndarray[Any, Any] | None = None
 
 
 def training_rows(
@@ -114,13 +116,22 @@ def training_rows(
                     yy,
                     np.where(yy == 1, 1.0, 1.0 / rate),
                     sub_lab["member"].to_numpy(),
+                    sub_lab["account"].to_numpy(),
+                    sub_lab["window"].to_numpy(),
                 )
             )
     out = []
     for name in ("fit", "stop"):
-        xs, ys, ws, ms = zip(*parts[name], strict=True)
+        xs, ys, ws, ms, accs, wins = zip(*parts[name], strict=True)
         out.append(
-            Rows(np.concatenate(xs), np.concatenate(ys), np.concatenate(ws), np.concatenate(ms))
+            Rows(
+                np.concatenate(xs),
+                np.concatenate(ys),
+                np.concatenate(ws),
+                np.concatenate(ms),
+                np.concatenate(accs),
+                np.concatenate(wins),
+            )
         )
     return out[0], out[1]
 

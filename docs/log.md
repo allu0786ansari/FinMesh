@@ -14,6 +14,16 @@ Next week: <first two tasks>
 On track for next gate? yes / at risk / no
 ```
 
+## Week 10 · 28 Dec 2026 – 3 Jan 2027
+
+Planned: Gate G2 decision; the federated DP neural scorer, window unit, ε sweep, X4 on validation.
+Done: G2 passed (`docs/gates/G2.md`): H1a and H1b hold on both datasets; H1c fails on validation for two identified reasons (S1's flags leak fan-in on LI; one rare target's upper bound on HI), with no further amendment recommended; PT2 holds on HI (11.0×), fails on LI (7.8×). The owner chose a NumPy DP-SGD stack (A17): fixed piecewise-linear encoding (no privacy cost for normalisation), MLP without batch normalisation, exact per-unit clipping, dp-accounting RDP accountant with persistence and a budget guard, privacy ledger, in-process FedAvg; X4 part 1 (centralised, local, FedAvg, FedAvg + DP at ε 1, 3, 10, GBDT reference). Details in `docs/runlog/week-10.md`.
+Not done: real-data X4 part 1 (run-log step 3).
+Numbers this week: synthetic DP check, AUPRC 0.99 non-private, 0.98 / 0.97 / 0.87 at ε 10 / 3 / 1; stress: 13 min per seed, 2.3 GB; scoring all models in one pass halved the scoring time.
+Risks or blockers: the MLP may trail the GBDT (expected in the risk register); fixed clip norm and learning rate may be far from good under DP on the real class balance.
+Next week: week 11, the account unit, the degree cap and the indirect-influence measurement.
+On track for next gate? yes (G3, week 12).
+
 ## Week 09 · 21 – 27 Dec 2026
 
 Planned: attacks A4–A6, Gate G2 evidence and the thin demo slice.

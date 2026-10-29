@@ -18,6 +18,7 @@ dependencies = [
     "scipy>=1.11",
     "cryptography>=42",
     "matplotlib>=3.8",
+    "dp-accounting>=0.4",
 ]
 
 [project.optional-dependencies]
@@ -59,7 +60,7 @@ warn_unused_ignores = true
 packages = ["finmesh"]
 
 [[tool.mypy.overrides]]
-module = ["pyarrow.*", "rbcl", "rbcl.*", "lightgbm", "lightgbm.*", "sklearn", "sklearn.*", "scipy", "scipy.*", "matplotlib", "matplotlib.*"]
+module = ["pyarrow.*", "rbcl", "rbcl.*", "lightgbm", "lightgbm.*", "sklearn", "sklearn.*", "scipy", "scipy.*", "matplotlib", "matplotlib.*", "dp_accounting", "dp_accounting.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

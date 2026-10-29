@@ -673,6 +673,57 @@ def cmd_demo_slice(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_x4(args: argparse.Namespace) -> int:
+    from finmesh.data.manifest import load_manifest
+    from finmesh.eval.provenance import Stamp, write_artifact
+    from finmesh.training.x4 import run_x4
+    from finmesh.training.x4_report import render_x4
+
+    paths = dataset_paths(args.dataset)
+    seeds = tuple(int(s) for s in args.seeds.split(","))
+    out_root = data_root() / "artifacts" / "week10"
+    result = run_x4(
+        paths,
+        out_root,
+        option=args.option,
+        seeds=seeds,
+        reps=args.reps,
+        rounds=args.rounds,
+        local_steps=args.local_steps,
+        progress=lambda m: print(f"  {m}"),
+    )
+    manifest = load_manifest(paths.manifest)
+    stamp = Stamp(
+        kind="x4",
+        dataset=paths.name,
+        manifest_hash=manifest.manifest_hash,
+        fixture=manifest.fixture,
+        split="val",
+        params={
+            "option": args.option,
+            "seeds": list(seeds),
+            "reps": args.reps,
+            "rounds": args.rounds,
+            "local_steps": args.local_steps,
+            "run_id": result["run_id"],
+        },
+    )
+    artifact = write_artifact(out_root / f"x4_{paths.name}.json", stamp, result)
+    out_dir = out_root if args.dataset == FIXTURE_DATASET else REPO_ROOT / "docs" / "eval"
+    report = out_dir / f"x4_{paths.name}.md"
+    report.write_text(render_x4(result))
+    for name, v in result["summary"].items():
+        if name != "H2a":
+            print(f"  {name:<26} AUPRC {v['auprc']['estimate']:.4f}")
+    for name, v in result["summary"]["H2a"].items():
+        share = v["share_of_centralised"]["estimate"]
+        print(f"  H2a {name}: {share:.2f} of centralised; met {v['met_on_validation']}")
+    print(f"  {result['seconds']:.0f} s, peak memory {result['peak_anon_mb']} MB")
+    print(f"  artifact {artifact}")
+    print(f"  report   {report}")
+    return 0
+
+
 def cmd_sealed_log(args: argparse.Namespace) -> int:
     from finmesh.eval.sealed import read_access_log
 
@@ -797,6 +848,15 @@ def build_parser() -> argparse.ArgumentParser:
     ds.add_argument("--alerts", type=int, default=50, help="sessions to time")
     ds.add_argument("--seed", type=int, default=0)
     ds.set_defaults(func=cmd_demo_slice)
+
+    x4 = sub.add_parser("x4", help="X4 part 1: neural scorer, FedAvg and DP-SGD (week 10)")
+    x4.add_argument("--dataset", required=True)
+    x4.add_argument("--option", default="B8")
+    x4.add_argument("--seeds", default="0,1,2")
+    x4.add_argument("--reps", type=int, default=200, help="bootstrap replicates")
+    x4.add_argument("--rounds", type=int, default=50)
+    x4.add_argument("--local-steps", type=int, default=20)
+    x4.set_defaults(func=cmd_x4)
 
     sh = sub.add_parser("share", help="in-process sharing protocol run, S0/S1/S2 (week 6)")
     sh.add_argument("--dataset", required=True)
