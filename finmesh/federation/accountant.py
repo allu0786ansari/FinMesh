@@ -11,11 +11,17 @@ reset; a **budget guard** refuses any step beyond the plan, so the spent
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
 import dp_accounting as dpa
 from dp_accounting.rdp import RdpAccountant
+
+# dp_accounting logs through absl when a low fractional RDP order fails to converge and
+# is left out. Leaving an order out can only raise the reported ε (the bound stays valid
+# and conservative), so the message is silenced rather than shown on every calibration.
+logging.getLogger("absl").setLevel(logging.ERROR)
 
 
 class BudgetExceeded(RuntimeError):

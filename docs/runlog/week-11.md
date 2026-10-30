@@ -163,6 +163,7 @@ git push
 | `no tuned DP settings for this regime` | Step 2 not done (or the file not pulled) | Run `dp-tune` for the regime |
 | `features_..._cap16_v3/meta.json missing` | Capped features not built | `finmesh features --dataset <ds> --degree-cap 16` |
 | Out of memory in the capped build | Another heavy process | The build works in 16 partitions; close other programs |
+| `WARNING:absl:_compute_log_a_frac failed to converge ... Excluding this order` | The accountant could not evaluate a low fractional order (α 1.1–1.3) at the first noise value tried | Harmless: dropping an order can only raise the reported ε, so the guarantee stays valid; silenced from this commit on |
 
 ## Week-11 checklist against the plan
 
