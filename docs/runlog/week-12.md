@@ -128,11 +128,31 @@ Under DP the cap *helps* on HI-Medium. A likely reason: capped features have lig
 
 At stress scale (SCALE-Tail, 32 M rows, worst-case A19 setting: clip 3, batch 2048, lr 3e-3):
 
-*Stress timings are being measured and will be added in the next commit, before you need them.*
+| Step (one seed) | Time | Peak memory | Notes |
+| --- | --- | --- | --- |
+| X5, all 26 trainings + scoring | 1 h 54 min | 3.4 GB | Inflated: local CI shared the 2 cores for most of it, and the last scoring step was paused while I pushed the fix |
+| One DP training, window unit | about 3 min | | 4× the batch-512 cost, as expected |
+| One DP training, account unit | about 6 min | | Bags carry up to 8 rows per unit |
+| Non-private FedAvg / centralised | about 40 s | | |
+| Scoring all models, one view | 7–18 min | | |
+| Membership audit (4 trainings on IN, 8 references, 706,210 candidate accounts) | 22 min | 2.3 GB | IN 352,351 / OUT 353,859: balanced. Attack AUC 0.50 for every model: this synthetic data has random labels, so there is nothing to leak; only time and memory are measured |
+| Ensemble (GBDT, autoencoder, scoring, stacking) | about 6 min before the bootstrap | | The run was cut by a container restart during the final bootstrap (1–2 min). Real-data GBDT fits take longer than on this signal-free data |
+
+The IID arm behaves as it should on signal-free data: IID − partitioned is 0 within ±0.00003 at every ε.
 
 ## What you run on your machine
 
-Machine time depends on the batch the retune picks. Batch 512: about 45 min of tuning per proxy and about 2 hours of X5 per dataset. Batch 2048: X5 takes roughly twice that. Run it overnight; the stress timings below will narrow this down.
+Machine time depends on the batch size the retune picks. Run it overnight:
+
+| Step | Batch 512 chosen | Batch 2048 chosen |
+| --- | --- | --- |
+| A19 tuning, per proxy (18 settings; half are batch 2048 either way) | about 40 min | about 40 min |
+| X5, per dataset (3 seeds) | about 2–2.5 h | about 4–5.5 h |
+| Membership audit, per dataset | about 10 min | about 25 min |
+| Ensemble, per dataset (3 seeds) | about 25 min | about 25 min |
+| **Total, both datasets** | **about 7 h** | **about 12 h** |
+
+Peak memory stays under 3.5 GB.
 
 ### 1. Update and check (5 min)
 
