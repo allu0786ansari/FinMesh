@@ -161,6 +161,19 @@ Every result is reported whether or not its hypothesis holds; a missed target is
 - **X5:** window and account units × member and capped features × ε ∈ {1, 3, 10}, plus the non-private references, seeds 0–2.
 - **Hypotheses:** H2a is judged with the tuned settings. H2b holds when the paired window − account AUPRC difference has a 95% CI above 0 at the same ε.
 
+### Amendment A19 (week 12)
+
+- **Retune on the proxy:** `finmesh dp-tune --grid A19` on HI-Small and LI-Small: clip ∈ {1, 3, 10} × expected batch ∈ {512, 2048} × lr ∈ {1e-3, 3e-3, 1e-2}, every setting 50 rounds × 20 local steps, ε = 3, window unit, seed 0. Ties go to the smaller batch, then clip, then lr. One retune only. The choice replaces A18's in `finmesh/schemas/dp_hparams.json` (A18's entry is kept under `history`).
+- **Deployed setup** (membership inference, ensemble, G3): account unit + degree cap 16.
+- **X5 rerun** with the retuned settings, plus the **IID arm** (deployed setup; accounts reassigned to clients by a fixed permutation keeping client sizes; FedAvg and DP at ε ∈ {1, 3, 10}; seeds 0–2; paired IID − bank-partitioned).
+- **A5 on the model:** IN/OUT halves of each member's training accounts by a fixed hash; deployed-setup models on IN only (DP at ε ∈ {1, 3, 10}, non-private FedAvg), seed 0. LOSS and REF (attacker's own local MLP as reference) scores per candidate bag. AUC, TPR at 1% and 0.1% FPR, 200-replicate account bootstrap; all accounts and laundering accounts. A DP model whose TPR at 1% FPR has a lower 95% bound above e^ε × 0.01 + δ is a failed audit.
+- **X4 stacked ensemble:** the A13 stacker on logit(GBDT), log(autoencoder error) and logit(neural), per member, cross-fitted on the validation halves, seeds 0–2. Primary comparison: local ensemble (GBDT + autoencoder) + DP scorer − local ensemble, paired 95% CI, per ε.
+- **Gate G3 rule:**
+  - **Blocked** if any client's spent ε exceeds its target, or the membership audit fails.
+  - **Otherwise** the DP scorer joins the deployed detector at the smallest ε ≤ 10 whose ensemble gain on HI-Medium validation has a 95% CI above 0.
+  - **If no ε qualifies,** the local ensemble is deployed and the DP scorer is reported as a finding (the proposal's risk table).
+  - H2a and H2b are recorded on validation; test decides them.
+
 ## 7. Seeds and statistics
 
 - **Seeds:**
