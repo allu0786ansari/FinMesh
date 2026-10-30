@@ -30,5 +30,8 @@ step uv run finmesh dp-tune --dataset FIXTURE-Small --quick --rounds 5 --local-s
 step uv run finmesh features --dataset FIXTURE-Small --degree-cap 16
 step uv run finmesh influence --dataset FIXTURE-Small --sample 20
 step uv run finmesh x5 --dataset FIXTURE-Small --seeds 0 --reps 50 --rounds 5 --local-steps 5
+step uv run finmesh membership --dataset FIXTURE-Small --reps 50 --rounds 5 --local-steps 5
+step uv run finmesh ensemble --dataset FIXTURE-Small --reps 50
+step uv run finmesh g3
 step uv run finmesh check
 echo; echo "local CI: all steps passed"

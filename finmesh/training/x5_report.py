@@ -1,4 +1,4 @@
-"""X5 page (week 11): privacy unit and degree cap, with DP settings tuned on the proxy."""
+"""X5 page (weeks 11-12): privacy unit, degree cap and IID arm, with proxy-tuned DP."""
 
 from __future__ import annotations
 
@@ -61,13 +61,58 @@ def render_x5(r: dict[str, Any]) -> str:
         for k, v in s["cap_cost"].items()
     ]
     hp = r["hparams"]
+    amendment = "A19" if "A19" in hp.get("source", "") else "A18"
+    iid_part: list[str] = []
+    if s.get("iid"):
+        rows = [
+            {
+                "config": "Non-private FedAvg" if k == "nonprivate" else f"DP, ε = {k}",
+                "part": _ci(
+                    s[
+                        f"fedavg[account,{cap}]"
+                        if k == "nonprivate"
+                        else dp_name("account", cap, float(k))
+                    ]["auprc"]
+                ),
+                "iid": _ci(
+                    s[
+                        f"fedavg-iid[account,{cap}]"
+                        if k == "nonprivate"
+                        else dp_name("account", cap, float(k), "iid")
+                    ]["auprc"]
+                ),
+                "diff": _ci(v["iid_minus_partitioned"]),
+                "share": _ci(v["partitioned_share_of_iid"]),
+            }
+            for k, v in s["iid"].items()
+        ]
+        iid_part = [
+            "## Bank-partitioned versus IID (deployed setup: account unit, capped features)",
+            "",
+            "The IID arm deals the same training accounts to clients at random, keeping each "
+            "client's number of accounts. The gap is what the banks' different populations cost "
+            "federated training.",
+            "",
+            table(
+                rows,
+                [
+                    ("config", "Configuration"),
+                    ("part", "Bank-partitioned"),
+                    ("iid", "IID"),
+                    ("diff", "IID − partitioned [95% CI]"),
+                    ("share", "Partitioned as a share of IID"),
+                ],
+            ),
+            "",
+        ]
     return "\n".join(
         [
             f"# X5 · privacy unit and degree cap on validation · {r['dataset']}",
             "",
             f"Seeds {r['seeds']}; {r['rounds']} rounds × {r['local_steps']} local steps. DP "
             f"settings from `finmesh/schemas/dp_hparams.json` ({hp['source']}): clip norm "
-            f"{hp['clip']:g}, expected batch {hp['batch']}, learning rate {hp['lr']:g} (A18). "
+            f"{hp['clip']:g}, expected batch {hp['batch']}, learning rate {hp['lr']:g}, "
+            f"{hp['local_steps']} local steps per round ({amendment}). "
             "Account unit: one account's bag of at most 8 windows. Degree cap: at most "
             f"{r['cap']} distinct counterparties per account, features rebuilt. AUPRC pooled over "
             "validation, averaged over seeds; Poisson bootstrap over accounts shared by every "
@@ -144,6 +189,7 @@ def render_x5(r: dict[str, Any]) -> str:
             "What the cap buys is in `influence_<ds>.md`: the number of other accounts' training "
             "units one account moves through its neighbours' features.",
             "",
+            *iid_part,
         ]
     )
 

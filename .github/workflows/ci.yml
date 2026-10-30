@@ -45,6 +45,9 @@ jobs:
           uv run finmesh features --dataset FIXTURE-Small --degree-cap 16
           uv run finmesh influence --dataset FIXTURE-Small --sample 20
           uv run finmesh x5 --dataset FIXTURE-Small --seeds 0 --reps 50 --rounds 5 --local-steps 5
+          uv run finmesh membership --dataset FIXTURE-Small --reps 50 --rounds 5 --local-steps 5
+          uv run finmesh ensemble --dataset FIXTURE-Small --reps 50
+          uv run finmesh g3
           uv run finmesh check
 
   secret-scan:

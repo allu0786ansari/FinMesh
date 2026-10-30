@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from finmesh.eval.provenance import read_artifact
 from finmesh.paths import artifacts_dir
-from finmesh.training.neural import dp_hparams
+from finmesh.training.neural import HPARAMS_PATH, dp_hparams
 
 
 def _load(kind: str, name: str) -> dict:  # type: ignore[type-arg]
@@ -24,7 +26,12 @@ def test_tuning_chose_a_setting(name: str) -> None:
     r = _load("dp_tune", name)
     assert len(r["grid"]) == 15 and r["best"] is not None
     hp = dp_hparams(name.replace("Small", "Medium"))
-    assert (hp.clip, hp.batch) == (r["best"]["clip"], r["best"]["batch"])
+    if "A19" in hp.source:  # retuned in week 12; A18's choice stays under history
+        doc = json.loads(HPARAMS_PATH.read_text())
+        old = doc["history"][name.split("-")[0]][0]
+        assert (old["clip"], old["batch"]) == (r["best"]["clip"], r["best"]["batch"])
+    else:
+        assert (hp.clip, hp.batch) == (r["best"]["clip"], r["best"]["batch"])
 
 
 @pytest.mark.real_data

@@ -78,10 +78,14 @@ def write_dp_hparams(dataset: str, hp: DpHparams, evidence: dict[str, Any]) -> P
     doc.setdefault("name", "finmesh-dp-hparams")
     doc.setdefault(
         "rule",
-        "A18: DP-SGD clip norm, expected batch and learning rate chosen on the proxy "
+        "A18/A19: DP-SGD clip norm, expected batch and learning rate chosen on the proxy "
         "federation of the same regime (HI-Small, LI-Small), never on the Medium sets.",
     )
-    doc["regimes"][regime(dataset)] = {**hp.to_dict(), "evidence": evidence}
+    key = regime(dataset)
+    old = doc["regimes"].get(key)
+    if old:  # a retune (A19) replaces the choice; the earlier one stays on record
+        doc.setdefault("history", {}).setdefault(key, []).append(old)
+    doc["regimes"][key] = {**hp.to_dict(), "evidence": evidence}
     HPARAMS_PATH.write_text(json.dumps(doc, indent=2) + "\n")
     return HPARAMS_PATH
 

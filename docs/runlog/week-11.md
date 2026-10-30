@@ -172,5 +172,5 @@ git push
 - [x] Degree cap: each account's contribution to neighbour counts clipped, features rebuilt
 - [x] Indirect influence measured by recomputing features with accounts removed
 - [x] X5: window vs account unit, with and without the cap, ε sweep; H2a (tuned), H2b
-- [ ] Done when: tuning, influence and X5 on real data (your steps 2–4)
+- [x] Done when: tuning, influence and X5 on real data (owner's run, 30 Oct; reviewed in `week-12.md`)
 - Week 12: membership inference on the trained model, the bank-partitioned vs IID arm, the stacked ensemble, Gate G3

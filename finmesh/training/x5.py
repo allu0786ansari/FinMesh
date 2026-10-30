@@ -1,4 +1,4 @@
-"""Experiment X5 (week 11; amendment A18): privacy unit and degree cap, with tuned DP.
+"""Experiment X5 (weeks 11-12; amendments A18, A19): privacy unit, degree cap, IID arm.
 
 Per seed, on the training rows of section 6 and the DP settings frozen by
 ``finmesh dp-tune`` on the proxy federation (``finmesh/schemas/dp_hparams.json``):
@@ -19,10 +19,18 @@ configuration (so every comparison is paired).
   the window unit (member view): the paired difference window − account has
   a 95% CI above 0.
 * **Cap cost**: account unit, capped − uncapped, at each ε.
+* **IID arm** (A19, deployed setup = account unit + capped features): the same
+  training accounts reassigned to clients by a fixed random permutation that
+  keeps each client's number of accounts; non-private FedAvg and DP at each ε,
+  paired IID − bank-partitioned.
+
+Every global model's weights are saved per seed (``models/<ds>/<run>/seed<s>.npz``)
+so the stacked ensemble scores them without retraining.
 """
 
 from __future__ import annotations
 
+import dataclasses
 import time
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -43,17 +51,55 @@ from finmesh.models.neural import Encoder, init_params, scores
 from finmesh.paths import DatasetPaths
 from finmesh.sysinfo import AnonPeak
 from finmesh.training.baselines import feature_sets
-from finmesh.training.data import slices, training_rows, training_windows
+from finmesh.training.data import Rows, slices, training_rows, training_windows
 from finmesh.training.neural import UNITS, client_data, dp_hparams, train_private
 from finmesh.training.x4 import H2A_SHARE, SCORE_CHUNK, ledger_append
 
 X5_EPSILONS: tuple[float, ...] = (1.0, 3.0, 10.0)
 DEFAULT_SEEDS: tuple[int, ...] = (0, 1, 2)
+IID_SALT = 0x11D
 Model = Callable[[int], list[np.ndarray]]
 
 
-def dp_name(unit: str, view: str, eps: float) -> str:
-    return f"dp[{unit},{view},eps={eps:g}]"
+def dp_name(unit: str, view: str, eps: float, arm: str = "") -> str:
+    """``arm`` "" = bank-partitioned (the federation as it is), "iid" = the IID arm."""
+    return f"dp{'-' + arm if arm else ''}[{unit},{view},eps={eps:g}]"
+
+
+def fedavg_name(unit: str, view: str, arm: str = "") -> str:
+    return f"fedavg{'-' + arm if arm else ''}[{unit},{view}]"
+
+
+def iid_partition(fit: Rows, seed: int) -> Rows:
+    """The same rows with accounts dealt to clients at random, client sizes (accounts) kept."""
+    assert fit.account is not None
+    pairs, inverse = np.unique(
+        np.stack([fit.account.astype(np.uint64), fit.member.astype(np.uint64)], axis=1),
+        axis=0,
+        return_inverse=True,
+    )
+    owner = pairs[:, 1].astype(fit.member.dtype)
+    labels = np.sort(owner)  # each client keeps its number of accounts
+    perm = np.random.default_rng([IID_SALT, seed]).permutation(len(owner))
+    new_owner = np.empty_like(owner)
+    new_owner[perm] = labels
+    return dataclasses.replace(fit, member=new_owner[np.ravel(inverse)])
+
+
+def save_models(path: Path, params: dict[str, list[np.ndarray]]) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    flat = {f"{name}||{i}": w for name, ws in params.items() for i, w in enumerate(ws)}
+    np.savez_compressed(path, **flat)  # type: ignore[arg-type]
+    return path
+
+
+def load_models(path: Path) -> dict[str, list[np.ndarray]]:
+    out: dict[str, dict[int, np.ndarray]] = {}
+    with np.load(path) as z:
+        for key in z.files:
+            name, i = key.rsplit("||", 1)
+            out.setdefault(name, {})[int(i)] = z[key]
+    return {n: [layers[i] for i in sorted(layers)] for n, layers in out.items()}
 
 
 def _const(params: list[np.ndarray]) -> Model:
@@ -114,6 +160,8 @@ def run_seed(
     rounds: int,
     local_steps: int,
     progress: Callable[[str], None] | None = None,
+    iid: bool = True,
+    models_dir: Path | None = None,
 ) -> dict[str, Any]:
     t_start = time.perf_counter()
     store = EvalStore(paths, option)
@@ -132,6 +180,25 @@ def run_seed(
     privacy: dict[str, Any] = {}
     all_scores: dict[str, np.ndarray] = {}
     keys: tuple[np.ndarray, ...] | None = None
+    saved: dict[str, list[np.ndarray]] = {}
+    own_steps = None if hp.source != "A17 defaults" else local_steps
+
+    def private(clients: dict[int, Any], name: str, eps: float, unit: str) -> list[np.ndarray]:
+        params, report = train_private(
+            clients,
+            enc,
+            init,
+            seed,
+            eps,
+            hp,
+            run_dir / f"seed{seed}" / name.replace("[", "_").replace("]", "").replace(",", "_"),
+            rounds,
+            own_steps,
+            unit,
+        )
+        privacy[name] = report
+        saved[name] = params
+        return params
 
     def tick(name: str, t0: float) -> None:
         seconds[name] = round(time.perf_counter() - t0, 1)
@@ -155,7 +222,9 @@ def run_seed(
             None,
             batch=BATCH * len(window_clients),
         )
-        models["centralised" if view == "member" else f"centralised[{view}]"] = _const(central)
+        central_name = "centralised" if view == "member" else f"centralised[{view}]"
+        models[central_name] = _const(central)
+        saved[central_name] = central
         tick(f"centralised[{view}]", t0)
         if view == "member":
             t0 = time.perf_counter()
@@ -166,9 +235,9 @@ def run_seed(
             models["local"] = _per_member_model(local, init)
             tick("local", t0)
             t0 = time.perf_counter()
-            models["fedavg"] = _const(
-                fedavg(window_clients, enc, init, seed, rounds, local_steps)[0]
-            )
+            fed = fedavg(window_clients, enc, init, seed, rounds, local_steps)[0]
+            models["fedavg"] = _const(fed)
+            saved["fedavg"] = fed
             tick("fedavg", t0)
         for unit in UNITS:
             clients = (
@@ -179,23 +248,29 @@ def run_seed(
             for eps in X5_EPSILONS:
                 t0 = time.perf_counter()
                 name = dp_name(unit, view, eps)
-                params, report = train_private(
-                    clients,
-                    enc,
-                    init,
-                    seed,
-                    eps,
-                    hp,
-                    run_dir
-                    / f"seed{seed}"
-                    / name.replace("[", "_").replace("]", "").replace(",", "_"),
-                    rounds,
-                    None if hp.source != "A17 defaults" else local_steps,
-                    unit,
-                )
-                models[name] = _const(params)
-                privacy[name] = report
+                models[name] = _const(private(clients, name, eps, unit))
                 tick(name, t0)
+        if iid and view != "member":  # the IID arm, deployed setup only (A19)
+            parted = {m: client_data(fit, m, "account") for m in window_clients}
+            shuffled_rows = iid_partition(fit, seed)
+            shuffled = {
+                m: client_data(shuffled_rows, m, "account")
+                for m in members
+                if (shuffled_rows.member == m).any()
+            }
+            for arm, arm_clients in (("", parted), ("iid", shuffled)):
+                t0 = time.perf_counter()
+                name = fedavg_name("account", view, arm)
+                fed = fedavg(arm_clients, enc, init, seed, rounds, local_steps)[0]
+                models[name] = _const(fed)
+                saved[name] = fed
+                tick(name, t0)
+            for eps in X5_EPSILONS:
+                t0 = time.perf_counter()
+                name = dp_name("account", view, eps, "iid")
+                models[name] = _const(private(shuffled, name, eps, "account"))
+                tick(name, t0)
+            del parted, shuffled, shuffled_rows
         del fit, window_clients
         t0 = time.perf_counter()
         s, k = _score_view(store, feats, cols, enc, models)
@@ -213,8 +288,12 @@ def run_seed(
         metrics[name] = {"auprc": ap, "auroc": auc}
         draws[name] = d.tolist()
     seconds["total"] = round(time.perf_counter() - t_start, 1)
+    model_file = (
+        str(save_models(models_dir / f"seed{seed}.npz", saved)) if models_dir is not None else None
+    )
     return {
         "seed": seed,
+        "models_file": model_file,
         "metrics": metrics,
         "draws": draws,
         "privacy": privacy,
@@ -269,6 +348,26 @@ def combine(per_seed: list[dict[str, Any]], cap: int) -> dict[str, Any]:
     out["H2b"] = h2b
     out["cap_cost"] = cap_cost
     out["cap_cost_nonprivate"] = diff(f"centralised[{view_cap}]", "centralised")
+    iid_np = fedavg_name("account", view_cap, "iid")
+    if iid_np in names:
+        part_np = fedavg_name("account", view_cap)
+        out["iid"] = {
+            "nonprivate": {
+                "iid_minus_partitioned": diff(iid_np, part_np),
+                "partitioned_share_of_iid": ratio(part_np, iid_np),
+            },
+            **{
+                f"{eps:g}": {
+                    "iid_minus_partitioned": diff(
+                        dp_name("account", view_cap, eps, "iid"), dp_name("account", view_cap, eps)
+                    ),
+                    "partitioned_share_of_iid": ratio(
+                        dp_name("account", view_cap, eps), dp_name("account", view_cap, eps, "iid")
+                    ),
+                }
+                for eps in X5_EPSILONS
+            },
+        }
     return out
 
 
@@ -282,13 +381,27 @@ def run_x5(
     rounds: int = ROUNDS,
     local_steps: int = LOCAL_STEPS,
     progress: Callable[[str], None] | None = None,
+    iid: bool = True,
 ) -> dict[str, Any]:
     run_id = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     run_dir = out_root / "accountants" / paths.name / run_id
+    models_dir = out_root / "models" / paths.name / run_id
     t0 = time.perf_counter()
     with AnonPeak() as anon:
         per_seed = [
-            run_seed(paths, option, s, run_dir, reps, cap, rounds, local_steps, progress)
+            run_seed(
+                paths,
+                option,
+                s,
+                run_dir,
+                reps,
+                cap,
+                rounds,
+                local_steps,
+                progress,
+                iid,
+                models_dir,
+            )
             for s in seeds
         ]
     ledger_append(out_root / f"privacy_ledger_{paths.name}.jsonl", paths.name, run_id, per_seed)
@@ -297,6 +410,8 @@ def run_x5(
         "run_id": run_id,
         "seeds": list(seeds),
         "cap": cap,
+        "iid": iid,
+        "models_dir": str(models_dir),
         "rounds": rounds,
         "local_steps": local_steps,
         "hparams": dp_hparams(paths.name).to_dict(),
@@ -308,4 +423,13 @@ def run_x5(
     }
 
 
-__all__ = ["X5_EPSILONS", "combine", "dp_name", "run_x5"]
+__all__ = [
+    "X5_EPSILONS",
+    "combine",
+    "dp_name",
+    "fedavg_name",
+    "iid_partition",
+    "load_models",
+    "run_x5",
+    "save_models",
+]
