@@ -72,6 +72,11 @@ def grid_settings(name: str) -> list[Setting]:
     raise ValueError(f"unknown grid {name!r}; known: {', '.join(GRIDS)}")
 
 
+def setting_dir(clip: float, batch: int, lr: float) -> str:
+    """One accountant folder per setting: every grid dimension is in the name."""
+    return f"c{clip:g}_b{batch}_lr{lr:g}"
+
+
 def choose(rows: list[dict[str, Any]]) -> dict[str, Any] | None:
     """Best hold-out AUPRC; ties to the cheaper setting (smaller batch, then clip, then lr)."""
     ok = [r for r in rows if not np.isnan(r["holdout_auprc"])]
@@ -128,7 +133,7 @@ def run_tuning(
                 TUNE_SEED,
                 TUNE_EPSILON,
                 hp,
-                out_root / "accountants" / paths.name / run_id / f"c{clip:g}_b{batch}",
+                out_root / "accountants" / paths.name / run_id / setting_dir(clip, batch, lr),
                 rounds,
                 steps,
             )
@@ -259,4 +264,5 @@ __all__ = [
     "grid_settings",
     "render_tuning",
     "run_tuning",
+    "setting_dir",
 ]

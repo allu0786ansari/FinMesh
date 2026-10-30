@@ -26,6 +26,14 @@ def test_a19_grid_has_equal_updates_and_a18_kept() -> None:
         grid_settings("A20")
 
 
+def test_every_setting_gets_its_own_accountant() -> None:
+    from finmesh.training.dp_tune import setting_dir
+
+    for name in ("A18", "A19"):  # settings differing in any one dimension never share a folder
+        dirs = [setting_dir(c, b, lr) for c, b, lr, _ in grid_settings(name)]
+        assert len(set(dirs)) == len(dirs)
+
+
 def test_choose_breaks_ties_towards_cheaper() -> None:
     rows = [
         {"holdout_auprc": 0.4, "batch": 2048, "clip": 1.0, "lr": 1e-3},
@@ -139,6 +147,13 @@ def test_week12_pipelines_on_the_fixture(fixture_paths: object, ingested: object
     build_features(paths, "B8")  # type: ignore[arg-type]
     build_features(paths, "B8", variant=degree_cap(3))  # type: ignore[arg-type]
     tmp = Path(FeatureStore(paths, "B8", "member").layout.root).parent / "w12"  # type: ignore[arg-type]
+
+    from finmesh.training.dp_tune import run_tuning
+
+    # Regression (30 Oct): settings differing only in lr once shared an accountant, and the
+    # budget guard refused the second one. Two such settings must both train.
+    tune = run_tuning(paths, tmp, rounds=2, grid=[(1.0, 512, 1e-3, 2), (1.0, 512, 3e-3, 2)])  # type: ignore[arg-type]
+    assert [g["lr"] for g in tune["grid"]] == [1e-3, 3e-3]
 
     x5 = run_x5(paths, tmp, seeds=(0,), reps=20, cap=3, rounds=3, local_steps=3)  # type: ignore[arg-type]
     assert set(x5["summary"]["iid"]) == {"nonprivate", "1", "3", "10"}

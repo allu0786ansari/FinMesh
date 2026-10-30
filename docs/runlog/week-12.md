@@ -185,6 +185,7 @@ Please include `week12.log`: the timings and the per-setting tuning lines are in
 | `no week-12 X5 run for …; run finmesh x5 first` | The ensemble ran before X5 | Re-run the script; it does X5 first |
 | `this X5 run saved no models` | An X5 artifact from before this week | Delete `data/artifacts/week12/x5_<ds>.json` and re-run |
 | `features_..._cap16_v3/meta.json missing` | Capped features from week 11 deleted | `uv run finmesh features --dataset <ds> --degree-cap 16` |
+| `BudgetExceeded: client 0: 1001 steps planned for 1000` in `dp-tune` | Fixed 30 Oct (`git pull`): settings differing only in learning rate shared one accountant folder, so the guard refused to spend privacy twice | `git pull`, then re-run `scripts/week12.sh`; nothing to delete |
 | A step was interrupted | Sleep or power | Re-run; the privacy spent by the interrupted training stays in the ledger, as it should |
 | Out of memory | Another heavy process | Close other programs; X5 peaks below 3 GB at batch 2048 |
 
