@@ -18,8 +18,8 @@ On track for next gate? yes / at risk / no
 
 Planned: membership inference on the trained model, the IID arm of X5, the stacked ensemble, Gate G3.
 Done: week 11 reviewed. A18 picked its own corner (clip 1, batch 512 = the A17 defaults): AUPRC still rose at the largest clip, and the fixed example budget gave batch 8,192 only 50 updates, so the batch comparison measured training length. H2a fails (HI 0.49, LI 0.38 of centralised at ε = 10); H2b not supported (the account unit is as good or better except HI at ε = 1). The degree cap cuts the worst-case group size from about 3,500 to about 10 accounts and helps under DP on HI. The owner chose to retune inside week 12 and to deploy the account unit + cap. A19 pre-registered and pushed before any code (`9997684`). Built: the A19 grid (clip × batch × lr at equal updates), the X5 IID arm with saved models, the membership audit on the federated model, the stacked ensemble, the G3 evidence page and rule, and a one-shot resumable runner. Details in `docs/runlog/week-12.md`.
-Not done: the real-data run (`scripts/week12.sh`) and the G3 decision note.
-Numbers this week: engineering only (fixture and stress; see the run log).
+Done on real data (owner, 30–31 Oct, all steps passed): A19 retune lifted proxy AUPRC at ε = 3 from 0.42 to 0.65 (HI) and 0.15 to 0.30 (LI), mainly through the learning rate; X5 window DP at ε = 10 now 0.78 (HI) and 0.96 (LI) of centralised; H2a and H2b hold on LI, not on HI; membership attacks at chance even for the non-private model; the DP scorer adds nothing to the local ensemble on HI. **G3 passed** (`docs/gates/G3.md`): detector stays local, DP scorer reported as a finding.
+Numbers this week: see `docs/gates/G3_evidence.md`.
 Risks or blockers: the retune may land on the grid's edge again (reported, not extended); if the DP scorer adds nothing to the local ensemble, the deployed detector stays local (G3 rule).
 Next week: write G3 from your run; then week 13, attribution (typology catalogue, supervised attributor, baselines).
 On track for next gate? yes (G3 this week, on your run).

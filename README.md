@@ -19,7 +19,7 @@ The full research design is in [`docs/proposal/FinMesh_Proposal_v2.md`](docs/pro
 | 9 | 21 – 27 Dec | S3 fix, sized budgets, attacks A4–A6, Gate G2 evidence, demo slice | Done on real data 29 Oct; **G2 passed** ([decision](docs/gates/G2.md), [run log](docs/runlog/week-09.md)) |
 | 10 | 28 Dec – 3 Jan | Neural scorer, DP-SGD with persistent accounting, FedAvg, X4 part 1 | Done on real data 30 Oct; MLP near the GBDT without privacy, DP collapsed with the a-priori clip norm, which led to A18 ([run log](docs/runlog/week-10.md)) |
 | 11 | 4 – 10 Jan | DP tuning on the proxy, account unit, degree cap, indirect influence, X5 | Done on real data 30 Oct; the degree cap cuts the worst-case influence from about 3,500 accounts to about 10 at almost no cost; the A18 grid's flaws led to A19 ([run log](docs/runlog/week-11.md)) |
-| 12 | 11 – 17 Jan | DP retune (A19), IID arm, membership audit, stacked ensemble, Gate G3 | Code done; awaiting real-data run (`scripts/week12.sh`, [run log](docs/runlog/week-12.md)) |
+| 12 | 11 – 17 Jan | DP retune (A19), IID arm, membership audit, stacked ensemble, Gate G3 | Done on real data 31 Oct; **G3 passed**: retuned DP reaches 0.78 (HI) and 0.96 (LI) of centralised, but adds nothing to the local GBDT on HI, so the detector stays local ([decision](docs/gates/G3.md), [run log](docs/runlog/week-12.md)) |
 | 13–14 | 18 – 31 Jan | Attribution and narrative | Not started |
 | 15–17 | 1 – 21 Feb | Demo path and analyst console | Not started |
 | 18–20 | 22 Feb – 14 Mar 2027 | Sealed-test runs, paper, release, Gate G4 | Not started |

@@ -216,5 +216,5 @@ Please include `week12.log`: the timings and the per-setting tuning lines are in
 - [x] Membership inference on the trained model (A5, model target)
 - [x] X4: the stacked ensemble across the ε sweep
 - [x] Gate G3 evidence page and the pre-registered rule
-- [ ] Done when: your run of `scripts/week12.sh`, then the G3 decision note
+- [x] Done when: your run of `scripts/week12.sh` (30–31 Oct, all steps passed), then the G3 decision note (`docs/gates/G3.md`: passed; local detector deployed; DP scorer reported as a finding)
 - Weeks 13–14: attribution and narrative (typology catalogue, supervised attributor, baselines, constrained narrative, X6)
