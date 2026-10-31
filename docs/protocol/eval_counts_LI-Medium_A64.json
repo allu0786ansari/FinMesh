@@ -1,0 +1,38 @@
+{
+  "option": "A64",
+  "window_hours": 6,
+  "partition_windows": {
+    "train": [
+      0,
+      37
+    ],
+    "val": [
+      39,
+      50
+    ],
+    "test": [
+      52,
+      63
+    ]
+  },
+  "counts": {
+    "train": {
+      "account_windows": 1171483,
+      "positives": 1307,
+      "masked": 12,
+      "incidental": 12,
+      "accounts": 95491,
+      "schemes": 247,
+      "multi_member_schemes": 77
+    },
+    "val": {
+      "account_windows": 296385,
+      "positives": 353,
+      "masked": 159,
+      "incidental": 3,
+      "accounts": 65883,
+      "schemes": 93,
+      "multi_member_schemes": 22
+    }
+  }
+}

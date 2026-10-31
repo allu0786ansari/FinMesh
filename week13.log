@@ -1,0 +1,144 @@
+
+==> 12:18 uv run finmesh x6 --dataset HI-Medium
+  seed 0 levels: 455 s
+  seed 0 attribution: 24 s
+  seed 1 levels: 381 s
+  seed 1 attribution: 18 s
+  seed 2 levels: 368 s
+  seed 2 attribution: 24 s
+  S0      detected 0.873  attributor accuracy 0.146  majority 0.108
+  S1      detected 0.855  attributor accuracy 0.187  majority 0.113
+  S2      detected 0.858  attributor accuracy 0.189  majority 0.111
+  S3      detected 0.855  attributor accuracy 0.192  majority 0.113
+  oracle  detected 0.891  attributor accuracy 0.179  majority 0.111
+  H3a met on validation: True
+  1271 s, peak memory 1610.2 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week13/x6_HI-Medium.json
+  report   /home/allu786ansari/FinMesh/docs/eval/x6_HI-Medium.md
+    done in 21 min
+  /home/allu786ansari/FinMesh/data/parquet/HI-Medium/membership_A64.parquet exists (use --force to rebuild); the G0 choice is never rebuilt silently
+
+==> 12:39 uv run finmesh labels --dataset HI-Medium --option A64
+  frozen split plan -> /home/allu786ansari/FinMesh/docs/protocol/split_plan_HI-Medium.json
+  train account-windows 1,208,085  positives 4,547  masked 18  schemes 1582  multi-member 469
+  val   account-windows 306,667  positives 811  masked 1,033  schemes 551  multi-member 95
+  test  sealed (counts in data/sealed/.../meta.json)
+  slices 16  peak memory 882.1 MB
+    done in 1 min
+
+==> 12:41 uv run finmesh features --dataset HI-Medium --option A64
+  train account-windows 1,208,085
+  val   account-windows 306,667
+  test  account-windows 419,230
+  edges            17.5 s  peak 402 MB
+  neighbourhood   227.5 s  peak 831 MB
+  accounts         68.4 s  peak 191 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week04/features_HI-Medium_A64.json
+  report   /home/allu786ansari/FinMesh/docs/eval/features_HI-Medium_A64.md
+    done in 5 min
+
+==> 12:46 uv run finmesh features --dataset HI-Medium --option A64 --view pooled
+  train account-windows 1,208,085
+  val   account-windows 306,667
+  test  account-windows 419,230
+  edges            18.7 s  peak 285 MB
+  neighbourhood   157.0 s  peak 1,209 MB
+  merge             9.7 s  peak 681 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week04/features_HI-Medium_A64_pooled.json
+  report   /home/allu786ansari/FinMesh/docs/eval/features_HI-Medium_A64_pooled.md
+    done in 3 min
+
+==> 12:49 uv run finmesh x1 --dataset HI-Medium --option A64 --no-sweeps --no-audit
+  seed 0: 56 s
+  seed 1: 52 s
+  seed 2: 52 s
+  S0                 linked 0.002
+  S1/stacker         linked 0.003
+  S2/stacker         linked 0.004
+  S4/stacker         linked 0.004
+  propagation        linked 0.006
+  oracle             linked 0.004
+  oracle-relational  linked 0.004
+  S2 recovers 1.33 [-0.50, 5.00] of the oracle-relational gain
+  S2 recovers 1.33 [-0.00, 5.00] of the oracle gain
+  S2 recovers 1.00 [-1.00, 4.00] of the strongest-pooled gain
+  165 s, peak memory 1014.0 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week09/x1_HI-Medium_A64.json
+  report   /home/allu786ansari/FinMesh/docs/eval/x1_HI-Medium_A64.md
+    done in 2 min
+
+==> 12:52 uv run finmesh x6 --dataset LI-Medium
+  seed 0 levels: 274 s
+  seed 0 attribution: 29 s
+  seed 1 levels: 321 s
+  seed 1 attribution: 29 s
+  seed 2 levels: 295 s
+  seed 2 attribution: 28 s
+  S0      detected 0.853  attributor accuracy 0.122  majority 0.118
+  S1      detected 0.839  attributor accuracy 0.108  majority 0.129
+  S2      detected 0.835  attributor accuracy 0.151  majority 0.136
+  S3      detected 0.814  attributor accuracy 0.104  majority 0.122
+  oracle  detected 0.910  attributor accuracy 0.161  majority 0.125
+  H3a met on validation: False
+  977 s, peak memory 1466.0 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week13/x6_LI-Medium.json
+  report   /home/allu786ansari/FinMesh/docs/eval/x6_LI-Medium.md
+    done in 16 min
+  A64: 64 banks in 64 members
+  accounts held by members: 96,006 of 2,032,095 (4.7%)
+  written /home/allu786ansari/FinMesh/data/parquet/LI-Medium/membership_A64.parquet
+
+==> 13:09 uv run finmesh labels --dataset LI-Medium --option A64
+  frozen split plan -> /home/allu786ansari/FinMesh/docs/protocol/split_plan_LI-Medium.json
+  train account-windows 1,171,483  positives 1,307  masked 12  schemes 247  multi-member 77
+  val   account-windows 296,385  positives 353  masked 159  schemes 93  multi-member 22
+  test  sealed (counts in data/sealed/.../meta.json)
+  slices 16  peak memory 765.1 MB
+    done in 2 min
+
+==> 13:12 uv run finmesh features --dataset LI-Medium --option A64
+  train account-windows 1,171,483
+  val   account-windows 296,385
+  test  account-windows 406,631
+  edges            16.1 s  peak 534 MB
+  neighbourhood   184.5 s  peak 907 MB
+  accounts         98.6 s  peak 200 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week04/features_LI-Medium_A64.json
+  report   /home/allu786ansari/FinMesh/docs/eval/features_LI-Medium_A64.md
+    done in 5 min
+
+==> 13:17 uv run finmesh features --dataset LI-Medium --option A64 --view pooled
+  train account-windows 1,171,483
+  val   account-windows 296,385
+  test  account-windows 406,631
+  edges            18.4 s  peak 523 MB
+  neighbourhood   205.8 s  peak 1,023 MB
+  merge            16.8 s  peak 574 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week04/features_LI-Medium_A64_pooled.json
+  report   /home/allu786ansari/FinMesh/docs/eval/features_LI-Medium_A64_pooled.md
+    done in 4 min
+
+==> 13:21 uv run finmesh x1 --dataset LI-Medium --option A64 --no-sweeps --no-audit
+  seed 0: 47 s
+  seed 1: 43 s
+  seed 2: 47 s
+  S0                 linked 0.000
+  S1/stacker         linked 0.000
+  S2/stacker         linked 0.000
+  S4/stacker         linked 0.000
+  propagation        linked 0.000
+  oracle             linked 0.000
+  oracle-relational  linked 0.000
+  S2 recovery against oracle-relational: undefined (no linked gain over S0)
+  S2 recovery against oracle: undefined (no linked gain over S0)
+  S2 recovery against strongest-pooled: undefined (no linked gain over S0)
+  140 s, peak memory 977.6 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week09/x1_LI-Medium_A64.json
+  report   /home/allu786ansari/FinMesh/docs/eval/x1_LI-Medium_A64.md
+    done in 2 min
+
+==> 13:23 pytest -m real_data
+...............................................s..........ss..ss..ss..ss [ 92%]
+......                                                                   [100%]
+
+week 13: all steps done
