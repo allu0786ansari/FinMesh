@@ -87,7 +87,7 @@ Proceed with both recommendations: the coverage curve, and the constrained narra
 | Attributor probabilities | Rows sum to 1 for detected schemes, NaN otherwise; their argmax equals the attributor's predictions, which are unchanged |
 | Driver | End to end with a scripted model; fails fast with a clear message when Ollama is down; refuses non-local endpoints |
 | Fixture pipeline | `federation --option B8c50`, labels, both feature views, X1, `coverage` |
-| Stress scale (SCALE-Tail, 32 M rows, scripted model) | STRESS_RESULT |
+| Stress scale (SCALE-Tail, 32 M rows, scripted model) | S2 attributor alone: 18 min, peak memory 3.2 GB (sharing the 2 cores with the CI run); the signal-free set detects 1 of its 40 schemes, which is narrated, checked and rendered end to end. Confirms the real path at Medium scale; its rates mean nothing |
 | CI mirror | All steps pass |
 
 There is no Ollama or model download in this environment, so **llama3.2:3b itself has not been run here**; your run is the first real measurement of H3b. On your machine the G0 probe took 19.5 s per call (p50) with a much shorter prompt, so **the 30 s latency target is at risk**; latency is reported, not a hypothesis.
