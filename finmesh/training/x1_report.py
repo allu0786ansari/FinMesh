@@ -333,6 +333,15 @@ def render_x1(r: dict[str, Any], figure: str | None) -> str:
         f"audit: `audit_{r['dataset']}.md`.",
         "",
     ]
+    option = r.get("option", "B8")
+    if option != "B8":  # the frozen B8 pages keep their exact text
+        lines[0] += f" · federation {option}"
+        lines[2] = (
+            f"**Secondary analysis (A20): federation {option}**, real banks only; accounts at "
+            "other "
+            "banks are outside and cannot be asked. No sweeps or audit; decides no hypothesis. "
+            + lines[2].split(" S3 and PD sweeps")[0]
+        )
     if figure:
         lines += [f"![Linked detection per configuration]({figure})", ""]
     lines += [

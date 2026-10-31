@@ -33,5 +33,11 @@ step uv run finmesh x5 --dataset FIXTURE-Small --seeds 0 --reps 50 --rounds 5 --
 step uv run finmesh membership --dataset FIXTURE-Small --reps 50 --rounds 5 --local-steps 5
 step uv run finmesh ensemble --dataset FIXTURE-Small --reps 50
 step uv run finmesh g3
+step uv run finmesh x6 --dataset FIXTURE-Small --seeds 0 --reps 100
+step uv run finmesh federation --dataset FIXTURE-Small --option A8 --force
+step uv run finmesh labels --dataset FIXTURE-Small --option A8
+step uv run finmesh features --dataset FIXTURE-Small --option A8
+step uv run finmesh features --dataset FIXTURE-Small --option A8 --view pooled
+step uv run finmesh x1 --dataset FIXTURE-Small --option A8 --seeds 0 --reps 50 --no-sweeps --no-audit
 step uv run finmesh check
 echo; echo "local CI: all steps passed"

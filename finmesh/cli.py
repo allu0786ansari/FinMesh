@@ -212,6 +212,33 @@ def cmd_llm_probe(args: argparse.Namespace) -> int:
     return 0 if "error" not in result else 1
 
 
+def cmd_federation(args: argparse.Namespace) -> int:
+    """Write membership_<option>.parquet for a federation option (A20: the real-bank check)."""
+    from finmesh.data.consortium import (
+        ConsortiumSpec,
+        bank_sizes,
+        build_membership,
+        membership_summary,
+    )
+
+    paths = dataset_paths(args.dataset)
+    spec = ConsortiumSpec.parse(args.option)
+    out = paths.parquet / f"membership_{spec.name}.parquet"
+    if out.exists() and not args.force:
+        print(f"  {out} exists (use --force to rebuild); the G0 choice is never rebuilt silently")
+        return 0
+    sizes = bank_sizes(paths.transactions)
+    membership = build_membership(sizes, spec)
+    membership.write_parquet(out)
+    summary = membership_summary(sizes, membership)
+    covered = int(summary["accounts"].sum()) if "accounts" in summary.columns else 0
+    total = int(sizes["accounts"].sum())
+    print(f"  {spec.name}: {membership.height} banks in {membership['member'].n_unique()} members")
+    print(f"  accounts held by members: {covered:,} of {total:,} ({covered / max(total, 1):.1%})")
+    print(f"  written {out}")
+    return 0
+
+
 def cmd_labels(args: argparse.Namespace) -> int:
     from finmesh.eval.universe import build_universe
     from finmesh.sysinfo import AnonPeak
@@ -223,7 +250,12 @@ def cmd_labels(args: argparse.Namespace) -> int:
         # Freeze the split: the plan is committed, so later runs can be checked against it.
         frozen = REPO_ROOT / "docs" / "protocol" / f"split_plan_{args.dataset}.json"
         frozen.write_text((paths.parquet / "split_plan.json").read_text())
-        counts = REPO_ROOT / "docs" / "protocol" / f"eval_counts_{args.dataset}.json"
+        counts = (
+            REPO_ROOT
+            / "docs"
+            / "protocol"
+            / f"eval_counts_{option_tag(args.dataset, args.option)}.json"
+        )
         counts.write_text(
             json.dumps(
                 {k: meta[k] for k in ("option", "window_hours", "partition_windows", "counts")},
@@ -313,7 +345,8 @@ def cmd_features(args: argparse.Namespace) -> int:
             "schema_version": meta["schema_version"],
         },
     )
-    tag = paths.name if args.view == "member" else f"{paths.name}_{args.view}"
+    base = option_tag(paths.name, args.option)
+    tag = base if args.view == "member" else f"{base}_{args.view}"
     artifact = write_artifact(
         data_root() / "artifacts" / "week04" / f"features_{tag}.json", stamp, meta
     )
@@ -535,6 +568,11 @@ def cmd_share(args: argparse.Namespace) -> int:
     return 0
 
 
+def option_tag(name: str, option: str) -> str:
+    """Report and artifact name: the dataset for the primary federation (B8), else + option."""
+    return name if option == "B8" else f"{name}_{option}"
+
+
 def cmd_x1(args: argparse.Namespace) -> int:
     from finmesh.data.manifest import load_manifest
     from finmesh.eval.provenance import Stamp, write_artifact
@@ -574,14 +612,14 @@ def cmd_x1(args: argparse.Namespace) -> int:
             "audit": not args.no_audit,
         },
     )
+    name = option_tag(paths.name, args.option)  # B8 keeps the frozen names (G2 reads them)
     artifact = write_artifact(
-        data_root() / "artifacts" / "week09" / f"x1_{paths.name}.json", stamp, result
+        data_root() / "artifacts" / "week09" / f"x1_{name}.json", stamp, result
     )
     if args.dataset == FIXTURE_DATASET:
         out_dir = data_root() / "artifacts" / "week09"
     else:
         out_dir = REPO_ROOT / "docs" / "eval"
-    name = paths.name
     ladder = ladder_figure(result, out_dir / f"ladder_{name}.png")
     (out_dir / f"x1_{name}.md").write_text(render_x1(result, ladder.name))
     pages = [out_dir / f"x1_{name}.md"]
@@ -939,6 +977,47 @@ def cmd_g3(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_x6(args: argparse.Namespace) -> int:
+    from finmesh.data.manifest import load_manifest
+    from finmesh.eval.provenance import Stamp, write_artifact
+    from finmesh.training.x6 import run_x6
+    from finmesh.training.x6_report import render_x6
+
+    paths = dataset_paths(args.dataset)
+    seeds = tuple(int(s) for s in args.seeds.split(","))
+    result = run_x6(
+        paths, option=args.option, seeds=seeds, reps=args.reps, progress=lambda m: print(f"  {m}")
+    )
+    manifest = load_manifest(paths.manifest)
+    stamp = Stamp(
+        kind="x6",
+        dataset=paths.name,
+        manifest_hash=manifest.manifest_hash,
+        fixture=manifest.fixture,
+        split="val",
+        params={"option": args.option, "seeds": list(seeds), "reps": args.reps},
+    )
+    out_root = data_root() / "artifacts" / "week13"
+    name = option_tag(paths.name, args.option)
+    artifact = write_artifact(out_root / f"x6_{name}.json", stamp, result)
+    out_dir = out_root if args.dataset == FIXTURE_DATASET else REPO_ROOT / "docs" / "eval"
+    report = out_dir / f"x6_{name}.md"
+    report.write_text(render_x6(result))
+    lv = result["summary"]["levels"]
+    for level, v in lv.items():
+        a = v["attributor"]["accuracy"]
+        print(
+            f"  {level:<7} detected {v['detected_share']:.3f}  attributor accuracy "
+            f"{a['estimate'] if a else float('nan'):.3f}  majority "
+            f"{(v['majority']['accuracy'] or {}).get('estimate', float('nan')):.3f}"
+        )
+    print(f"  H3a met on validation: {result['summary']['H3a']['met_on_validation']}")
+    print(f"  {result['seconds']:.0f} s, peak memory {result['peak_anon_mb']} MB")
+    print(f"  artifact {artifact}")
+    print(f"  report   {report}")
+    return 0
+
+
 def cmd_x5(args: argparse.Namespace) -> int:
     from finmesh.data.manifest import load_manifest
     from finmesh.eval.provenance import Stamp, write_artifact
@@ -1076,6 +1155,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     lp.set_defaults(func=cmd_llm_probe)
 
+    fd = sub.add_parser("federation", help="membership for a federation option, e.g. A64 (week 13)")
+    add_dataset(fd)
+    fd.add_argument("--option", required=True, help="A8, A64, B8, ...")
+    fd.add_argument("--force", action="store_true", help="rebuild an existing membership file")
+    fd.set_defaults(func=cmd_federation)
+
     lb = sub.add_parser("labels", help="account-window labels per partition (week 3)")
     add_dataset(lb)
     lb.add_argument("--option", default="B8")
@@ -1193,6 +1278,13 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("g3", help="Gate G3 evidence and rule outcome (week 12)").set_defaults(
         func=cmd_g3
     )
+
+    x6 = sub.add_parser("x6", help="X6: pattern attribution by sharing level (week 13)")
+    x6.add_argument("--dataset", required=True)
+    x6.add_argument("--option", default="B8")
+    x6.add_argument("--seeds", default="0,1,2")
+    x6.add_argument("--reps", type=int, default=1000, help="scheme bootstrap replicates")
+    x6.set_defaults(func=cmd_x6)
 
     x4 = sub.add_parser("x4", help="X4 part 1: neural scorer, FedAvg and DP-SGD (week 10)")
     x4.add_argument("--dataset", required=True)

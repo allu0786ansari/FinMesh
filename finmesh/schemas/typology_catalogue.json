@@ -1,0 +1,103 @@
+{
+  "name": "finmesh-typology-catalogue",
+  "version": 1,
+  "amendment": "A20",
+  "source": "AMLworld laundering patterns (Altman et al., NeurIPS 2023). Descriptions are written for this project; no text is copied from FATF or FinCEN documents.",
+  "review": {
+    "pass_1": "researcher, 31 Oct 2026",
+    "pass_2": "owner, before any X6 result (see docs/protocol/attribution_mapping.md)"
+  },
+  "stages": {
+    "placement": "Illicit cash or funds first enter the financial system.",
+    "layering": "Funds are moved through transfers and accounts to hide where they came from.",
+    "integration": "Funds return to the launderer as apparently legitimate money."
+  },
+  "shape_features": ["fan_in", "fan_out", "gather_scatter", "cycles", "scatter_gather", "pass_through", "accounts", "members"],
+  "entries": [
+    {
+      "id": "FAN-OUT",
+      "name": "Fan-out",
+      "description": "One account sends money to many different accounts in a short time, splitting a sum into smaller transfers.",
+      "stage": "layering",
+      "signature": {"fan_in": -1, "fan_out": 1},
+      "red_flags": ["Many outgoing transfers to new counterparties in a short period", "Outgoing amounts similar in size", "Little incoming activity apart from one large credit"],
+      "review_actions": ["Review the source of the large credit before the split", "Check whether the recipients are linked to each other or to known cases", "Request evidence from the recipients' banks for the same time window"]
+    },
+    {
+      "id": "FAN-IN",
+      "name": "Fan-in",
+      "description": "Many different accounts send money to one account in a short time, consolidating funds.",
+      "stage": "layering",
+      "signature": {"fan_in": 1, "fan_out": -1},
+      "red_flags": ["Many incoming transfers from new counterparties in a short period", "Incoming amounts just below reporting or review thresholds", "Funds leave soon after they are consolidated"],
+      "review_actions": ["Identify the senders and whether they share attributes", "Check where the consolidated funds go next", "Request evidence from the senders' banks for the same time window"]
+    },
+    {
+      "id": "GATHER-SCATTER",
+      "name": "Gather-scatter",
+      "description": "Funds are gathered from many accounts into one account, then scattered from it to many other accounts.",
+      "stage": "layering",
+      "signature": {"gather_scatter": 1, "fan_in": 1, "fan_out": 1},
+      "red_flags": ["High numbers of both senders and recipients for one account", "Money passes through quickly with little balance left", "Senders and recipients differ"],
+      "review_actions": ["Treat the central account as a possible collection point", "Map both the sending and the receiving side", "Request evidence from banks on both sides"]
+    },
+    {
+      "id": "SCATTER-GATHER",
+      "name": "Scatter-gather",
+      "description": "One account scatters money to several intermediate accounts, which each forward it to the same destination account.",
+      "stage": "layering",
+      "signature": {"scatter_gather": 1, "accounts": 1},
+      "red_flags": ["Several accounts each receive from one source and pay one destination", "Intermediate accounts hold funds only briefly", "Source and destination transfers close in time"],
+      "review_actions": ["Link the intermediate accounts as one case", "Check whether source and destination are related", "Request evidence on the intermediates held at other banks"]
+    },
+    {
+      "id": "CYCLE",
+      "name": "Cycle",
+      "description": "Money moves along a chain of accounts and returns to the account it started from.",
+      "stage": "layering",
+      "signature": {"cycles": 1, "pass_through": 1},
+      "red_flags": ["Funds return to the originating account after several hops", "Each account in the chain passes on most of what it receives", "Transfers follow each other closely in time"],
+      "review_actions": ["Reconstruct the full chain across banks", "Check for common ownership among chain accounts", "Request evidence from the banks holding the other chain accounts"]
+    },
+    {
+      "id": "RANDOM",
+      "name": "Random walk",
+      "description": "Money moves along an irregular path of transfers between accounts without a clear shape.",
+      "stage": "layering",
+      "signature": {"pass_through": 1, "fan_in": -1, "fan_out": -1},
+      "red_flags": ["Accounts pass on most of what they receive", "Short holding times", "Transfers between otherwise unrelated accounts"],
+      "review_actions": ["Follow the funds forward and backward across banks", "Check holding times and pass-through ratios", "Request evidence on the next and previous hops"]
+    },
+    {
+      "id": "BIPARTITE",
+      "name": "Bipartite",
+      "description": "A group of source accounts sends money to a group of destination accounts, with many links between the two groups.",
+      "stage": "layering",
+      "signature": {"fan_in": 1, "fan_out": 1, "accounts": 1, "gather_scatter": -1},
+      "red_flags": ["Several senders pay several of the same recipients", "Senders and recipients form two distinct groups", "Transfers concentrated in a short period"],
+      "review_actions": ["Map both groups and the links between them", "Check whether the groups share attributes", "Request evidence from banks holding members of either group"]
+    },
+    {
+      "id": "STACK",
+      "name": "Stack",
+      "description": "Several bipartite layers are stacked: money moves from one group of accounts to a second group, then to a third, and so on.",
+      "stage": "layering",
+      "signature": {"accounts": 1, "members": 1, "pass_through": 1, "scatter_gather": 1, "fan_in": 1, "fan_out": 1},
+      "red_flags": ["Several layers of intermediary accounts", "Each layer passes funds on quickly", "Activity spread over many banks"],
+      "review_actions": ["Reconstruct the layers across banks", "Prioritise the first and last layers", "Request evidence from every bank holding a layer"]
+    }
+  ],
+  "rules": {
+    "note": "Fixed decision list for the rule-based baseline, applied in order; the first rule that matches decides.",
+    "order": [
+      {"pattern": "CYCLE", "when": {"cycles": [">=", 1]}},
+      {"pattern": "SCATTER-GATHER", "when": {"scatter_gather": [">=", 2]}},
+      {"pattern": "GATHER-SCATTER", "when": {"gather_scatter": [">=", 2]}},
+      {"pattern": "BIPARTITE", "when": {"fan_in": [">=", 3], "fan_out": [">=", 3]}},
+      {"pattern": "FAN-OUT", "when": {"fan_out": [">=", 3]}},
+      {"pattern": "FAN-IN", "when": {"fan_in": [">=", 3]}},
+      {"pattern": "STACK", "when": {"pass_through": [">=", 0.8], "accounts": [">=", 4]}}
+    ],
+    "otherwise": "RANDOM"
+  }
+}

@@ -14,6 +14,16 @@ Next week: <first two tasks>
 On track for next gate? yes / at risk / no
 ```
 
+## Week 13 · 18 – 24 Jan 2027
+
+Planned: attribution (typology catalogue, supervised attributor, baselines, X6) and the real-bank X1 check.
+Done: G3 written (passed; detector stays local). The owner chose the attributor now and the narrative in week 14, the A64 check this week, and to keep test sealed until week 18. A20 pre-registered and pushed before any code (`7855812`). Built: the typology catalogue and mapping protocol, X1 hooks to reuse the frozen levels, X6 (incidents per level, level-limited evidence, LightGBM attributor, majority, rule and catalogue baselines, scheme bootstrap, H3a), the A64 real-bank path with option-aware output names, a resumable runner. Details in `docs/runlog/week-13.md`.
+Not done: owner's review of the mapping (pass 2); the real-data run.
+Numbers this week: engineering only (synthetic tests, fixture, stress).
+Risks or blockers: LI-Medium has few validation schemes, so its attribution intervals will be wide; the fixture cannot exercise attribution (zero alerts at its size).
+Next week: the constrained narrative with llama3.2:3b and its grounding rate (H3b).
+On track for next gate? yes (G4, week 18).
+
 ## Week 12 · 11 – 17 Jan 2027
 
 Planned: membership inference on the trained model, the IID arm of X5, the stacked ensemble, Gate G3.

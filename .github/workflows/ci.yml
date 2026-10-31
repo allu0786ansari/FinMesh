@@ -48,6 +48,12 @@ jobs:
           uv run finmesh membership --dataset FIXTURE-Small --reps 50 --rounds 5 --local-steps 5
           uv run finmesh ensemble --dataset FIXTURE-Small --reps 50
           uv run finmesh g3
+          uv run finmesh x6 --dataset FIXTURE-Small --seeds 0 --reps 100
+          uv run finmesh federation --dataset FIXTURE-Small --option A8 --force
+          uv run finmesh labels --dataset FIXTURE-Small --option A8
+          uv run finmesh features --dataset FIXTURE-Small --option A8
+          uv run finmesh features --dataset FIXTURE-Small --option A8 --view pooled
+          uv run finmesh x1 --dataset FIXTURE-Small --option A8 --seeds 0 --reps 50 --no-sweeps --no-audit
           uv run finmesh check
 
   secret-scan:

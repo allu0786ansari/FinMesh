@@ -141,8 +141,17 @@ def run_seed(
     meter: AnonPeak | None = None,
     sweeps: bool = True,
     audit: bool = False,
+    only: frozenset[str] | None = None,
+    return_scores: bool = False,
+    evaluate_configs: bool = True,
 ) -> dict[str, Any]:
-    """Every configuration for one seed: scores and per-scheme outcomes."""
+    """Every configuration for one seed: scores and per-scheme outcomes.
+
+    ``only`` keeps just the named configurations (protocol runs and evaluation);
+    ``return_scores`` adds their final validation scores and the row keys, for
+    analyses built on the frozen levels (X6); ``evaluate_configs`` False skips
+    the scheme evaluation. The defaults are the frozen X1 behaviour.
+    """
     t_start = time.perf_counter()
     memory: dict[str, float | None] = {}
 
@@ -298,6 +307,8 @@ def run_seed(
         auditor.n_features = len(cols)
         auditor.a5 = a5_result
     for name, level, params in level_runs(sweeps):
+        if only is not None and not any(o.split("/")[0] == name for o in only):
+            continue
         t0 = time.perf_counter()
         run = simulate(
             level,
@@ -351,6 +362,8 @@ def run_seed(
         _propagation(prob, keys, candidates, rows, edges, lookback)[rows],
     )
     names = [*full_scores, *row_scores]
+    if only is not None:
+        names = [n for n in names if n in only]
 
     def score_of(name: str) -> np.ndarray:
         if name in full_scores:
@@ -362,6 +375,13 @@ def run_seed(
 
     seconds["propagation"] = round(time.perf_counter() - t0, 1)
     lap("propagation")
+
+    extra: dict[str, Any] = {}
+    if return_scores:
+        extra = {"keys": keys, "scores": {n: score_of(n) for n in names}}
+    if not evaluate_configs:
+        seconds["total"] = round(time.perf_counter() - t_start, 1)
+        return {"seed": seed, "seconds": seconds, "memory_mb": memory, **extra}
 
     # Evaluate every configuration.
     t0 = time.perf_counter()
@@ -414,6 +434,7 @@ def run_seed(
         "memory_mb": memory,
         "audit": audit_result,
         "auprc": auprc,
+        **extra,
     }
 
 
