@@ -117,16 +117,18 @@ def assert_local(url: str) -> None:
 
 
 def call_ollama(
-    url: str, model: str, prompt: str, schema: dict[str, Any] | str, timeout: float
+    url: str,
+    model: str,
+    prompt: str,
+    schema: dict[str, Any] | str,
+    timeout: float,
+    max_tokens: int | None = None,
 ) -> dict[str, Any]:
+    options: dict[str, Any] = {"temperature": 0, "num_ctx": 2048}
+    if max_tokens is not None:
+        options["num_predict"] = max_tokens
     body = json.dumps(
-        {
-            "model": model,
-            "prompt": prompt,
-            "stream": False,
-            "format": schema,
-            "options": {"temperature": 0, "num_ctx": 2048},
-        }
+        {"model": model, "prompt": prompt, "stream": False, "format": schema, "options": options}
     ).encode()
     request = urllib.request.Request(
         url.rstrip("/") + "/api/generate", data=body, headers={"Content-Type": "application/json"}

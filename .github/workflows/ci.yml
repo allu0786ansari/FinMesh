@@ -54,6 +54,12 @@ jobs:
           uv run finmesh features --dataset FIXTURE-Small --option A8
           uv run finmesh features --dataset FIXTURE-Small --option A8 --view pooled
           uv run finmesh x1 --dataset FIXTURE-Small --option A8 --seeds 0 --reps 50 --no-sweeps --no-audit
+          uv run finmesh federation --dataset FIXTURE-Small --option B8c50 --force
+          uv run finmesh labels --dataset FIXTURE-Small --option B8c50
+          uv run finmesh features --dataset FIXTURE-Small --option B8c50
+          uv run finmesh features --dataset FIXTURE-Small --option B8c50 --view pooled
+          uv run finmesh x1 --dataset FIXTURE-Small --option B8c50 --seeds 0 --reps 50 --no-sweeps --no-audit
+          uv run finmesh coverage --dataset FIXTURE-Small
           uv run finmesh check
 
   secret-scan:

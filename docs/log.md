@@ -14,6 +14,16 @@ Next week: <first two tasks>
 On track for next gate? yes / at risk / no
 ```
 
+## Week 14 · 25 – 31 Jan 2027
+
+Planned: the constrained narrative and its grounding test (H3b).
+Done: week-13 run reviewed (H3a met on HI-Medium, +0.042 [0.016, 0.068]; the gain comes at S1, and the oracle is no better, so incident evidence limits attribution; A64 covers 4.7% of accounts and links almost nothing). After research, the owner approved A21, pre-registered before code (`77c5320`): a coverage curve (B8c10–90, largest banks first) and the narrative with selective abstention. Built: coverage federations and the curve assembler; X6 hooks for the S2 attributor's probabilities; the narrative module (τ rule, stratified sample, evidence template, JSON-only call, schema retry, template fallback, grounding and numeric checks, latency); report and case file; resumable runner that checks Ollama first. Details in `docs/runlog/week-14.md`.
+Not done: the real-data run (needs Ollama with llama3.2:3b on the owner's machine).
+Numbers this week: engineering only (scripted model in tests; fixture; stress scale).
+Risks or blockers: the 30 s latency target is at risk on CPU (G0 probe p50 19.5 s with a shorter prompt); a low attributor confidence may leave most cases UNATTRIBUTED, which is the intended safe outcome.
+Next week: weeks 15–17, the demo path and the analyst console (incident card with the narrative).
+On track for next gate? yes (G4, week 18).
+
 ## Week 13 · 18 – 24 Jan 2027
 
 Planned: attribution (typology catalogue, supervised attributor, baselines, X6) and the real-bank X1 check.

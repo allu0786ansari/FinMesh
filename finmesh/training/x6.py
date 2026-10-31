@@ -259,9 +259,18 @@ def catalogue_predict(
 
 
 def attribute(
-    table: pl.DataFrame, level: str, seed: int, catalogue: dict[str, Any]
+    table: pl.DataFrame,
+    level: str,
+    seed: int,
+    catalogue: dict[str, Any],
+    proba_out: dict[str, Any] | None = None,
 ) -> dict[str, np.ndarray]:
-    """Cross-fitted predictions per method for every scheme row (None if undetected)."""
+    """Cross-fitted predictions per method for every scheme row (None if undetected).
+
+    ``proba_out`` (week 14, A21) receives the attributor's cross-fitted class
+    probabilities: ``classes`` (catalogue order) and ``p`` (rows x classes; NaN
+    rows for undetected schemes). Predictions are unchanged by asking for them.
+    """
     detected = table["incident"].is_not_null().to_numpy()
     y = table["pattern"].to_numpy()
     fold = table["fold"].to_numpy()
@@ -271,6 +280,8 @@ def attribute(
     x = table.select(feat_cols).cast(pl.Float64).fill_null(np.nan).to_numpy()
     sig = shape(table, level)
     preds = {m: np.full(len(y), None, dtype=object) for m in METHODS}
+    classes = [e["id"] for e in catalogue["entries"]]
+    proba = np.full((len(y), len(classes)), np.nan)
     preds["rules"][detected] = rule_predict(sig[detected], catalogue)
     for k in (0, 1):
         train = detected & (fold == k)
@@ -286,9 +297,19 @@ def attribute(
         preds["catalogue"][apply] = catalogue_predict(sig[apply], sig[train], catalogue)
         if len(labels) < 2:
             preds["attributor"][apply] = majority
+            proba[apply] = 0.0
+            proba[apply, classes.index(majority)] = 1.0
             continue
         model = LGBMClassifier(**ATTRIBUTOR, random_state=seed).fit(x[train], y[train])
         preds["attributor"][apply] = model.predict(x[apply])
+        if proba_out is not None:
+            p = np.asarray(model.predict_proba(x[apply]))
+            proba[apply] = 0.0
+            for j, c in enumerate(model.classes_):
+                proba[np.nonzero(apply)[0], classes.index(c)] = p[:, j]
+    if proba_out is not None:
+        proba_out["classes"] = classes
+        proba_out["p"] = proba
     return preds
 
 
@@ -298,7 +319,11 @@ def run_seed_x6(
     option: str,
     seed: int,
     progress: Callable[[str], None] | None = None,
+    levels: tuple[str, ...] = tuple(LEVELS),
+    keep_tables: bool = False,
 ) -> dict[str, Any]:
+    """One seed of X6. ``levels`` and ``keep_tables`` serve the week-14 narrative: it needs
+    only S2, and the per-scheme incident table with the attributor's probabilities."""
     t_start = time.perf_counter()
     catalogue = load_catalogue()
     r = run_seed(
@@ -309,7 +334,7 @@ def run_seed_x6(
         window_reps=1,
         sweeps=True,
         audit=False,
-        only=frozenset(LEVELS.values()),
+        only=frozenset(LEVELS[lv] for lv in levels),
         return_scores=True,
         evaluate_configs=False,
     )
@@ -329,9 +354,7 @@ def run_seed_x6(
     schemes = part.schemes
     sw = _within_delay(part.scheme_windows, schemes, DELAY_WINDOWS)
 
-    alerts = {
-        lv: _alerts(keys, r["scores"][name], apm, plan.window_hours) for lv, name in LEVELS.items()
-    }
+    alerts = {lv: _alerts(keys, r["scores"][LEVELS[lv]], apm, plan.window_hours) for lv in levels}
     any_alert = np.zeros(keys.height, dtype=bool)
     for a in alerts.values():
         any_alert |= a
@@ -350,7 +373,7 @@ def run_seed_x6(
         pl.Series("fold", _halves(schemes["first_window"].to_numpy(), v0, v1)),
     )
     out: dict[str, Any] = {"seed": seed, "levels": {}}
-    for lv in LEVELS:
+    for lv in levels:
         alerted = keys.filter(pl.Series(alerts[lv]))
         inc = Linker(edges, lookback, lv != "S0")(alerted)
         inc = inc.join(keyed, on=KEYS).with_columns(
@@ -360,7 +383,10 @@ def run_seed_x6(
         table = base.join(best_incident(sw, inc), on="scheme_id", how="left").join(
             feats_inc, on="incident", how="left"
         )
-        preds = attribute(table, lv, seed, catalogue)
+        proba: dict[str, Any] = {}
+        preds = attribute(table, lv, seed, catalogue, proba if keep_tables else None)
+        if keep_tables:
+            out.setdefault("tables", {})[lv] = {"table": table, **proba}
         out["levels"][lv] = {
             "scheme_id": table["scheme_id"].to_list(),
             "pattern": table["pattern"].to_list(),

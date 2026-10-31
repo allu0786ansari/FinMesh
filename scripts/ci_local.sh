@@ -39,5 +39,11 @@ step uv run finmesh labels --dataset FIXTURE-Small --option A8
 step uv run finmesh features --dataset FIXTURE-Small --option A8
 step uv run finmesh features --dataset FIXTURE-Small --option A8 --view pooled
 step uv run finmesh x1 --dataset FIXTURE-Small --option A8 --seeds 0 --reps 50 --no-sweeps --no-audit
+step uv run finmesh federation --dataset FIXTURE-Small --option B8c50 --force
+step uv run finmesh labels --dataset FIXTURE-Small --option B8c50
+step uv run finmesh features --dataset FIXTURE-Small --option B8c50
+step uv run finmesh features --dataset FIXTURE-Small --option B8c50 --view pooled
+step uv run finmesh x1 --dataset FIXTURE-Small --option B8c50 --seeds 0 --reps 50 --no-sweeps --no-audit
+step uv run finmesh coverage --dataset FIXTURE-Small
 step uv run finmesh check
 echo; echo "local CI: all steps passed"

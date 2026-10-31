@@ -336,11 +336,15 @@ def render_x1(r: dict[str, Any], figure: str | None) -> str:
     option = r.get("option", "B8")
     if option != "B8":  # the frozen B8 pages keep their exact text
         lines[0] += f" · federation {option}"
+        what = (
+            f"**Secondary analysis (A21 coverage curve): federation {option}**, the largest banks "
+            f"holding {option.split('c')[1]}% of accounts, grouped into 8 members"
+            if "c" in option
+            else f"**Secondary analysis (A20): federation {option}**, real banks only"
+        )
         lines[2] = (
-            f"**Secondary analysis (A20): federation {option}**, real banks only; accounts at "
-            "other "
-            "banks are outside and cannot be asked. No sweeps or audit; decides no hypothesis. "
-            + lines[2].split(" S3 and PD sweeps")[0]
+            f"{what}; accounts at other banks are outside and cannot be asked. No sweeps or "
+            "audit; decides no hypothesis. " + lines[2].split(" S3 and PD sweeps")[0]
         )
     if figure:
         lines += [f"![Linked detection per configuration]({figure})", ""]

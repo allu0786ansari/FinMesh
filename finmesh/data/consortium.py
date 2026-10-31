@@ -37,17 +37,29 @@ Option = Literal["A", "B"]
 class ConsortiumSpec:
     option: Option
     k: int
+    coverage: int | None = None  # A21: grouped members covering this % of accounts
 
     @property
     def name(self) -> str:
-        return f"{self.option}{self.k}"
+        base = f"{self.option}{self.k}"
+        return base if self.coverage is None else f"{base}c{self.coverage}"
 
     @classmethod
     def parse(cls, text: str) -> ConsortiumSpec:
-        option, k = text[0].upper(), int(text[1:])
+        """``A8``, ``B8``, or ``B8c50`` (8 grouped members holding 50% of accounts)."""
+        option = text[0].upper()
+        body = text[1:].lower()
+        k_text, _, cov_text = body.partition("c")
+        try:
+            k = int(k_text)
+            coverage = int(cov_text) if cov_text else None
+        except ValueError as exc:
+            raise ValueError(f"bad consortium spec {text!r}; use A8, B8, B8c50, ...") from exc
         if option not in ("A", "B") or k < 2:
-            raise ValueError(f"bad consortium spec {text!r}; use A8, B8, ...")
-        return cls(option=option, k=k)  # type: ignore[arg-type]
+            raise ValueError(f"bad consortium spec {text!r}; use A8, B8, B8c50, ...")
+        if coverage is not None and (option != "B" or not 0 < coverage < 100):
+            raise ValueError(f"coverage applies to grouped options only, 1-99%: {text!r}")
+        return cls(option=option, k=k, coverage=coverage)  # type: ignore[arg-type]
 
 
 # Candidates compared at G0. B8 matches the proposal's "four to eight" members.
@@ -102,6 +114,11 @@ def bank_sizes(transactions: Path) -> pl.DataFrame:
 def build_membership(sizes: pl.DataFrame, spec: ConsortiumSpec) -> pl.DataFrame:
     """Return ``bank, member`` (member 0..k-1); banks absent from it are outside."""
     ranked = sizes.sort(["accounts", "bank"], descending=[True, False])
+    if spec.coverage is not None:
+        # Largest banks first, as real partnerships recruit, until the share is reached.
+        total = ranked["accounts"].sum()
+        before = ranked["accounts"].cum_sum() - ranked["accounts"]
+        ranked = ranked.filter(before < total * spec.coverage / 100)
     if spec.option == "A":
         return ranked.head(spec.k).select(
             "bank", pl.int_range(0, pl.len(), dtype=pl.Int32).alias("member")

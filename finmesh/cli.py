@@ -1018,6 +1018,87 @@ def cmd_x6(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_coverage(args: argparse.Namespace) -> int:
+    """A21: assemble the coverage curve from the X1 artifacts of A64, B8c{p} and B8."""
+    from finmesh.eval.coverage import collect, coverage_figure, render_coverage
+
+    paths = dataset_paths(args.dataset)
+    rows = collect(paths.name, data_root() / "artifacts" / "week09", paths.parquet)
+    out_dir = (
+        data_root() / "artifacts" / "week14"
+        if args.dataset == FIXTURE_DATASET
+        else REPO_ROOT / "docs" / "eval"
+    )
+    out_dir.mkdir(parents=True, exist_ok=True)
+    fig = coverage_figure(rows, paths.name, out_dir / f"coverage_{paths.name}.png")
+    report = out_dir / f"coverage_{paths.name}.md"
+    report.write_text(render_coverage(rows, paths.name, fig.name if fig else None))
+    for r in rows:
+        s0, s2 = (r["S0"] or {}).get("estimate"), (r["S2"] or {}).get("estimate")
+        share = r["account_share"]
+        print(
+            f"  {r['option']:<7} covered {'—' if share is None else f'{share:.1%}':>6}  "
+            f"S0 {fmt_float(s0)}  S2 {fmt_float(s2)}"
+        )
+    print(f"  report   {report}")
+    return 0 if rows else 1
+
+
+def cmd_narrative(args: argparse.Namespace) -> int:
+    """A21 / H3b: constrained narratives for sampled S2 cases with a local model."""
+    from finmesh.attribution.narrative import run_narrative
+    from finmesh.attribution.narrative_report import render_narrative, write_cases
+    from finmesh.data.manifest import load_manifest
+    from finmesh.eval.provenance import Stamp, write_artifact
+
+    paths = dataset_paths(args.dataset)
+    result = run_narrative(
+        paths,
+        option=args.option,
+        n=args.n,
+        model=args.model,
+        url=args.url,
+        timeout=args.timeout,
+        progress=lambda m: print(f"  {m}"),
+    )
+    if "error" in result:
+        print(f"  {result['error']}")
+        return 1
+    manifest = load_manifest(paths.manifest)
+    stamp = Stamp(
+        kind="narrative",
+        dataset=paths.name,
+        manifest_hash=manifest.manifest_hash,
+        fixture=manifest.fixture,
+        split="val",
+        params={"option": args.option, "n": args.n, "model": args.model},
+    )
+    out_root = data_root() / "artifacts" / "week14"
+    name = option_tag(paths.name, args.option)
+    artifact = write_artifact(out_root / f"narrative_{name}.json", stamp, result)
+    out_dir = out_root if args.dataset == FIXTURE_DATASET else REPO_ROOT / "docs" / "eval"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    report = out_dir / f"narrative_{name}.md"
+    report.write_text(render_narrative(result))
+    cases = write_cases(result, out_dir / f"narrative_{name}_cases.jsonl")
+    s = result["summary"]
+    g = s["H3b"]["grounding"]
+    tau = result["selective"]["tau"]
+    print(f"  tau {'none' if tau is None else f'{tau:.2f}'}; cases {s['cases']}")
+    if g["estimate"] is not None:
+        print(f"  H3b grounding {g['estimate']:.3f} [{g['low']:.3f}, {g['high']:.3f}]")
+    print(f"  met on validation: {s['H3b']['met_on_validation']}")
+    print(f"  fallback {s['fallback_rate']}; latency p95 {s['latency_s']['p95']} s")
+    print(f"  artifact {artifact}")
+    print(f"  report   {report}")
+    print(f"  cases    {cases}")
+    return 0
+
+
+def fmt_float(v: float | None) -> str:
+    return "—" if v is None else f"{v:.3f}"
+
+
 def cmd_x5(args: argparse.Namespace) -> int:
     from finmesh.data.manifest import load_manifest
     from finmesh.eval.provenance import Stamp, write_artifact
@@ -1157,7 +1238,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     fd = sub.add_parser("federation", help="membership for a federation option, e.g. A64 (week 13)")
     add_dataset(fd)
-    fd.add_argument("--option", required=True, help="A8, A64, B8, ...")
+    fd.add_argument("--option", required=True, help="A8, A64, B8, B8c50 (A21 coverage), ...")
     fd.add_argument("--force", action="store_true", help="rebuild an existing membership file")
     fd.set_defaults(func=cmd_federation)
 
@@ -1285,6 +1366,19 @@ def build_parser() -> argparse.ArgumentParser:
     x6.add_argument("--seeds", default="0,1,2")
     x6.add_argument("--reps", type=int, default=1000, help="scheme bootstrap replicates")
     x6.set_defaults(func=cmd_x6)
+
+    nr = sub.add_parser("narrative", help="A21/H3b: constrained case narratives (week 14)")
+    nr.add_argument("--dataset", required=True)
+    nr.add_argument("--option", default="B8")
+    nr.add_argument("--n", type=int, default=200, help="cases to narrate (stratified)")
+    nr.add_argument("--model", default="llama3.2:3b")
+    nr.add_argument("--url", default="http://localhost:11434", help="local Ollama only")
+    nr.add_argument("--timeout", type=float, default=120.0, help="seconds per model call")
+    nr.set_defaults(func=cmd_narrative)
+
+    cv = sub.add_parser("coverage", help="A21 coverage curve from the X1 artifacts (week 14)")
+    cv.add_argument("--dataset", required=True)
+    cv.set_defaults(func=cmd_coverage)
 
     x4 = sub.add_parser("x4", help="X4 part 1: neural scorer, FedAvg and DP-SGD (week 10)")
     x4.add_argument("--dataset", required=True)

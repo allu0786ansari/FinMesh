@@ -143,5 +143,5 @@ git push
 - [x] Supervised attributor, rule-based and catalogue baselines, majority class
 - [x] X6 by sharing level, with the oracle ceiling
 - [x] Real-bank federation path (A64) for the secondary X1 analysis
-- [ ] Owner's review of the mapping (pass 2), then the real-data run
+- [x] Owner's review of the mapping (pass 2), then the real-data run (31 Oct)
 - Week 14: the constrained narrative with llama3.2:3b and the grounding test (H3b)
