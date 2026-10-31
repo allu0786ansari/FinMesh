@@ -190,6 +190,14 @@ Every result is reported whether or not its hypothesis holds; a missed target is
 - **Stage accuracy:** reported only if no stage holds over 90% of schemes.
 - **Real-bank check (secondary):** X1 on A64, levels S0–S4, propagation, oracle and relational oracle, seeds 0–2, no sweeps or audit, validation only. Decides no hypothesis.
 
+## 6e. Coverage curve and the constrained narrative (amendment A21, week 14)
+
+- **Coverage curve (secondary):** `B8c{p}`, p ∈ {10, 25, 50, 75, 90}% of accounts, banks added largest first and grouped into 8 members; X1 as for A64; end points B8 (100%) and A64 (4.7%). Descriptive; no hypothesis.
+- **Narrative sample:** S2, seed 0, up to 200 detected validation schemes, stratified by pattern (up to 25 each).
+- **Abstention:** τ = smallest of {0.30, …, 0.95} with selective accuracy ≥ 0.5 and coverage ≥ 10% on all detected validation schemes; below τ the case is UNATTRIBUTED.
+- **Model call:** llama3.2:3b, JSON-only, temperature 0; one schema-constrained retry; template fallback.
+- **H3b:** grounding rate of raw replies ≥ 0.95 (valid JSON, typology equals the assigned one or UNATTRIBUTED, cited fields all in the evidence). Numeric grounding, retry and fallback rates and latency are reported alongside.
+
 ## 7. Seeds and statistics
 
 - **Seeds:**
