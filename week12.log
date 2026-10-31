@@ -1,0 +1,304 @@
+
+==> 18:07 uv run finmesh dp-tune --dataset HI-Small --grid A19
+  clip 1 batch 512 lr 0.001: hold-out AUPRC 0.4158, 3% clipped
+  clip 1 batch 512 lr 0.003: hold-out AUPRC 0.5737, 3% clipped
+  clip 1 batch 512 lr 0.01: hold-out AUPRC 0.6409, 4% clipped
+  clip 1 batch 2048 lr 0.001: hold-out AUPRC 0.4219, 3% clipped
+  clip 1 batch 2048 lr 0.003: hold-out AUPRC 0.5763, 3% clipped
+  clip 1 batch 2048 lr 0.01: hold-out AUPRC 0.6409, 4% clipped
+  clip 3 batch 512 lr 0.001: hold-out AUPRC 0.4427, 3% clipped
+  clip 3 batch 512 lr 0.003: hold-out AUPRC 0.5971, 3% clipped
+  clip 3 batch 512 lr 0.01: hold-out AUPRC 0.6512, 4% clipped
+  clip 3 batch 2048 lr 0.001: hold-out AUPRC 0.4482, 3% clipped
+  clip 3 batch 2048 lr 0.003: hold-out AUPRC 0.5991, 3% clipped
+  clip 3 batch 2048 lr 0.01: hold-out AUPRC 0.6483, 4% clipped
+  clip 10 batch 512 lr 0.001: hold-out AUPRC 0.4579, 3% clipped
+  clip 10 batch 512 lr 0.003: hold-out AUPRC 0.5911, 3% clipped
+  clip 10 batch 512 lr 0.01: hold-out AUPRC 0.6519, 3% clipped
+  clip 10 batch 2048 lr 0.001: hold-out AUPRC 0.4606, 3% clipped
+  clip 10 batch 2048 lr 0.003: hold-out AUPRC 0.5917, 3% clipped
+  clip 10 batch 2048 lr 0.01: hold-out AUPRC 0.6505, 3% clipped
+  chosen: clip 10, batch 512, lr 0.01 -> /home/allu786ansari/FinMesh/finmesh/schemas/dp_hparams.json
+  2295 s, peak memory 564.6 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week12/dp_tune_HI-Small.json
+  report   /home/allu786ansari/FinMesh/docs/eval/dp_tune_HI-Small_A19.md
+    done in 38 min
+
+==> 18:46 uv run finmesh dp-tune --dataset LI-Small --grid A19
+  clip 1 batch 512 lr 0.001: hold-out AUPRC 0.1505, 2% clipped
+  clip 1 batch 512 lr 0.003: hold-out AUPRC 0.2346, 2% clipped
+  clip 1 batch 512 lr 0.01: hold-out AUPRC 0.2683, 2% clipped
+  clip 1 batch 2048 lr 0.001: hold-out AUPRC 0.1560, 2% clipped
+  clip 1 batch 2048 lr 0.003: hold-out AUPRC 0.2377, 2% clipped
+  clip 1 batch 2048 lr 0.01: hold-out AUPRC 0.2735, 2% clipped
+  clip 3 batch 512 lr 0.001: hold-out AUPRC 0.1713, 2% clipped
+  clip 3 batch 512 lr 0.003: hold-out AUPRC 0.2516, 2% clipped
+  clip 3 batch 512 lr 0.01: hold-out AUPRC 0.2784, 2% clipped
+  clip 3 batch 2048 lr 0.001: hold-out AUPRC 0.1754, 2% clipped
+  clip 3 batch 2048 lr 0.003: hold-out AUPRC 0.2553, 2% clipped
+  clip 3 batch 2048 lr 0.01: hold-out AUPRC 0.2827, 2% clipped
+  clip 10 batch 512 lr 0.001: hold-out AUPRC 0.1807, 2% clipped
+  clip 10 batch 512 lr 0.003: hold-out AUPRC 0.2623, 2% clipped
+  clip 10 batch 512 lr 0.01: hold-out AUPRC 0.2880, 2% clipped
+  clip 10 batch 2048 lr 0.001: hold-out AUPRC 0.1871, 2% clipped
+  clip 10 batch 2048 lr 0.003: hold-out AUPRC 0.2649, 2% clipped
+  clip 10 batch 2048 lr 0.01: hold-out AUPRC 0.2966, 2% clipped
+  chosen: clip 10, batch 2048, lr 0.01 -> /home/allu786ansari/FinMesh/finmesh/schemas/dp_hparams.json
+  2014 s, peak memory 575.9 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week12/dp_tune_LI-Small.json
+  report   /home/allu786ansari/FinMesh/docs/eval/dp_tune_LI-Small_A19.md
+    done in 33 min
+
+==> 19:19 uv run finmesh x5 --dataset HI-Medium
+  seed 0 centralised[member]: 38 s
+  seed 0 local: 32 s
+  seed 0 fedavg: 31 s
+  seed 0 dp[window,member,eps=1]: 51 s
+  seed 0 dp[window,member,eps=3]: 52 s
+  seed 0 dp[window,member,eps=10]: 53 s
+  seed 0 dp[account,member,eps=1]: 132 s
+  seed 0 dp[account,member,eps=3]: 133 s
+  seed 0 dp[account,member,eps=10]: 135 s
+  seed 0 score[member]: 145 s
+  seed 0 centralised[cap16]: 33 s
+  seed 0 dp[window,cap16,eps=1]: 55 s
+  seed 0 dp[window,cap16,eps=3]: 55 s
+  seed 0 dp[window,cap16,eps=10]: 55 s
+  seed 0 dp[account,cap16,eps=1]: 131 s
+  seed 0 dp[account,cap16,eps=3]: 133 s
+  seed 0 dp[account,cap16,eps=10]: 133 s
+  seed 0 fedavg[account,cap16]: 33 s
+  seed 0 fedavg-iid[account,cap16]: 33 s
+  seed 0 dp-iid[account,cap16,eps=1]: 133 s
+  seed 0 dp-iid[account,cap16,eps=3]: 134 s
+  seed 0 dp-iid[account,cap16,eps=10]: 136 s
+  seed 0 score[cap16]: 180 s
+  seed 1 centralised[member]: 34 s
+  seed 1 local: 33 s
+  seed 1 fedavg: 32 s
+  seed 1 dp[window,member,eps=1]: 51 s
+  seed 1 dp[window,member,eps=3]: 52 s
+  seed 1 dp[window,member,eps=10]: 53 s
+  seed 1 dp[account,member,eps=1]: 131 s
+  seed 1 dp[account,member,eps=3]: 133 s
+  seed 1 dp[account,member,eps=10]: 133 s
+  seed 1 score[member]: 134 s
+  seed 1 centralised[cap16]: 32 s
+  seed 1 dp[window,cap16,eps=1]: 51 s
+  seed 1 dp[window,cap16,eps=3]: 50 s
+  seed 1 dp[window,cap16,eps=10]: 52 s
+  seed 1 dp[account,cap16,eps=1]: 134 s
+  seed 1 dp[account,cap16,eps=3]: 133 s
+  seed 1 dp[account,cap16,eps=10]: 134 s
+  seed 1 fedavg[account,cap16]: 32 s
+  seed 1 fedavg-iid[account,cap16]: 32 s
+  seed 1 dp-iid[account,cap16,eps=1]: 130 s
+  seed 1 dp-iid[account,cap16,eps=3]: 131 s
+  seed 1 dp-iid[account,cap16,eps=10]: 133 s
+  seed 1 score[cap16]: 181 s
+  seed 2 centralised[member]: 33 s
+  seed 2 local: 33 s
+  seed 2 fedavg: 32 s
+  seed 2 dp[window,member,eps=1]: 53 s
+  seed 2 dp[window,member,eps=3]: 54 s
+  seed 2 dp[window,member,eps=10]: 54 s
+  seed 2 dp[account,member,eps=1]: 132 s
+  seed 2 dp[account,member,eps=3]: 135 s
+  seed 2 dp[account,member,eps=10]: 135 s
+  seed 2 score[member]: 136 s
+  seed 2 centralised[cap16]: 33 s
+  seed 2 dp[window,cap16,eps=1]: 54 s
+  seed 2 dp[window,cap16,eps=3]: 55 s
+  seed 2 dp[window,cap16,eps=10]: 55 s
+  seed 2 dp[account,cap16,eps=1]: 134 s
+  seed 2 dp[account,cap16,eps=3]: 134 s
+  seed 2 dp[account,cap16,eps=10]: 135 s
+  seed 2 fedavg[account,cap16]: 33 s
+  seed 2 fedavg-iid[account,cap16]: 32 s
+  seed 2 dp-iid[account,cap16,eps=1]: 134 s
+  seed 2 dp-iid[account,cap16,eps=3]: 134 s
+  seed 2 dp-iid[account,cap16,eps=10]: 136 s
+  seed 2 score[cap16]: 186 s
+  eps 1: window 0.66 of centralised (H2a False); window - account -0.0163 (H2b False); IID - partitioned -0.0052
+  eps 3: window 0.74 of centralised (H2a False); window - account -0.0052 (H2b False); IID - partitioned -0.0039
+  eps 10: window 0.78 of centralised (H2a False); window - account -0.0045 (H2b False); IID - partitioned -0.0065
+  6896 s, peak memory 1590.2 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week12/x5_HI-Medium.json
+  report   /home/allu786ansari/FinMesh/docs/eval/x5_HI-Medium_A19.md
+    done in 114 min
+
+==> 21:14 uv run finmesh x5 --dataset LI-Medium
+  seed 0 centralised[member]: 38 s
+  seed 0 local: 31 s
+  seed 0 fedavg: 32 s
+  seed 0 dp[window,member,eps=1]: 172 s
+  seed 0 dp[window,member,eps=3]: 171 s
+  seed 0 dp[window,member,eps=10]: 171 s
+  seed 0 dp[account,member,eps=1]: 545 s
+  seed 0 dp[account,member,eps=3]: 541 s
+  seed 0 dp[account,member,eps=10]: 545 s
+  seed 0 score[member]: 138 s
+  seed 0 centralised[cap16]: 32 s
+  seed 0 dp[window,cap16,eps=1]: 174 s
+  seed 0 dp[window,cap16,eps=3]: 172 s
+  seed 0 dp[window,cap16,eps=10]: 177 s
+  seed 0 dp[account,cap16,eps=1]: 547 s
+  seed 0 dp[account,cap16,eps=3]: 547 s
+  seed 0 dp[account,cap16,eps=10]: 548 s
+  seed 0 fedavg[account,cap16]: 33 s
+  seed 0 fedavg-iid[account,cap16]: 33 s
+  seed 0 dp-iid[account,cap16,eps=1]: 643 s
+  seed 0 dp-iid[account,cap16,eps=3]: 749 s
+  seed 0 dp-iid[account,cap16,eps=10]: 742 s
+  seed 0 score[cap16]: 237 s
+  seed 1 centralised[member]: 40 s
+  seed 1 local: 39 s
+  seed 1 fedavg: 34 s
+  seed 1 dp[window,member,eps=1]: 213 s
+  seed 1 dp[window,member,eps=3]: 202 s
+  seed 1 dp[window,member,eps=10]: 203 s
+  seed 1 dp[account,member,eps=1]: 632 s
+  seed 1 dp[account,member,eps=3]: 577 s
+  seed 1 dp[account,member,eps=10]: 536 s
+  seed 1 score[member]: 118 s
+  seed 1 centralised[cap16]: 37 s
+  seed 1 dp[window,cap16,eps=1]: 172 s
+  seed 1 dp[window,cap16,eps=3]: 175 s
+  seed 1 dp[window,cap16,eps=10]: 175 s
+  seed 1 dp[account,cap16,eps=1]: 514 s
+  seed 1 dp[account,cap16,eps=3]: 508 s
+  seed 1 dp[account,cap16,eps=10]: 506 s
+  seed 1 fedavg[account,cap16]: 32 s
+  seed 1 fedavg-iid[account,cap16]: 32 s
+  seed 1 dp-iid[account,cap16,eps=1]: 546 s
+  seed 1 dp-iid[account,cap16,eps=3]: 548 s
+  seed 1 dp-iid[account,cap16,eps=10]: 546 s
+  seed 1 score[cap16]: 183 s
+  seed 2 centralised[member]: 36 s
+  seed 2 local: 36 s
+  seed 2 fedavg: 36 s
+  seed 2 dp[window,member,eps=1]: 179 s
+  seed 2 dp[window,member,eps=3]: 172 s
+  seed 2 dp[window,member,eps=10]: 175 s
+  seed 2 dp[account,member,eps=1]: 508 s
+  seed 2 dp[account,member,eps=3]: 502 s
+  seed 2 dp[account,member,eps=10]: 507 s
+  seed 2 score[member]: 110 s
+  seed 2 centralised[cap16]: 33 s
+  seed 2 dp[window,cap16,eps=1]: 173 s
+  seed 2 dp[window,cap16,eps=3]: 173 s
+  seed 2 dp[window,cap16,eps=10]: 174 s
+  seed 2 dp[account,cap16,eps=1]: 507 s
+  seed 2 dp[account,cap16,eps=3]: 509 s
+  seed 2 dp[account,cap16,eps=10]: 516 s
+  seed 2 fedavg[account,cap16]: 33 s
+  seed 2 fedavg-iid[account,cap16]: 33 s
+  seed 2 dp-iid[account,cap16,eps=1]: 544 s
+  seed 2 dp-iid[account,cap16,eps=3]: 542 s
+  seed 2 dp-iid[account,cap16,eps=10]: 549 s
+  seed 2 score[cap16]: 186 s
+  eps 1: window 0.63 of centralised (H2a False); window - account +0.0114 (H2b True); IID - partitioned -0.0001
+  eps 3: window 0.81 of centralised (H2a True); window - account +0.0096 (H2b True); IID - partitioned -0.0005
+  eps 10: window 0.96 of centralised (H2a True); window - account +0.0044 (H2b True); IID - partitioned +0.0031
+  20650 s, peak memory 1682.1 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week12/x5_LI-Medium.json
+  report   /home/allu786ansari/FinMesh/docs/eval/x5_LI-Medium_A19.md
+    done in 344 min
+
+==> 02:58 uv run finmesh membership --dataset HI-Medium
+  data: 8 s
+  fedavg[account,capped]: 35 s
+  dp[account,capped,eps=1]: 132 s
+  dp[account,capped,eps=3]: 131 s
+  dp[account,capped,eps=10]: 135 s
+  references: 34 s
+  scoring: 112 s
+  metrics: 54 s
+  fedavg[account,capped]: REF AUC 0.501, TPR at 1% FPR 0.010605422954367822
+  dp[account,capped,eps=1]: REF AUC 0.499, TPR at 1% FPR 0.00993607086314355
+  dp[account,capped,eps=3]: REF AUC 0.499, TPR at 1% FPR 0.009863925128760095
+  dp[account,capped,eps=10]: REF AUC 0.499, TPR at 1% FPR 0.009976151826689914
+  audit violation: False
+  641 s, peak memory 2239.9 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week12/membership_HI-Medium.json
+  report   /home/allu786ansari/FinMesh/docs/eval/membership_HI-Medium.md
+    done in 10 min
+
+==> 03:09 uv run finmesh membership --dataset LI-Medium
+  data: 4 s
+  fedavg[account,capped]: 33 s
+  dp[account,capped,eps=1]: 552 s
+  dp[account,capped,eps=3]: 544 s
+  dp[account,capped,eps=10]: 542 s
+  references: 34 s
+  scoring: 118 s
+  metrics: 52 s
+  fedavg[account,capped]: REF AUC 0.501, TPR at 1% FPR 0.010052233806903411
+  dp[account,capped,eps=1]: REF AUC 0.500, TPR at 1% FPR 0.010052233806903411
+  dp[account,capped,eps=3]: REF AUC 0.500, TPR at 1% FPR 0.009957711575685594
+  dp[account,capped,eps=10]: REF AUC 0.500, TPR at 1% FPR 0.00999469853572735
+  audit violation: False
+  1880 s, peak memory 2302.6 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week12/membership_LI-Medium.json
+  report   /home/allu786ansari/FinMesh/docs/eval/membership_LI-Medium.md
+    done in 31 min
+
+==> 03:41 uv run finmesh ensemble --dataset HI-Medium
+  seed 0 gbdt: 17 s
+  seed 0 autoencoder: 18 s
+  seed 0 score: 798 s
+  seed 0 stack: 40 s
+  seed 1 gbdt: 22 s
+  seed 1 autoencoder: 21 s
+  seed 1 score: 723 s
+  seed 1 stack: 38 s
+  seed 2 gbdt: 18 s
+  seed 2 autoencoder: 18 s
+  seed 2 score: 565 s
+  seed 2 stack: 37 s
+  local ensemble AUPRC 0.3292
+  + dp1: -0.0012 [-0.0023, -0.0000]
+  + dp3: -0.0003 [-0.0015, +0.0008]
+  + dp10: +0.0006 [-0.0008, +0.0018]
+  + fedavg: +0.0045 [+0.0025, +0.0066]
+  + centralised: +0.0105 [+0.0078, +0.0130]
+  smallest qualifying eps: None
+  2785 s, peak memory 2421.0 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week12/ensemble_HI-Medium.json
+  report   /home/allu786ansari/FinMesh/docs/eval/ensemble_HI-Medium.md
+    done in 46 min
+
+==> 04:27 uv run finmesh ensemble --dataset LI-Medium
+  seed 0 gbdt: 9 s
+  seed 0 autoencoder: 18 s
+  seed 0 score: 687 s
+  seed 0 stack: 38 s
+  seed 1 gbdt: 10 s
+  seed 1 autoencoder: 18 s
+  seed 1 score: 653 s
+  seed 1 stack: 38 s
+  seed 2 gbdt: 9 s
+  seed 2 autoencoder: 18 s
+  seed 2 score: 579 s
+  seed 2 stack: 38 s
+  local ensemble AUPRC 0.0899
+  + dp1: -0.0010 [-0.0027, +0.0004]
+  + dp3: +0.0018 [+0.0002, +0.0030]
+  + dp10: +0.0058 [+0.0039, +0.0072]
+  + fedavg: +0.0025 [-0.0002, +0.0050]
+  + centralised: +0.0070 [+0.0047, +0.0092]
+  smallest qualifying eps: 3.0
+  2536 s, peak memory 2463.1 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week12/ensemble_LI-Medium.json
+  report   /home/allu786ansari/FinMesh/docs/eval/ensemble_LI-Medium.md
+    done in 42 min
+
+==> 05:09 finmesh g3
+  decision: local ensemble (no ε qualifies)
+  report   /home/allu786ansari/FinMesh/docs/gates/G3_evidence.md
+
+==> 05:09 pytest -m real_data
+...........................................s..........ss..ss..ss..ss.... [ 97%]
+..                                                                       [100%]
+
+week 12: all steps done

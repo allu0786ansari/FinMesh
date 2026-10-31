@@ -1,28 +1,60 @@
 {
   "regimes": {
     "HI": {
-      "clip": 1.0,
+      "clip": 10.0,
       "batch": 512,
-      "lr": 0.001,
-      "source": "dp-tune HI-Small",
+      "lr": 0.01,
+      "source": "dp-tune HI-Small (A19)",
       "local_steps": 20,
       "evidence": {
-        "run_id": "20261030T055104Z",
-        "holdout_auprc": 0.41577620236698565
+        "run_id": "20261030T123751Z",
+        "grid": "A19",
+        "holdout_auprc": 0.6518603917841207,
+        "non_private_holdout_auprc": 0.717632574291612
       }
     },
     "LI": {
-      "clip": 1.0,
-      "batch": 512,
-      "lr": 0.001,
-      "source": "dp-tune LI-Small",
+      "clip": 10.0,
+      "batch": 2048,
+      "lr": 0.01,
+      "source": "dp-tune LI-Small (A19)",
       "local_steps": 20,
       "evidence": {
-        "run_id": "20261030T060248Z",
-        "holdout_auprc": 0.15046333518559488
+        "run_id": "20261030T131609Z",
+        "grid": "A19",
+        "holdout_auprc": 0.2966028492290592,
+        "non_private_holdout_auprc": 0.41387310974622626
       }
     }
   },
   "name": "finmesh-dp-hparams",
-  "rule": "A18: DP-SGD clip norm, expected batch and learning rate chosen on the proxy federation of the same regime (HI-Small, LI-Small), never on the Medium sets."
+  "rule": "A18: DP-SGD clip norm, expected batch and learning rate chosen on the proxy federation of the same regime (HI-Small, LI-Small), never on the Medium sets.",
+  "history": {
+    "HI": [
+      {
+        "clip": 1.0,
+        "batch": 512,
+        "lr": 0.001,
+        "source": "dp-tune HI-Small",
+        "local_steps": 20,
+        "evidence": {
+          "run_id": "20261030T055104Z",
+          "holdout_auprc": 0.41577620236698565
+        }
+      }
+    ],
+    "LI": [
+      {
+        "clip": 1.0,
+        "batch": 512,
+        "lr": 0.001,
+        "source": "dp-tune LI-Small",
+        "local_steps": 20,
+        "evidence": {
+          "run_id": "20261030T060248Z",
+          "holdout_auprc": 0.15046333518559488
+        }
+      }
+    ]
+  }
 }
