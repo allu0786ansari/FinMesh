@@ -54,4 +54,4 @@ At S0–S3 the shape signature uses the owner's own features (records carry only
 | Pass | By | Date | Notes |
 | --- | --- | --- | --- |
 | 1 | Researcher | 31 Oct 2026 | Catalogue, stage mapping, shape signatures and rules written from the AMLworld pattern definitions |
-| 2 | Owner | _before the week-13 run_ | Read the catalogue and this page; record "agreed" or the change here and commit it before running `scripts/week13.sh` |
+| 2 | Owner | _before the week-13 run_ | agreed |
