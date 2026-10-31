@@ -174,6 +174,22 @@ Every result is reported whether or not its hypothesis holds; a missed target is
   - **If no ε qualifies,** the local ensemble is deployed and the DP scorer is reported as a finding (the proposal's risk table).
   - H2a and H2b are recorded on validation; test decides them.
 
+## 6d. Attribution and the real-bank check (amendment A20, week 13)
+
+- **X6 levels:** S0, S1, S2, S3 (ε = 2) and the pooled oracle, each with its frozen G2 fusion and linking rule; primary-budget alerts; seeds 0–2.
+- **Unit:** every pattern-labelled validation scheme, attributed through the incident holding most of its alerted accounts within 72 h; undetected schemes count as wrong in the primary metric.
+- **Information per level:**
+  - S0: the incident owner's own features (mean and max) and counts.
+  - S1: adds cross-member structure.
+  - S2: adds other members' record counters.
+  - S3: those counters through k-RR at ε/20 per field.
+  - Oracle: pooled features of every row.
+- **Attributor:** multinomial LightGBM, fixed settings, cross-fitted on the two time halves of validation.
+- **Baselines:** majority class; rule-based shape detector; catalogue signature matching.
+- **H3a (validation):** S2 − S0 attributor accuracy, 95% scheme-bootstrap CI above 0, and S2's attributor above the majority and rule baselines.
+- **Stage accuracy:** reported only if no stage holds over 90% of schemes.
+- **Real-bank check (secondary):** X1 on A64, levels S0–S4, propagation, oracle and relational oracle, seeds 0–2, no sweeps or audit, validation only. Decides no hypothesis.
+
 ## 7. Seeds and statistics
 
 - **Seeds:**
