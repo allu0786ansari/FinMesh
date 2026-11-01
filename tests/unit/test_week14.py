@@ -418,16 +418,23 @@ def test_run_narrative_end_to_end_with_a_fake_model(
     def model(prompt: str, fmt: Any) -> str:
         import re
 
-        m = re.search(r'"typology_id" \(exactly "([^"]+)"\)', prompt) or re.search(
-            r'"typology_id" to "([^"]+)"', prompt
+        m = (
+            re.search(r'"typology_id" \(exactly "([^"]+)"\)', prompt)
+            or re.search(r'"typology_id" to "([^"]+)"', prompt)
+            or re.search(r'"typology_id": "([^"<]+)"\}', prompt)
         )
         assert m is not None
         return json.dumps(
             {"typology_id": m.group(1), "cited_fields": ["case_members"], "narrative": "Linked."}
         )
 
-    r = nar.run_narrative(fixture_paths, n=40, call=model)
+    r = nar.run_narrative(fixture_paths, n=40, call=model, protocol="A22")
     assert seen[-1] == ("S0", "S2") and r["protocol"] == "A22"
+    r23 = nar.run_narrative(fixture_paths, n=40, call=model)  # A23 is the default
+    assert r23["protocol"] == "A23" and r23["summary"]["final_consistent"] == 1.0
+    assert r23["topk"] is not None
+    page23 = render_narrative(r23, previous=r)
+    assert "Claim consistency (A23)" in page23 and "A22 → A23" in page23
     s = r["summary"]
     assert s["cases"] == 40 and s["H3b"]["grounding"]["estimate"] == 1.0
     assert s["strict_grounding"]["estimate"] == 1.0
@@ -568,3 +575,153 @@ def test_rerun_script_discards_a_narrative_made_while_the_server_was_down(tmp_pa
     fresh = f'set -euo pipefail\n{body}\nFRESH=1 discard_if_broken "{good2}"\n'
     subprocess.run(["bash", "-c", fresh], capture_output=True, text=True, check=True)
     assert not good2.exists()
+
+
+# --------------------------------------------------------------------------- A23
+def test_readings_follow_the_preregistered_words() -> None:
+    from finmesh.attribution.claims import reading
+
+    assert reading("own_max_fan_in", "0") == "no payers"
+    assert reading("own_max_fan_in", "1") == "one payer"
+    assert reading("own_max_fan_out", "2") == "two payees"
+    assert reading("own_max_fan_out", "9") == "several payees"
+    assert reading("own_max_fan_out", "12") == "many payees"
+    assert reading("others_fan_in", "below 1") == "no payers"
+    assert reading("others_fan_in", "at least 3, below 5") == "several payers"
+    assert reading("others_tx_out", "50 or more") == "many outgoing transfers"
+    assert reading("own_max_cycles", "0") == "no cycles"
+    assert reading("own_mean_pass_through", "0.04") == "none passed on"
+    assert reading("own_mean_pass_through", "0.38") == "under half passed on"
+    assert reading("own_mean_pass_through", "0.6") == "most passed on"
+    assert reading("own_mean_pass_through", "0.91") == "nearly all passed on"
+    assert reading("others_pass_through", "below 0.2") == "under half passed on"
+    assert reading("others_cross_bank_share", "at least 0.25, below 0.75") == (
+        "under half with other banks"
+    )  # read by its lower bound: never over-claims
+    assert reading("own_max_amount_out", "15,235") is None
+    assert reading("case_accounts", "9") is None
+
+
+def test_claim_check_ties_claims_to_evidence() -> None:
+    from finmesh.attribution.claims import claim_check, number_words
+
+    low = {"own_mean_pass_through": "0.00", "own_max_fan_in": "1", "own_max_fan_out": "0",
+           "others_fan_in": "below 1", "own_max_cycles": "0"}  # fmt: skip
+    high = low | {"own_mean_pass_through": "0.91", "others_fan_in": "at least 5, below 10",
+                  "own_max_cycles": "2", "own_max_fan_out": "12"}  # fmt: skip
+    copied = (
+        "Several accounts at your bank received money from many payers and passed most of it on."
+    )
+    bad = claim_check(copied, low)
+    assert bad["claims"] == ["many_payers", "pass_through"] and not bad["consistent"]
+    assert claim_check(copied, high)["consistent"]
+    for text, family in (
+        ("Funds were sent to many recipients.", "many_payees"),
+        ("Money returned to the first account.", "cycle"),
+        ("The money was consolidated in one account.", "gathered"),
+        ("The sum was split across accounts.", "split"),
+        ("Funds moved through several layers.", "layered"),
+    ):
+        got = claim_check(text, low)
+        assert family in got["unsupported"], text
+    assert "layered" in claim_check("Funds moved through layers.", high)["unsupported"]
+    # Negated, low and hedged sentences are not high claims.
+    ok = (
+        "No money was passed on. One payer sent funds. The analyst could check whether a "
+        "CYCLE or many payers explain it."
+    )
+    assert claim_check(ok, low)["consistent"]
+    assert claim_check("<two to four sentences>", low)["copied"]
+    assert number_words("six hours, twenty-four accounts, one payer, a hundred") == {
+        6.0,
+        24.0,
+        100.0,
+    }
+
+
+def _a23_case() -> dict[str, Any]:
+    cat = load_catalogue()
+    row = _row() | {"own_mean_pass_through": 0.0, "own_max_fan_in": 1.0, "own_max_fan_out": 0.0,
+                    "rec_max_c_fan_in": 0.0, "rec_max_c_pass_through": 0.0}  # fmt: skip
+    return build_case(row, CLASSES, _proba("CYCLE", 0.3), 0.5, cat, 6)
+
+
+def test_a23_prompt_words_the_evidence_and_has_no_content_example() -> None:
+    cat = load_catalogue()
+    case = _a23_case()
+    p = build_prompt(case, cat, "A23")
+    assert "own_mean_pass_through = 0.00, none passed on" in p
+    assert "own_max_fan_in = 1, one payer" in p
+    assert "received money from many payers" not in p  # the A22 example is gone
+    assert '"typology_id": "UNATTRIBUTED"}' in p and "<two to four sentences" in p
+
+
+def test_a23_retries_unsupported_claims_and_its_template_is_safe() -> None:
+    from finmesh.attribution.claims import claim_check
+
+    cat = load_catalogue()
+    case = _a23_case()
+
+    def reply(text: str) -> str:
+        return json.dumps(
+            {"narrative": text, "cited_fields": ["own_max_fan_in"], "typology_id": UNATTRIBUTED}
+        )
+
+    good = "One account at your bank received money from one payer and none of it was passed on."
+    ok = narrate(case, cat, FakeModel([reply(good)]), protocol="A23")
+    assert ok["final_source"] == "first" and ok["first"]["strict"] and ok["final_consistent"]
+    copied = "Several accounts received money from many payers and passed most of it on."
+    fixed = narrate(case, cat, FakeModel([reply(copied), reply(good)]), protocol="A23")
+    assert fixed["first"]["grounded"] and not fixed["first"]["strict"]
+    assert fixed["first"]["unsupported"] == ["many_payers", "pass_through"]
+    assert fixed["final_source"] == "retry"
+    words = narrate(case, cat, FakeModel([reply("It spans seventy hours."), reply(good)]), "A23")
+    assert not words["first"]["number_words_ok"] and words["final_source"] == "retry"
+    both_bad = narrate(case, cat, FakeModel([reply(copied), reply(copied)]), protocol="A23")
+    assert both_bad["final_source"] == "template" and both_bad["final_consistent"]
+    t = template_narrative(case, "A23")
+    assert claim_check(t, {e["field"]: e["value"] for e in case["evidence"]})["consistent"]
+    assert "one payer" in t and "none passed on" in t
+
+
+def test_blind_ab_review_round_trip(tmp_path: Path) -> None:
+    import csv
+
+    from finmesh.attribution.narrative_report import render_review, score_review, write_review_ab
+
+    cat = load_catalogue()
+    case = _a23_case()
+    copied = "Several accounts received money from many payers and passed most of it on."
+    results = []
+    for i in range(40):
+        text = copied if i % 2 else "One payer; none of it was passed on."
+        raw = json.dumps({"narrative": text, "cited_fields": ["own_max_fan_in"],
+                          "typology_id": UNATTRIBUTED})  # fmt: skip
+        model = FakeModel([raw, raw]) if i % 2 else FakeModel([raw])
+        res = narrate(case | {"scheme_id": i}, cat, model, protocol="A23")
+        if i % 2:  # keep the unfaithful text as delivered, to test the checker's agreement
+            res["narrative"], res["final_source"] = copied, "first"
+        results.append(res)
+    sheet, key = tmp_path / "review.csv", tmp_path / "key.csv"
+    write_review_ab({"cases": results}, sheet, key)
+    rows = list(csv.DictReader(sheet.open()))
+    assert len(rows) == 30 and "pattern" not in rows[0]
+    keyrows = {int(k["case"]): k for k in csv.DictReader(key.open())}
+    assert {k["A"] for k in keyrows.values()} == {"model", "template"}  # both orders occur
+    # Rate as a careful reader would: the copied text is unfaithful, everything else faithful.
+    for row in rows:
+        k = keyrows[int(row["case"])]
+        for side in ("A", "B"):
+            faithful = "no" if row[f"narrative {side}"] == copied else "yes"
+            row[f"faithful {side} (yes/partly/no)"] = faithful
+            row[f"useful {side} (1-3)"] = "1" if faithful == "no" else "2"
+        row["prefer (A/B/same)"] = "A" if k["A"] == "template" else "B"
+    with sheet.open("w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=list(rows[0]))
+        w.writeheader()
+        w.writerows(rows)
+    s = score_review(sheet, key)
+    assert s["rated"] == 30 and s["prefer"]["template"] == 30
+    assert s["sources"]["template"]["faithful_yes"] == 1.0
+    assert s["checker"]["agreement"] == 1.0 and s["checker"]["kappa"] == pytest.approx(1.0)
+    assert "Cohen's kappa" in render_review(s, "DS")

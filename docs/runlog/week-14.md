@@ -4,7 +4,76 @@
 - RQ3, part 2: give the analyst a short, grounded narrative for each detected case, written by a local model that cannot change the decision, and measure how often its raw output is grounded (H3b).
 - External validity of the headline: replace the single real-bank point (A64) with a **coverage curve**, the sharing gain as the federation grows from 10% to 100% of accounts.
 
-**State (1 Nov):** first run done on your machine (31 Oct – 1 Nov). The coverage curve is final; the narrative failed H3b, mostly for reasons in my prompt, so A22 fixes it and a rerun is needed: `bash scripts/week14_rerun.sh`. The original plan for the first run is kept below for the record.
+**State (1 Nov, night):** coverage curve final. Narrative: A21 failed on format; A22 fixed the format but the text was unfaithful; **A23, the final protocol, is ready to run:** `bash scripts/week14_a23.sh`, then your blind A/B review. The earlier sections are kept for the record.
+
+## Update 1 Nov night: A22 results and the final protocol (A23)
+
+### A22 rerun (your run, pushed 1 Nov 23:41)
+
+| | HI-Medium A21 → A22 | LI-Medium A21 → A22 |
+| --- | --- | --- |
+| H3b, grounded first replies (target 0.95) | 0.105 → **0.935** [0.892, 0.962] | 0.182 → **0.948** [0.874, 0.980] |
+| Strict grounding | — → 0.610 [0.541, 0.675] | — → 0.701 [0.592, 0.792] |
+| Template fallback | 64.5% → 1.5% | 45.5% → 0% |
+| Call errors | 59.5% → 0.5% | 39.0% → 1.3% |
+| Latency p50 / p95 | — → 45 s / 153 s | — → about 60 s / 362 s |
+| **Delivered text claim-consistent** (A23 rules, re-scored) | — → **17%** (34 of 200) | — → **5%** (4 of 77) |
+
+**The format was fixed, but the content was not.** 92% of narratives (183 of 200 on HI) reused the worked example's sentences. Of the 189 HI narratives that say most of the money was passed on, 138 have no pass-through of 0.5 or more anywhere in the evidence. Of the 152 that say "many payers", 124 have no fan-in of 3 or more. A small model copies a content example. H3b measures form, not truth, which is a finding for the paper. The A22 page shows the full results.
+
+**Top-3 candidates (secondary, A22):**
+
+| HI-Medium, all 551 schemes, end to end | Top 1 | Top 3 |
+| --- | --- | --- |
+| S0 | 0.133 | 0.410 |
+| S2 | 0.205 | 0.470 |
+| Three most frequent patterns | — | 0.312 |
+| S2 − S0 | +0.073 [0.036, 0.109] | +0.060 [0.013, 0.109] |
+| S2 − frequency | — | +0.158 [0.107, 0.212] |
+
+Sharing improves the candidate list the analyst sees. LI-Medium is underpowered: its S2 − S0 top-3 interval crosses 0.
+
+### Amendment A23 (pre-registered and pushed before any code: commit `7ad6ac0`), frozen for the test
+
+You decided on 1 Nov: one last iteration, then freeze, with week 15 in parallel.
+
+| Change | Why |
+| --- | --- |
+| The worked example is replaced by the reply's shape only (keys and placeholders) | The model copied the example's sentences |
+| Every count and share has a fixed plain-word reading: `own_mean_pass_through = 0.00, none passed on`, `own_max_fan_in = 1, one payer` | The model can copy true words instead of reading numbers. This is content planning from data-to-text generation |
+| Explicit rule: if the words say none, one, two or under half, never write many, several, most or high | Targets the A22 errors directly |
+| **Claim-consistency check:** per-sentence rules for pass-through, many payers or payees, cycles, gathering, splitting and layering; hedged sentences are skipped | Catches what form checks miss. It is part of strict grounding, so it triggers the retry and the fallback |
+| Number words ("six hours") count as numbers; placeholder text counts as copying | Closes two gaps in the A22 checks |
+| A new template with neutral wording and the same readings; it passes every check on all 277 cases | The A22 template's wording ("the most... paid out again") failed the new rules |
+| **Blind A/B review** of the model's text against the template | Shows whether the model adds anything, and tests the claim check against your judgement |
+
+### What you run now (overnight)
+
+```bash
+cd ~/FinMesh
+git pull
+uv sync
+bash scripts/ci_local.sh
+ollama serve            # second terminal, if not running
+bash scripts/week14_a23.sh 2>&1 | tee week14_a23.log
+```
+
+The A23 narrative runs on HI-Medium (200 cases) and LI-Medium (77). Expect about 4–6 hours, as for A22. Stop the script before `ollama serve`; it resumes if run again.
+
+**Then the blind review (about 45 min):** open `docs/eval/narrative_HI-Medium_A23_review.csv` in a spreadsheet. **Do not open** `narrative_HI-Medium_A23_review_KEY_do_not_open.csv`. Each of the 30 rows shows the evidence (with its readings), the candidates, and two narratives, A and B. For each narrative, using the evidence column only:
+
+- **faithful:** `yes` if every statement is in the evidence; `partly` if one statement goes beyond it; `no` if it misstates the evidence or presents a pattern as fact.
+- **useful:** `1` = no help; `2` = saves some reading; `3` = a clear, correct summary.
+- **prefer:** `A`, `B` or `same`.
+
+Save it as CSV with the same name, then:
+
+```bash
+uv run finmesh narrative-review --dataset HI-Medium
+git add docs/eval/ week14_a23.log
+git commit -m "Week 14: A23 narrative and blind review"
+git push
+```
 
 ## Update 1 Nov: what the first run showed, and the A22 rerun
 

@@ -1047,7 +1047,12 @@ def cmd_coverage(args: argparse.Namespace) -> int:
 def cmd_narrative(args: argparse.Namespace) -> int:
     """A21/A22, H3b: constrained narratives for sampled S2 cases with a local model."""
     from finmesh.attribution.narrative import run_narrative
-    from finmesh.attribution.narrative_report import render_narrative, write_cases, write_review
+    from finmesh.attribution.narrative_report import (
+        render_narrative,
+        write_cases,
+        write_review,
+        write_review_ab,
+    )
     from finmesh.data.manifest import load_manifest
     from finmesh.eval.provenance import Stamp, read_artifact, write_artifact
 
@@ -1086,15 +1091,23 @@ def cmd_narrative(args: argparse.Namespace) -> int:
     out_dir = out_root if args.dataset == FIXTURE_DATASET else REPO_ROOT / "docs" / "eval"
     out_dir.mkdir(parents=True, exist_ok=True)
     previous = None
-    first_run = out_root / f"narrative_{base}.json"
-    if args.protocol != "A21" and first_run.exists():
-        previous = read_artifact(first_run)[1]
+    before = {"A22": f"narrative_{base}.json", "A23": f"narrative_{base}_A22.json"}
+    if args.protocol in before and (out_root / before[args.protocol]).exists():
+        previous = read_artifact(out_root / before[args.protocol])[1]
     report = out_dir / f"narrative_{name}.md"
     report.write_text(render_narrative(result, previous))
     cases = write_cases(result, out_dir / f"narrative_{name}_cases.jsonl")
-    if args.protocol != "A21":
+    if args.protocol == "A22":
         review = write_review(result, out_dir / f"narrative_{name}_review.csv")
         print(f"  review   {review} (rate these blind; see the run log)")
+    if args.protocol == "A23":
+        review = write_review_ab(
+            result,
+            out_dir / f"narrative_{name}_review.csv",
+            out_dir / f"narrative_{name}_review_KEY_do_not_open.csv",
+        )
+        print(f"  review   {review} (rate these blind; see the run log)")
+        print(f"  claim-consistent delivered text {result['summary']['final_consistent']}")
         st = result["summary"]["strict_grounding"]
         if st["estimate"] is not None:
             print(f"  strict grounding {st['estimate']:.3f} [{st['low']:.3f}, {st['high']:.3f}]")
@@ -1111,6 +1124,35 @@ def cmd_narrative(args: argparse.Namespace) -> int:
     print(f"  artifact {artifact}")
     print(f"  report   {report}")
     print(f"  cases    {cases}")
+    return 0
+
+
+def cmd_narrative_review(args: argparse.Namespace) -> int:
+    """A23: score the owner's blind A/B ratings against the hidden key."""
+    from finmesh.attribution.narrative_report import render_review, score_review
+
+    paths = dataset_paths(args.dataset)
+    out_dir = (
+        data_root() / "artifacts" / "week14"
+        if args.dataset == FIXTURE_DATASET
+        else REPO_ROOT / "docs" / "eval"
+    )
+    name = f"narrative_{option_tag(paths.name, args.option)}_A23"
+    rated = out_dir / f"{name}_review.csv"
+    key = out_dir / f"{name}_review_KEY_do_not_open.csv"
+    if not rated.exists() or not key.exists():
+        print(f"  {rated.name} or its key is missing; run `finmesh narrative` (A23) first")
+        return 1
+    result = score_review(rated, key)
+    if not result["rated"]:
+        print(f"  no rated rows in {rated}; fill in the faithful and useful columns first")
+        return 1
+    report = out_dir / f"{name}_review_result.md"
+    report.write_text(render_review(result, paths.name))
+    for src, v in result["sources"].items():
+        print(f"  {src:<9} faithful yes {v['faithful_yes']}  useful {v['useful_mean']}")
+    print(f"  preferred {result['prefer']}; claim check kappa {result['checker']['kappa']}")
+    print(f"  report   {report}")
     return 0
 
 
@@ -1395,8 +1437,13 @@ def build_parser() -> argparse.ArgumentParser:
     nr.add_argument(
         "--timeout", type=float, default=None, help="seconds per call (A21: 120, A22: 600)"
     )
-    nr.add_argument("--protocol", default="A22", choices=["A21", "A22"])
+    nr.add_argument("--protocol", default="A23", choices=["A21", "A22", "A23"])
     nr.set_defaults(func=cmd_narrative)
+
+    rv = sub.add_parser("narrative-review", help="A23: score the owner's blind A/B review")
+    rv.add_argument("--dataset", required=True)
+    rv.add_argument("--option", default="B8")
+    rv.set_defaults(func=cmd_narrative_review)
 
     cv = sub.add_parser("coverage", help="A21 coverage curve from the X1 artifacts (week 14)")
     cv.add_argument("--dataset", required=True)

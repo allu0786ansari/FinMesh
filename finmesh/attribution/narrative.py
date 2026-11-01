@@ -42,6 +42,7 @@ from typing import Any
 import numpy as np
 import polars as pl
 
+from finmesh.attribution.claims import claim_check, number_words, reading
 from finmesh.attribution.llm_probe import DEFAULT_MODEL, assert_local, call_ollama
 from finmesh.sharing.evidence import load_evidence_schema
 
@@ -55,10 +56,10 @@ SAMPLE_SEED = 0
 LATENCY_TARGET_S = 30.0
 GROUNDING_TARGET = 0.95
 NARRATIVE_MAX_CHARS = 900
-PROTOCOLS: tuple[str, ...] = ("A21", "A22")
+PROTOCOLS: tuple[str, ...] = ("A21", "A22", "A23")
 # Bounds a runaway reply; a cut-off reply fails the check and is retried.
-MAX_TOKENS = {"A21": 320, "A22": 400}
-TIMEOUT_S = {"A21": 120.0, "A22": 600.0}
+MAX_TOKENS = {"A21": 320, "A22": 400, "A23": 400}
+TIMEOUT_S = {"A21": 120.0, "A22": 600.0, "A23": 600.0}
 MAX_CITED = 4
 
 
@@ -293,7 +294,82 @@ def shown(case: dict[str, Any]) -> list[dict[str, str]]:
 def build_prompt(case: dict[str, Any], catalogue: dict[str, Any], protocol: str = "A22") -> str:
     if protocol == "A21":
         return build_prompt_a21(case, catalogue)
+    if protocol == "A23":
+        return build_prompt_a23(case, catalogue)
     return build_prompt_a22(case, catalogue)
+
+
+def evidence_line(ev: dict[str, str]) -> str:
+    """A23 evidence line: the value, its fixed plain-word reading, and its meaning."""
+    words = reading(ev["field"], ev["value"])
+    said = f"{ev['value']}, {words}" if words else ev["value"]
+    return f"{ev['field']} = {said} ({ev['label']})"
+
+
+def build_prompt_a23(case: dict[str, Any], catalogue: dict[str, Any]) -> str:
+    """A23: worded evidence, the reply's shape instead of a content example, and explicit
+    rules against the claims A22 got wrong."""
+    entries = {e["id"]: e for e in catalogue["entries"]}
+    expected = case["assigned"]
+    if expected == UNATTRIBUTED:
+        decision = (
+            "The attributor is not confident about the pattern, so the case is UNATTRIBUTED. "
+            "You may say which candidate patterns the analyst could check, but do not claim that "
+            "the case matches any of them. Name no pattern that is not a candidate."
+        )
+        ids = [c["id"] for c in case["candidates"]]
+        heading = "Candidate patterns to check"
+    else:
+        decision = (
+            f"The pattern has been assigned: {expected}. Do not argue for another pattern and "
+            "name no other pattern."
+        )
+        ids = [expected]
+        heading = "Assigned pattern"
+    reference = [
+        f"- {line}: {entries[i]['description']}"
+        for i, line in zip(ids, _confidence_lines(case), strict=True)
+    ]
+    lines: list[str] = []
+    section = None
+    for ev in shown(case):
+        if ev["section"] != section:
+            section = ev["section"]
+            lines.append(f"{section}:")
+        lines.append(evidence_line(ev))
+    shape = (
+        '{"narrative": "<two to four sentences about this case>", '
+        '"cited_fields": ["<one to four field names from the evidence>"], '
+        f'"typology_id": "{expected}"}}'
+    )
+    return "\n".join(
+        [
+            "You help an anti-money-laundering analyst write a short summary of one case.",
+            "",
+            "Rules:",
+            "- Describe only what the evidence lines below state. After each value comes its "
+            "meaning in plain words; use those words. Do not add facts, causes, names, accounts "
+            "or dates.",
+            "- If the words say none, no, one, two or under half, say exactly that. Never "
+            "describe such a value as many, several, most or high.",
+            "- Copy any number exactly as written. Do not calculate or round.",
+            "- The pattern descriptions are general reference: they say what a pattern looks like "
+            "in general, NOT what happened in this case. Never present them as observations, and "
+            "do not say that money was gathered, split, scattered, layered, cycled or returned "
+            "unless an evidence line says so.",
+            f"- {decision}",
+            "- Do not recommend actions; they are added separately.",
+            "- Reply with one JSON object in exactly this shape, replacing the parts in angle "
+            "brackets:",
+            shape,
+            "",
+            f"{heading} (general reference, not observations about this case):",
+            *reference,
+            "",
+            "Evidence about this case:",
+            *lines,
+        ]
+    )
 
 
 def _confidence_lines(case: dict[str, Any]) -> list[str]:
@@ -424,7 +500,7 @@ def build_prompt_a21(case: dict[str, Any], catalogue: dict[str, Any]) -> str:
 
 def reply_schema(expected: str, fields: list[str], protocol: str = "A22") -> dict[str, Any]:
     """The schema for the constrained retry: only the assigned typology, only real fields."""
-    if protocol == "A22":
+    if protocol in ("A22", "A23"):
         return {
             "type": "object",
             "properties": {
@@ -553,6 +629,8 @@ def template_narrative(case: dict[str, Any], protocol: str = "A22") -> str:
     """Deterministic fallback, built only from the evidence values (grounded by construction)."""
     if protocol == "A21":
         return template_narrative_a21(case)
+    if protocol == "A23":
+        return template_narrative_a23(case)
     ev = {e["field"]: e["value"] for e in case["evidence"]}
     if case["assigned"] == UNATTRIBUTED:
         what = "The pattern is unattributed; candidates to check: " + ", ".join(
@@ -566,6 +644,30 @@ def template_narrative(case: dict[str, Any], protocol: str = "A22") -> str:
         f"are at your bank. {what}. At your bank, the most distinct payees of one account: "
         f"{ev['own_max_fan_out']}; the most distinct payers: {ev['own_max_fan_in']}; mean share "
         f"of inflow paid out again: {ev['own_mean_pass_through']}."
+    )
+
+
+def template_narrative_a23(case: dict[str, Any]) -> str:
+    """A23 template: the evidence values with their fixed readings, neutral wording only."""
+    ev = {e["field"]: e["value"] for e in case["evidence"]}
+
+    def said(field: str) -> str:
+        v = ev.get(field, "not available")
+        words = reading(field, v)
+        return f"{v} ({words})" if words else v
+
+    if case["assigned"] == UNATTRIBUTED:
+        what = "The pattern is unattributed; candidates to check: " + ", ".join(
+            c["id"] for c in case["candidates"]
+        )
+    else:
+        what = f"Assigned pattern: {case['assigned']}"
+    return (
+        f"The linked case holds {ev['case_accounts']} accounts at {ev['case_members']} "
+        f"federation members over {ev['case_span_hours']} hours, of which {ev['own_accounts']} "
+        f"are at your bank. {what}. At your bank: largest number of payees of one account, "
+        f"{said('own_max_fan_out')}; largest number of payers of one account, "
+        f"{said('own_max_fan_in')}; mean pass-through share, {said('own_mean_pass_through')}."
     )
 
 
@@ -618,6 +720,21 @@ def build_case(
     }
 
 
+def _a23_checks(res: dict[str, Any], ev: dict[str, str], known: set[float]) -> dict[str, Any]:
+    """A23 additions to strict grounding: claim consistency, number words, no copying."""
+    text = res.get("narrative") or ""
+    c = claim_check(text, ev)
+    words_ok = {round(x, 6) for x in number_words(text)} <= known
+    return {
+        "consistent": bool(text) and c["consistent"],
+        "claims": c["claims"],
+        "unsupported": c["unsupported"],
+        "copied": c["copied"],
+        "number_words_ok": words_ok,
+        "strict": bool(res["strict"] and c["consistent"] and not c["copied"] and words_ok),
+    }
+
+
 def narrate(
     case: dict[str, Any], catalogue: dict[str, Any], call: Call, protocol: str = "A22"
 ) -> dict[str, Any]:
@@ -630,6 +747,7 @@ def narrate(
     known = numbers_in(prompt) if protocol == "A21" else evidence_numbers(case)
     allowed = allowed_typologies(case)
     gate = "grounded" if protocol == "A21" else "strict"
+    ev_map = {e["field"]: e["value"] for e in case["evidence"]}
     t0 = time.perf_counter()
     errors: list[str] = []
 
@@ -641,7 +759,10 @@ def narrate(
                 raise ModelUnavailable(str(exc)) from exc
             errors.append(f"{type(exc).__name__}: {exc}"[:200])
             raw = ""
-        return {"raw": raw, **check_reply(raw, expected, fields, known, allowed, catalogue)}
+        res = {"raw": raw, **check_reply(raw, expected, fields, known, allowed, catalogue)}
+        if protocol == "A23":
+            res.update(_a23_checks(res, ev_map, known))
+        return res
 
     first = attempt("json", prompt)
     first_s = time.perf_counter() - t0
@@ -661,6 +782,7 @@ def narrate(
         template_narrative(case, protocol) if final_source == "template" else final["narrative"]
     )
     final_named = typologies_named(narrative, catalogue)
+    final_claims = claim_check(narrative, ev_map)
     return {
         **case,
         "prompt_chars": len(prompt),
@@ -670,6 +792,8 @@ def narrate(
         "narrative": narrative,
         "final_numeric": numbers_in(narrative) <= known,
         "final_mentions_ok": final_named <= allowed,
+        "final_consistent": final_claims["consistent"],
+        "final_unsupported": final_claims["unsupported"],
         "protocol": protocol,
         "latency_first_s": round(first_s, 3),
         "latency_total_s": round(time.perf_counter() - t0, 3),
@@ -721,6 +845,13 @@ def _wilson(k: int, n: int) -> dict[str, float | None]:
     return {"estimate": p, "low": float(centre - half), "high": float(centre + half)}
 
 
+def _count_claims(xs: list[str]) -> dict[str, int]:
+    out: dict[str, int] = {}
+    for x in xs:
+        out[x] = out.get(x, 0) + 1
+    return dict(sorted(out.items()))
+
+
 def summarise(results: list[dict[str, Any]]) -> dict[str, Any]:
     n = len(results)
     grounded = [r["first"]["grounded"] for r in results]
@@ -747,6 +878,16 @@ def summarise(results: list[dict[str, Any]]) -> dict[str, Any]:
             for k in ("cites_ok", "mentions_ok")
         },
         "final_mentions_ok": _rate([bool(r.get("final_mentions_ok", True)) for r in results]),
+        "final_consistent": _rate([bool(r.get("final_consistent")) for r in results]),
+        "first_consistent": _rate(
+            [bool(r["first"].get("consistent")) for r in results if "consistent" in r["first"]]
+        ),
+        "first_unsupported": _count_claims(
+            [u for r in results for u in r["first"].get("unsupported", [])]
+        ),
+        "final_unsupported": _count_claims(
+            [u for r in results for u in r.get("final_unsupported", [])]
+        ),
         "answered": sum(bool(r["first"]["raw"]) for r in results),
         "grounded_when_answered": _rate(
             [r["first"]["grounded"] for r in results if r["first"]["raw"]]
@@ -878,7 +1019,7 @@ def run_narrative(
     timeout: float | None = None,
     call: Call | None = None,
     progress: Callable[[str], None] | None = None,
-    protocol: str = "A22",
+    protocol: str = "A23",
 ) -> dict[str, Any]:
     from finmesh.eval.split_io import load_plan
     from finmesh.sysinfo import AnonPeak
@@ -931,7 +1072,7 @@ def run_narrative(
         "dataset": paths.name,
         "option": option,
         "protocol": protocol,
-        "topk": topk_analysis(r["tables"]) if protocol == "A22" else None,
+        "topk": topk_analysis(r["tables"]) if protocol != "A21" else None,
         "level": "S2",
         "seed": SAMPLE_SEED,
         "model": model,
