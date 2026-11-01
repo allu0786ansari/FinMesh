@@ -198,6 +198,16 @@ Every result is reported whether or not its hypothesis holds; a missed target is
 - **Model call:** llama3.2:3b, JSON-only, temperature 0; one schema-constrained retry; template fallback.
 - **H3b:** grounding rate of raw replies ≥ 0.95 (valid JSON, typology equals the assigned one or UNATTRIBUTED, cited fields all in the evidence). Numeric grounding, retry and fallback rates and latency are reported alongside.
 
+## 6f. Corrected narrative protocol (amendment A22, week 14 rerun)
+
+Fixed after the A21 validation run failed H3b and before its rerun; test still sealed; the A21 run is reported in full.
+
+- **Prompt:** `field_name = value` evidence lines; reply key order narrative → cited_fields → typology_id; 1–4 cited fields; one digit-free worked example; candidates as one-line descriptions marked as general reference, not observations; describe only what the evidence states.
+- **Calls:** llama3.2:3b, JSON-only first, temperature 0, timeout 600 s, cap 400 tokens; latency reported, not judged.
+- **H3b:** unchanged. **Strict grounding** (reported, and the trigger for retry and fallback): H3b + 1–4 cited fields + every narrative number in the evidence or confidence lines + no typology named outside the candidates.
+- **Typology:** τ rule unchanged. Secondary: top-1 and top-3 accuracy at S0 and S2 (seed 0), end to end and on detected schemes, scheme bootstrap, paired S2 − S0, against the training-half frequency top-3 and chance.
+- **Owner review:** 30 random HI-Medium cases rated blind to the true pattern for faithfulness and usefulness.
+
 ## 7. Seeds and statistics
 
 - **Seeds:**
