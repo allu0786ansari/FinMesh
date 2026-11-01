@@ -1,0 +1,581 @@
+  B8c10: 193 banks in 8 members
+  accounts held by members: 207,961 of 2,077,023 (10.0%)
+  written /home/allu786ansari/FinMesh/data/parquet/HI-Medium/membership_B8c10.parquet
+
+==> 14:47 uv run finmesh labels --dataset HI-Medium --option B8c10
+  frozen split plan -> /home/allu786ansari/FinMesh/docs/protocol/split_plan_HI-Medium.json
+  train account-windows 2,459,180  positives 8,013  masked 44  schemes 1582  multi-member 726
+  val   account-windows 617,670  positives 1,456  masked 1,739  schemes 551  multi-member 165
+  test  sealed (counts in data/sealed/.../meta.json)
+  slices 16  peak memory 937.5 MB
+    done in 1 min
+
+==> 14:49 uv run finmesh features --dataset HI-Medium --option B8c10
+  train account-windows 2,459,180
+  val   account-windows 617,670
+  test  account-windows 852,115
+  edges             7.1 s  peak 658 MB
+  neighbourhood    48.4 s  peak 1,145 MB
+  accounts         64.0 s  peak 292 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week04/features_HI-Medium_B8c10.json
+  report   /home/allu786ansari/FinMesh/docs/eval/features_HI-Medium_B8c10.md
+    done in 2 min
+
+==> 14:51 uv run finmesh features --dataset HI-Medium --option B8c10 --view pooled
+  train account-windows 2,459,180
+  val   account-windows 617,670
+  test  account-windows 852,115
+  edges             8.3 s  peak 326 MB
+  neighbourhood   116.8 s  peak 1,251 MB
+  merge            11.2 s  peak 724 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week04/features_HI-Medium_B8c10_pooled.json
+  report   /home/allu786ansari/FinMesh/docs/eval/features_HI-Medium_B8c10_pooled.md
+    done in 2 min
+
+==> 14:53 uv run finmesh x1 --dataset HI-Medium --option B8c10 --no-sweeps --no-audit
+  seed 0: 83 s
+  seed 1: 84 s
+  seed 2: 91 s
+  S0                 linked 0.006
+  S1/stacker         linked 0.059
+  S2/stacker         linked 0.062
+  S4/stacker         linked 0.057
+  propagation        linked 0.068
+  oracle             linked 0.042
+  oracle-relational  linked 0.052
+  S2 recovers 1.21 [0.96, 1.55] of the oracle-relational gain
+  S2 recovers 1.56 [1.16, 2.28] of the oracle gain
+  S2 recovers 0.88 [0.69, 1.09] of the strongest-pooled gain
+  264 s, peak memory 1060.5 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week09/x1_HI-Medium_B8c10.json
+  report   /home/allu786ansari/FinMesh/docs/eval/x1_HI-Medium_B8c10.md
+    done in 4 min
+  B8c25: 698 banks in 8 members
+  accounts held by members: 519,527 of 2,077,023 (25.0%)
+  written /home/allu786ansari/FinMesh/data/parquet/HI-Medium/membership_B8c25.parquet
+
+==> 14:58 uv run finmesh labels --dataset HI-Medium --option B8c25
+  frozen split plan -> /home/allu786ansari/FinMesh/docs/protocol/split_plan_HI-Medium.json
+  train account-windows 5,660,932  positives 15,030  masked 90  schemes 1582  multi-member 1056
+  val   account-windows 1,398,404  positives 3,031  masked 3,092  schemes 551  multi-member 306
+  test  sealed (counts in data/sealed/.../meta.json)
+  slices 16  peak memory 881.3 MB
+    done in 1 min
+
+==> 14:59 uv run finmesh features --dataset HI-Medium --option B8c25
+  train account-windows 5,660,932
+  val   account-windows 1,398,404
+  test  account-windows 1,954,229
+  edges             7.8 s  peak 644 MB
+  neighbourhood    66.5 s  peak 1,165 MB
+  accounts         93.0 s  peak 605 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week04/features_HI-Medium_B8c25.json
+  report   /home/allu786ansari/FinMesh/docs/eval/features_HI-Medium_B8c25.md
+    done in 2 min
+
+==> 15:02 uv run finmesh features --dataset HI-Medium --option B8c25 --view pooled
+  train account-windows 5,660,932
+  val   account-windows 1,398,404
+  test  account-windows 1,954,229
+  edges            13.0 s  peak 511 MB
+  neighbourhood   146.8 s  peak 1,191 MB
+  merge            37.2 s  peak 674 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week04/features_HI-Medium_B8c25_pooled.json
+  report   /home/allu786ansari/FinMesh/docs/eval/features_HI-Medium_B8c25_pooled.md
+    done in 3 min
+
+==> 15:05 uv run finmesh x1 --dataset HI-Medium --option B8c25 --no-sweeps --no-audit
+  seed 0: 203 s
+  seed 1: 201 s
+  seed 2: 196 s
+  S0                 linked 0.025
+  S1/stacker         linked 0.175
+  S2/stacker         linked 0.173
+  S4/stacker         linked 0.184
+  propagation        linked 0.185
+  oracle             linked 0.119
+  oracle-relational  linked 0.181
+  S2 recovers 0.95 [0.84, 1.09] of the oracle-relational gain
+  S2 recovers 1.58 [1.36, 1.93] of the oracle gain
+  S2 recovers 0.86 [0.76, 0.97] of the strongest-pooled gain
+  613 s, peak memory 1160.3 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week09/x1_HI-Medium_B8c25.json
+  report   /home/allu786ansari/FinMesh/docs/eval/x1_HI-Medium_B8c25.md
+    done in 10 min
+  B8c50: 2125 banks in 8 members
+  accounts held by members: 1,038,610 of 2,077,023 (50.0%)
+  written /home/allu786ansari/FinMesh/data/parquet/HI-Medium/membership_B8c50.parquet
+
+==> 15:16 uv run finmesh labels --dataset HI-Medium --option B8c50
+  frozen split plan -> /home/allu786ansari/FinMesh/docs/protocol/split_plan_HI-Medium.json
+  train account-windows 10,341,308  positives 23,729  masked 168  schemes 1582  multi-member 1399
+  val   account-windows 2,505,336  positives 5,183  masked 4,375  schemes 551  multi-member 460
+  test  sealed (counts in data/sealed/.../meta.json)
+  slices 16  peak memory 857.2 MB
+    done in 1 min
+
+==> 15:17 uv run finmesh features --dataset HI-Medium --option B8c50
+  train account-windows 10,341,308
+  val   account-windows 2,505,336
+  test  account-windows 3,548,604
+  edges             8.3 s  peak 642 MB
+  neighbourhood   100.3 s  peak 1,155 MB
+  accounts        141.1 s  peak 991 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week04/features_HI-Medium_B8c50.json
+  report   /home/allu786ansari/FinMesh/docs/eval/features_HI-Medium_B8c50.md
+    done in 4 min
+
+==> 15:21 uv run finmesh features --dataset HI-Medium --option B8c50 --view pooled
+  train account-windows 10,341,308
+  val   account-windows 2,505,336
+  test  account-windows 3,548,604
+  edges            11.3 s  peak 332 MB
+  neighbourhood   119.2 s  peak 1,287 MB
+  merge            20.2 s  peak 875 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week04/features_HI-Medium_B8c50_pooled.json
+  report   /home/allu786ansari/FinMesh/docs/eval/features_HI-Medium_B8c50_pooled.md
+    done in 2 min
+
+==> 15:24 uv run finmesh x1 --dataset HI-Medium --option B8c50 --no-sweeps --no-audit
+  seed 0: 403 s
+  seed 1: 379 s
+  seed 2: 403 s
+  S0                 linked 0.090
+  S1/stacker         linked 0.422
+  S2/stacker         linked 0.444
+  S4/stacker         linked 0.430
+  propagation        linked 0.440
+  oracle             linked 0.330
+  oracle-relational  linked 0.426
+  S2 recovers 1.05 [0.98, 1.14] of the oracle-relational gain
+  S2 recovers 1.48 [1.33, 1.66] of the oracle gain
+  S2 recovers 1.05 [0.98, 1.14] of the strongest-pooled gain
+  1206 s, peak memory 1349.3 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week09/x1_HI-Medium_B8c50.json
+  report   /home/allu786ansari/FinMesh/docs/eval/x1_HI-Medium_B8c50.md
+    done in 20 min
+  B8c75: 7163 banks in 8 members
+  accounts held by members: 1,557,771 of 2,077,023 (75.0%)
+  written /home/allu786ansari/FinMesh/data/parquet/HI-Medium/membership_B8c75.parquet
+
+==> 15:44 uv run finmesh labels --dataset HI-Medium --option B8c75
+  frozen split plan -> /home/allu786ansari/FinMesh/docs/protocol/split_plan_HI-Medium.json
+  train account-windows 14,241,169  positives 28,863  masked 244  schemes 1582  multi-member 1526
+  val   account-windows 3,384,250  positives 6,531  masked 4,722  schemes 551  multi-member 519
+  test  sealed (counts in data/sealed/.../meta.json)
+  slices 16  peak memory 873.5 MB
+    done in 1 min
+
+==> 15:46 uv run finmesh features --dataset HI-Medium --option B8c75
+  train account-windows 14,241,169
+  val   account-windows 3,384,250
+  test  account-windows 4,855,224
+  edges             8.2 s  peak 624 MB
+  neighbourhood   161.5 s  peak 1,050 MB
+  accounts        442.2 s  peak 1,044 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week04/features_HI-Medium_B8c75.json
+  report   /home/allu786ansari/FinMesh/docs/eval/features_HI-Medium_B8c75.md
+    done in 10 min
+
+==> 15:56 uv run finmesh features --dataset HI-Medium --option B8c75 --view pooled
+  train account-windows 14,241,169
+  val   account-windows 3,384,250
+  test  account-windows 4,855,224
+  edges            19.4 s  peak 313 MB
+  neighbourhood   222.4 s  peak 1,014 MB
+  merge           110.6 s  peak 847 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week04/features_HI-Medium_B8c75_pooled.json
+  report   /home/allu786ansari/FinMesh/docs/eval/features_HI-Medium_B8c75_pooled.md
+    done in 5 min
+
+==> 16:02 uv run finmesh x1 --dataset HI-Medium --option B8c75 --no-sweeps --no-audit
+  seed 0: 681 s
+  seed 1: 650 s
+  seed 2: 651 s
+  S0                 linked 0.145
+  S1/stacker         linked 0.616
+  S2/stacker         linked 0.630
+  S4/stacker         linked 0.600
+  propagation        linked 0.610
+  oracle             linked 0.541
+  oracle-relational  linked 0.652
+  S2 recovers 0.96 [0.90, 1.00] of the oracle-relational gain
+  S2 recovers 1.22 [1.14, 1.31] of the oracle gain
+  S2 recovers 0.96 [0.90, 1.00] of the strongest-pooled gain
+  2013 s, peak memory 1686.9 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week09/x1_HI-Medium_B8c75.json
+  report   /home/allu786ansari/FinMesh/docs/eval/x1_HI-Medium_B8c75.md
+    done in 33 min
+  B8c90: 40547 banks in 8 members
+  accounts held by members: 1,869,323 of 2,077,023 (90.0%)
+  written /home/allu786ansari/FinMesh/data/parquet/HI-Medium/membership_B8c90.parquet
+
+==> 16:36 uv run finmesh labels --dataset HI-Medium --option B8c90
+  frozen split plan -> /home/allu786ansari/FinMesh/docs/protocol/split_plan_HI-Medium.json
+  train account-windows 14,791,614  positives 28,909  masked 707  schemes 1582  multi-member 1527
+  val   account-windows 3,392,135  positives 6,539  masked 4,859  schemes 551  multi-member 522
+  test  sealed (counts in data/sealed/.../meta.json)
+  slices 16  peak memory 830.3 MB
+    done in 1 min
+
+==> 16:38 uv run finmesh features --dataset HI-Medium --option B8c90
+  train account-windows 14,791,614
+  val   account-windows 3,392,135
+  test  account-windows 5,051,145
+  edges            11.8 s  peak 584 MB
+  neighbourhood   153.9 s  peak 1,136 MB
+  accounts        250.3 s  peak 1,206 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week04/features_HI-Medium_B8c90.json
+  report   /home/allu786ansari/FinMesh/docs/eval/features_HI-Medium_B8c90.md
+    done in 6 min
+
+==> 16:45 uv run finmesh features --dataset HI-Medium --option B8c90 --view pooled
+  train account-windows 14,791,614
+  val   account-windows 3,392,135
+  test  account-windows 5,051,145
+  edges            11.6 s  peak 334 MB
+  neighbourhood   140.9 s  peak 1,131 MB
+  merge            30.8 s  peak 987 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week04/features_HI-Medium_B8c90_pooled.json
+  report   /home/allu786ansari/FinMesh/docs/eval/features_HI-Medium_B8c90_pooled.md
+    done in 3 min
+
+==> 16:48 uv run finmesh x1 --dataset HI-Medium --option B8c90 --no-sweeps --no-audit
+  seed 0: 579 s
+  seed 1: 594 s
+  seed 2: 555 s
+  S0                 linked 0.160
+  S1/stacker         linked 0.684
+  S2/stacker         linked 0.690
+  S4/stacker         linked 0.658
+  propagation        linked 0.665
+  oracle             linked 0.626
+  oracle-relational  linked 0.712
+  S2 recovers 0.96 [0.91, 1.01] of the oracle-relational gain
+  S2 recovers 1.14 [1.08, 1.21] of the oracle gain
+  S2 recovers 0.96 [0.91, 1.01] of the strongest-pooled gain
+  1757 s, peak memory 1686.7 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week09/x1_HI-Medium_B8c90.json
+  report   /home/allu786ansari/FinMesh/docs/eval/x1_HI-Medium_B8c90.md
+    done in 29 min
+
+==> 17:17 coverage curve HI-Medium
+  A64     covered   6.9%  S0 0.002  S2 0.004
+  B8c10   covered  14.5%  S0 0.006  S2 0.062
+  B8c25   covered  35.5%  S0 0.025  S2 0.173
+  B8c50   covered  69.0%  S0 0.090  S2 0.444
+  B8c75   covered  99.7%  S0 0.145  S2 0.630
+  B8c90   covered 100.0%  S0 0.160  S2 0.690
+  B8      covered 100.0%  S0 0.174  S2 0.736
+  report   /home/allu786ansari/FinMesh/docs/eval/coverage_HI-Medium.md
+  B8c10: 185 banks in 8 members
+  accounts held by members: 203,285 of 2,032,095 (10.0%)
+  written /home/allu786ansari/FinMesh/data/parquet/LI-Medium/membership_B8c10.parquet
+
+==> 17:18 uv run finmesh labels --dataset LI-Medium --option B8c10
+  frozen split plan -> /home/allu786ansari/FinMesh/docs/protocol/split_plan_LI-Medium.json
+  train account-windows 2,380,970  positives 2,533  masked 24  schemes 247  multi-member 110
+  val   account-windows 596,844  positives 675  masked 277  schemes 93  multi-member 29
+  test  sealed (counts in data/sealed/.../meta.json)
+  slices 16  peak memory 916.5 MB
+    done in 1 min
+
+==> 17:19 uv run finmesh features --dataset LI-Medium --option B8c10
+  train account-windows 2,380,970
+  val   account-windows 596,844
+  test  account-windows 825,380
+  edges             9.9 s  peak 557 MB
+  neighbourhood    47.6 s  peak 1,060 MB
+  accounts         62.2 s  peak 283 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week04/features_LI-Medium_B8c10.json
+  report   /home/allu786ansari/FinMesh/docs/eval/features_LI-Medium_B8c10.md
+    done in 2 min
+
+==> 17:21 uv run finmesh features --dataset LI-Medium --option B8c10 --view pooled
+  train account-windows 2,380,970
+  val   account-windows 596,844
+  test  account-windows 825,380
+  edges             8.5 s  peak 374 MB
+  neighbourhood   135.0 s  peak 1,115 MB
+  merge            13.4 s  peak 593 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week04/features_LI-Medium_B8c10_pooled.json
+  report   /home/allu786ansari/FinMesh/docs/eval/features_LI-Medium_B8c10_pooled.md
+    done in 2 min
+
+==> 17:24 uv run finmesh x1 --dataset LI-Medium --option B8c10 --no-sweeps --no-audit
+  seed 0: 70 s
+  seed 1: 64 s
+  seed 2: 65 s
+  S0                 linked 0.004
+  S1/stacker         linked 0.050
+  S2/stacker         linked 0.057
+  S4/stacker         linked 0.054
+  propagation        linked 0.093
+  oracle             linked 0.075
+  oracle-relational  linked 0.082
+  S2 recovers 0.68 [0.41, 1.08] of the oracle-relational gain
+  S2 recovers 0.75 [0.39, 1.50] of the oracle gain
+  S2 recovers 0.44 [0.23, 0.63] of the strongest-pooled gain
+  205 s, peak memory 1060.4 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week09/x1_LI-Medium_B8c10.json
+  report   /home/allu786ansari/FinMesh/docs/eval/x1_LI-Medium_B8c10.md
+    done in 3 min
+  B8c25: 670 banks in 8 members
+  accounts held by members: 508,188 of 2,032,095 (25.0%)
+  written /home/allu786ansari/FinMesh/data/parquet/LI-Medium/membership_B8c25.parquet
+
+==> 17:27 uv run finmesh labels --dataset LI-Medium --option B8c25
+  frozen split plan -> /home/allu786ansari/FinMesh/docs/protocol/split_plan_LI-Medium.json
+  train account-windows 5,540,649  positives 5,871  masked 70  schemes 247  multi-member 190
+  val   account-windows 1,367,826  positives 1,570  masked 491  schemes 93  multi-member 50
+  test  sealed (counts in data/sealed/.../meta.json)
+  slices 16  peak memory 850.6 MB
+    done in 1 min
+
+==> 17:29 uv run finmesh features --dataset LI-Medium --option B8c25
+  train account-windows 5,540,649
+  val   account-windows 1,367,826
+  test  account-windows 1,913,222
+  edges             9.5 s  peak 420 MB
+  neighbourhood    67.4 s  peak 1,060 MB
+  accounts         93.6 s  peak 585 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week04/features_LI-Medium_B8c25.json
+  report   /home/allu786ansari/FinMesh/docs/eval/features_LI-Medium_B8c25.md
+    done in 2 min
+
+==> 17:32 uv run finmesh features --dataset LI-Medium --option B8c25 --view pooled
+  train account-windows 5,540,649
+  val   account-windows 1,367,826
+  test  account-windows 1,913,222
+  edges             9.1 s  peak 398 MB
+  neighbourhood   131.1 s  peak 1,062 MB
+  merge            15.7 s  peak 705 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week04/features_LI-Medium_B8c25_pooled.json
+  report   /home/allu786ansari/FinMesh/docs/eval/features_LI-Medium_B8c25_pooled.md
+    done in 2 min
+
+==> 17:35 uv run finmesh x1 --dataset LI-Medium --option B8c25 --no-sweeps --no-audit
+  seed 0: 150 s
+  seed 1: 144 s
+  seed 2: 141 s
+  S0                 linked 0.054
+  S1/stacker         linked 0.276
+  S2/stacker         linked 0.265
+  S4/stacker         linked 0.251
+  propagation        linked 0.312
+  oracle             linked 0.301
+  oracle-relational  linked 0.326
+  S2 recovers 0.78 [0.60, 0.96] of the oracle-relational gain
+  S2 recovers 0.86 [0.65, 1.11] of the oracle gain
+  S2 recovers 0.69 [0.53, 0.82] of the strongest-pooled gain
+  446 s, peak memory 1026.1 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week09/x1_LI-Medium_B8c25.json
+  report   /home/allu786ansari/FinMesh/docs/eval/x1_LI-Medium_B8c25.md
+    done in 7 min
+  B8c50: 2042 banks in 8 members
+  accounts held by members: 1,016,064 of 2,032,095 (50.0%)
+  written /home/allu786ansari/FinMesh/data/parquet/LI-Medium/membership_B8c50.parquet
+
+==> 17:42 uv run finmesh labels --dataset LI-Medium --option B8c50
+  frozen split plan -> /home/allu786ansari/FinMesh/docs/protocol/split_plan_LI-Medium.json
+  train account-windows 10,128,163  positives 10,651  masked 149  schemes 247  multi-member 220
+  val   account-windows 2,453,695  positives 2,993  masked 709  schemes 93  multi-member 74
+  test  sealed (counts in data/sealed/.../meta.json)
+  slices 16  peak memory 883.2 MB
+    done in 1 min
+
+==> 17:44 uv run finmesh features --dataset LI-Medium --option B8c50
+  train account-windows 10,128,163
+  val   account-windows 2,453,695
+  test  account-windows 3,473,798
+  edges             8.7 s  peak 639 MB
+  neighbourhood   156.5 s  peak 854 MB
+  accounts        238.8 s  peak 903 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week04/features_LI-Medium_B8c50.json
+  report   /home/allu786ansari/FinMesh/docs/eval/features_LI-Medium_B8c50.md
+    done in 6 min
+
+==> 17:50 uv run finmesh features --dataset LI-Medium --option B8c50 --view pooled
+  train account-windows 10,128,163
+  val   account-windows 2,453,695
+  test  account-windows 3,473,798
+  edges            17.4 s  peak 346 MB
+  neighbourhood   215.8 s  peak 1,031 MB
+  merge            25.9 s  peak 863 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week04/features_LI-Medium_B8c50_pooled.json
+  report   /home/allu786ansari/FinMesh/docs/eval/features_LI-Medium_B8c50_pooled.md
+    done in 4 min
+
+==> 17:55 uv run finmesh x1 --dataset LI-Medium --option B8c50 --no-sweeps --no-audit
+  seed 0: 313 s
+  seed 1: 591 s
+  seed 2: 446 s
+  S0                 linked 0.129
+  S1/stacker         linked 0.566
+  S2/stacker         linked 0.563
+  S4/stacker         linked 0.541
+  propagation        linked 0.616
+  oracle             linked 0.588
+  oracle-relational  linked 0.685
+  S2 recovers 0.78 [0.66, 0.88] of the oracle-relational gain
+  S2 recovers 0.95 [0.83, 1.05] of the oracle gain
+  S2 recovers 0.78 [0.67, 0.86] of the strongest-pooled gain
+  1379 s, peak memory 1345.4 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week09/x1_LI-Medium_B8c50.json
+  report   /home/allu786ansari/FinMesh/docs/eval/x1_LI-Medium_B8c50.md
+    done in 23 min
+  B8c75: 6902 banks in 8 members
+  accounts held by members: 1,524,078 of 2,032,095 (75.0%)
+  written /home/allu786ansari/FinMesh/data/parquet/LI-Medium/membership_B8c75.parquet
+
+==> 18:18 uv run finmesh labels --dataset LI-Medium --option B8c75
+  frozen split plan -> /home/allu786ansari/FinMesh/docs/protocol/split_plan_LI-Medium.json
+  train account-windows 13,949,761  positives 14,424  masked 235  schemes 247  multi-member 240
+  val   account-windows 3,316,388  positives 4,191  masked 804  schemes 93  multi-member 89
+  test  sealed (counts in data/sealed/.../meta.json)
+  slices 16  peak memory 825.3 MB
+    done in 2 min
+
+==> 18:21 uv run finmesh features --dataset LI-Medium --option B8c75
+  train account-windows 13,949,761
+  val   account-windows 3,316,388
+  test  account-windows 4,753,202
+  edges            15.0 s  peak 438 MB
+  neighbourhood   183.7 s  peak 954 MB
+  accounts        275.5 s  peak 1,080 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week04/features_LI-Medium_B8c75.json
+  report   /home/allu786ansari/FinMesh/docs/eval/features_LI-Medium_B8c75.md
+    done in 7 min
+
+==> 18:29 uv run finmesh features --dataset LI-Medium --option B8c75 --view pooled
+  train account-windows 13,949,761
+  val   account-windows 3,316,388
+  test  account-windows 4,753,202
+  edges            22.8 s  peak 282 MB
+  neighbourhood   266.8 s  peak 1,072 MB
+  merge            29.9 s  peak 977 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week04/features_LI-Medium_B8c75_pooled.json
+  report   /home/allu786ansari/FinMesh/docs/eval/features_LI-Medium_B8c75_pooled.md
+    done in 5 min
+
+==> 18:34 uv run finmesh x1 --dataset LI-Medium --option B8c75 --no-sweeps --no-audit
+  seed 0: 464 s
+  seed 1: 496 s
+  seed 2: 518 s
+  S0                 linked 0.158
+  S1/stacker         linked 0.670
+  S2/stacker         linked 0.677
+  S4/stacker         linked 0.642
+  propagation        linked 0.767
+  oracle             linked 0.663
+  oracle-relational  linked 0.778
+  S2 recovers 0.84 [0.75, 0.94] of the oracle-relational gain
+  S2 recovers 1.03 [0.90, 1.18] of the oracle gain
+  S2 recovers 0.78 [0.70, 0.86] of the strongest-pooled gain
+  1512 s, peak memory 1647.7 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week09/x1_LI-Medium_B8c75.json
+  report   /home/allu786ansari/FinMesh/docs/eval/x1_LI-Medium_B8c75.md
+    done in 25 min
+  B8c90: 39562 banks in 8 members
+  accounts held by members: 1,828,888 of 2,032,095 (90.0%)
+  written /home/allu786ansari/FinMesh/data/parquet/LI-Medium/membership_B8c90.parquet
+
+==> 19:00 uv run finmesh labels --dataset LI-Medium --option B8c90
+  frozen split plan -> /home/allu786ansari/FinMesh/docs/protocol/split_plan_LI-Medium.json
+  train account-windows 14,490,060  positives 14,470  masked 712  schemes 247  multi-member 240
+  val   account-windows 3,324,400  positives 4,201  masked 945  schemes 93  multi-member 89
+  test  sealed (counts in data/sealed/.../meta.json)
+  slices 16  peak memory 773.1 MB
+    done in 2 min
+
+==> 19:03 uv run finmesh features --dataset LI-Medium --option B8c90
+  train account-windows 14,490,060
+  val   account-windows 3,324,400
+  test  account-windows 4,945,012
+  edges            18.5 s  peak 290 MB
+  neighbourhood   200.3 s  peak 935 MB
+  accounts        483.9 s  peak 1,083 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week04/features_LI-Medium_B8c90.json
+  report   /home/allu786ansari/FinMesh/docs/eval/features_LI-Medium_B8c90.md
+    done in 11 min
+
+==> 19:15 uv run finmesh features --dataset LI-Medium --option B8c90 --view pooled
+  train account-windows 14,490,060
+  val   account-windows 3,324,400
+  test  account-windows 4,945,012
+  edges            75.0 s  peak 268 MB
+  neighbourhood   131.0 s  peak 1,136 MB
+  merge            86.9 s  peak 927 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week04/features_LI-Medium_B8c90_pooled.json
+  report   /home/allu786ansari/FinMesh/docs/eval/features_LI-Medium_B8c90_pooled.md
+    done in 4 min
+
+==> 19:19 uv run finmesh x1 --dataset LI-Medium --option B8c90 --no-sweeps --no-audit
+  seed 0: 580 s
+  seed 1: 566 s
+  seed 2: 577 s
+  S0                 linked 0.143
+  S1/stacker         linked 0.659
+  S2/stacker         linked 0.667
+  S4/stacker         linked 0.645
+  propagation        linked 0.735
+  oracle             linked 0.677
+  oracle-relational  linked 0.799
+  S2 recovers 0.80 [0.70, 0.91] of the oracle-relational gain
+  S2 recovers 0.98 [0.87, 1.11] of the oracle gain
+  S2 recovers 0.76 [0.66, 0.85] of the strongest-pooled gain
+  1758 s, peak memory 1578.4 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week09/x1_LI-Medium_B8c90.json
+  report   /home/allu786ansari/FinMesh/docs/eval/x1_LI-Medium_B8c90.md
+    done in 29 min
+
+==> 19:49 coverage curve LI-Medium
+  A64     covered   6.9%  S0 0.000  S2 0.000
+  B8c10   covered  14.4%  S0 0.004  S2 0.057
+  B8c25   covered  35.4%  S0 0.054  S2 0.265
+  B8c50   covered  68.9%  S0 0.129  S2 0.563
+  B8c75   covered  99.7%  S0 0.158  S2 0.677
+  B8c90   covered 100.0%  S0 0.143  S2 0.667
+  B8      covered 100.0%  S0 0.154  S2 0.695
+  report   /home/allu786ansari/FinMesh/docs/eval/coverage_LI-Medium.md
+
+==> 19:49 uv run finmesh narrative --dataset HI-Medium --model llama3.2:3b --url http://localhost:11434
+  seed 0 levels: 450 s
+  seed 0 attribution: 16 s
+  narratives 25/200
+  narratives 50/200
+  narratives 75/200
+  narratives 100/200
+  narratives 125/200
+  narratives 150/200
+  narratives 175/200
+  narratives 200/200
+  tau none; cases 200
+  H3b grounding 0.105 [0.070, 0.155]
+  met on validation: False
+  fallback 0.645; latency p95 240.315 s
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week14/narrative_HI-Medium.json
+  report   /home/allu786ansari/FinMesh/docs/eval/narrative_HI-Medium.md
+  cases    /home/allu786ansari/FinMesh/docs/eval/narrative_HI-Medium_cases.jsonl
+    done in 626 min
+
+==> 06:15 uv run finmesh narrative --dataset LI-Medium --model llama3.2:3b --url http://localhost:11434
+  seed 0 levels: 323 s
+  seed 0 attribution: 16 s
+  narratives 25/77
+  narratives 50/77
+  narratives 75/77
+  tau none; cases 77
+  H3b grounding 0.182 [0.112, 0.282]
+  met on validation: False
+  fallback 0.45454545454545453; latency p95 240.362 s
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week14/narrative_LI-Medium.json
+  report   /home/allu786ansari/FinMesh/docs/eval/narrative_LI-Medium.md
+  cases    /home/allu786ansari/FinMesh/docs/eval/narrative_LI-Medium_cases.jsonl
+    done in 239 min
+
+==> 10:14 pytest -m real_data
+...........................................................s..........ss [ 80%]
+..ss..ss..ss......                                                       [100%]
+
+week 14: all steps done
