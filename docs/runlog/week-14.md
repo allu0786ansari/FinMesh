@@ -4,7 +4,96 @@
 - RQ3, part 2: give the analyst a short, grounded narrative for each detected case, written by a local model that cannot change the decision, and measure how often its raw output is grounded (H3b).
 - External validity of the headline: replace the single real-bank point (A64) with a **coverage curve**, the sharing gain as the federation grows from 10% to 100% of accounts.
 
-**State:** code complete and tested (unit cases with a scripted model, fixture pipeline, stress scale). One script runs every real-data step: `bash scripts/week14.sh`. It needs Ollama with llama3.2:3b on your machine.
+**State (1 Nov):** first run done on your machine (31 Oct – 1 Nov). The coverage curve is final; the narrative failed H3b, mostly for reasons in my prompt, so A22 fixes it and a rerun is needed: `bash scripts/week14_rerun.sh`. The original plan for the first run is kept below for the record.
+
+## Update 1 Nov: what the first run showed, and the A22 rerun
+
+### Coverage curve (final)
+
+| Federation (share of all accounts held) | HI S2 − S0 linked [95% CI] | Share of the B8 gain | S2 / relational oracle |
+| --- | --- | --- | --- |
+| A64 (4.7%) | 0.002 [−0.002, 0.007] | 0% | — |
+| B8c10 | 0.056 [0.040, 0.074] | 10% | 1.21 [0.96, 1.55] |
+| B8c25 | 0.148 [0.122, 0.176] | 26% | 0.95 [0.84, 1.09] |
+| B8c50 | 0.354 [0.313, 0.393] | 63% | 1.05 [0.98, 1.14] |
+| B8c75 | 0.485 [0.442, 0.528] | 86% | 0.96 [0.91, 1.00] |
+| B8c90 | 0.531 [0.488, 0.571] | 94% | 0.96 [0.92, 1.01] |
+| B8 (100%) | 0.562 [0.523, 0.603] | 100% | 0.98 [0.94, 1.02] |
+
+- **The gain grows steadily with coverage.** There is no threshold to cross. LI-Medium has the same shape (39% of the gain at 25%, 80% at 50%).
+- **The protocol keeps pace with pooling at every size.** S2 recovers 0.95–1.05 of the relational-oracle gain on HI-Medium at every point, and 0.68–0.84 on LI-Medium. H1b does not depend on who joins.
+- **Presentation fixes (no rerun of X1).**
+  - The x-axis is now the share of all accounts held. The first figure used validation-account share, which saturates: B8c75, B8c90 and B8 all sat at about 100%.
+  - The page now says that the alert budget scales with accounts held. From about 75% held, almost every account active in validation is covered, so the rest of the gain to B8 comes mainly from the larger budget (and the different grouping), not from reach.
+
+### Narrative, first run (A21): H3b failed
+
+| | HI-Medium | LI-Medium |
+| --- | --- | --- |
+| H3b, grounded first replies (target 0.95) | 0.105 [0.070, 0.155] | 0.182 [0.112, 0.282] |
+| First calls that timed out (120 s) | 59% | 36% |
+| H3b among replies that arrived | 0.26 | 0.30 |
+| Template fallback | 65% | 45% |
+| τ (abstention threshold) | none | none |
+| True pattern among the 3 candidates shown | 53.5% (chance 37.5%) | 50.6% |
+
+Causes, from the raw replies:
+
+1. **Every field cited.** The median reply cited 26 fields. That used most of the 320-token cap and caused both the timeouts and the cut-off JSON. This came from my prompt.
+2. **Brackets copied.** 36 of 57 JSON replies wrote `"[own_accounts]"` because my prompt marked field names with brackets. This also came from my prompt.
+3. **Reference read as facts.** The model restated the catalogue's red flags as observations ("funds returning to the originating account") and named typologies outside the candidates. H3b as defined does not catch this.
+4. **CPU speed.** Your machine runs Ollama on CPU only (about 5.8 GB available). Good replies took 50–95 s. By your decision on 1 Nov, latency is reported, not judged.
+5. **No τ qualifies.** The attributor is overconfident: on HI-Medium it is right only 30% of the time even at confidence 0.95 or more. So every case is UNATTRIBUTED with three candidates, as A21 intended. You decided to keep this rule.
+
+### Amendment A22 (pre-registered and pushed before any code: commit `068ae49`)
+
+Research behind it:
+
+- **Explicit rules for small models.** In tests of 2–9B models, one rule did most of the work: telling the model not to confuse definitions with the actual data. Without it, small models hallucinated fields in 38–70% of replies. ([source](https://aiexplorer-blog.vercel.app/post/structured-json-output-small-llms))
+- **Key order.** When structured output puts the constrained field before the free text, quality drops. Writing the free text first avoids this. ([source](https://dylancastillo.co/posts/gemini-structured-outputs.html))
+
+| Change | Why |
+| --- | --- |
+| Evidence as `field_name = value (meaning)`; no brackets | Fixes cause 2 |
+| Reply order: narrative, then cited_fields, then typology_id; cite 1 to 4 fields | Fixes cause 1; free text first |
+| One worked example reply, with no digits | Small models copy the format; no number can leak from the example |
+| Candidates as one-line descriptions under "general reference, not observations"; no red flags | Fixes cause 3 |
+| Timeout 600 s, cap 400 tokens | Cause 4: no case is lost to speed |
+| **Strict grounding** = H3b + 1 to 4 citations + numbers only from the evidence + no typology named outside the candidates. It triggers the retry and the fallback | The analyst only sees strictly checked text. H3b itself is unchanged, so A21 and A22 compare directly |
+| Top-1 and top-3 accuracy at S0 and S2, end to end, with CIs, against the three most frequent patterns and chance | The top-3 list is what the analyst sees, so it needs a measured value |
+| Blind review sheet: 30 HI cases, rated for faithfulness and usefulness | A human check of what the rules cannot see |
+
+The A21 pages stay unchanged; A22 writes `*_A22*` files, and its page compares the two runs on the same 200 cases.
+
+### What you run now
+
+```bash
+cd ~/FinMesh
+git pull
+uv sync
+bash scripts/ci_local.sh
+ollama serve            # second terminal, if not running
+bash scripts/week14_rerun.sh 2>&1 | tee week14_rerun.log
+```
+
+It re-renders both coverage pages (seconds), runs the A22 narrative on HI-Medium (200 cases) and LI-Medium (77 cases), then `pytest -m real_data`. With CPU inference, expect about **60–120 s per case**, so about **5–7 h** for HI and **2–3 h** for LI. Run it overnight with the laptop plugged in and kept awake. It resumes if interrupted.
+
+**Then the blind review (about 30 min):** open `docs/eval/narrative_HI-Medium_A22_review.csv` in a spreadsheet. For each of the 30 cases, compare the narrative with the evidence column only:
+
+- **faithful:** `yes` if every statement is in the evidence; `partly` if one statement goes beyond it; `no` if it misstates the evidence or presents a pattern as fact;
+- **useful:** `1` = no help; `2` = saves some reading; `3` = a clear, correct summary.
+
+Don't look at the true patterns first. Save the file as is.
+
+```bash
+git add docs/eval/ week14_rerun.log
+git commit -m "Week 14 rerun: A22 narrative, coverage pages, blind review"
+git push
+```
+
+**What to look for:** strict grounding and H3b against 0.95; the A21 → A22 table; S2 top-3 against S0 and the frequency baseline; and your own faithfulness ratings.
+
+## First-run plan (31 Oct, kept for the record)
 
 ## Week-13 review (your run, pushed 31 Oct)
 

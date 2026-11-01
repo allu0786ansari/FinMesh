@@ -37,3 +37,17 @@ def test_narrative(name: str) -> None:
     # The analyst never sees a model-chosen label: every final case keeps the assigned one.
     assert all(c["assigned"] in (c["top_prediction"], "UNATTRIBUTED") for c in r["cases"])
     assert s["H3b"]["grounding"]["estimate"] is not None
+
+
+@pytest.mark.real_data
+@pytest.mark.parametrize("name", ["HI-Medium", "LI-Medium"])
+def test_narrative_a22(name: str) -> None:
+    r = _load("week14", "narrative", f"{name}_A22")
+    s = r["summary"]
+    assert r["protocol"] == "A22" and r["seed"] == 0 and 0 < s["cases"] <= 200
+    assert s["strict_grounding"]["estimate"] is not None
+    # Whatever the model wrote, the analyst only sees strictly checked text or the template.
+    for c in r["cases"]:
+        ok = c["final_source"] == "template" or (c["retry"] or c["first"])["strict"]
+        assert ok and c["final_mentions_ok"]
+    assert set(r["topk"]["levels"]) == {"S0", "S2"}

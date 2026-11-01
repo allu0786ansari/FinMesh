@@ -95,13 +95,21 @@ def test_coverage_collects_orders_and_renders(tmp_path: Path) -> None:
         meta.parent.mkdir(parents=True)
         val = {"accounts": accounts, "schemes": 500, "multi_member_schemes": accounts // 2}
         meta.write_text(json.dumps({"counts": {"val": val}}))
+        held = {"B8": 2000, "B8c50": 1000, "A64": 94}[option]  # all accounts held by members
+        pl.DataFrame({"member": [0, 1], "accounts": [held // 2, held - held // 2]}).write_parquet(
+            meta.parent / "accounts_per_member.parquet"
+        )
     rows = collect("DS", art, pq)
     assert [r["option"] for r in rows] == ["A64", "B8c50", "B8"]
     assert rows[1]["account_share"] == pytest.approx(0.52) and rows[1]["target"] == 50
+    assert rows[1]["held_share"] == pytest.approx(0.5) and rows[0]["held_share"] == pytest.approx(
+        0.047
+    )
     fig = coverage_figure(rows, "DS", tmp_path / "c.png")
     assert fig is not None and fig.exists()
     page = render_coverage(rows, "DS", fig.name)
     assert "Not yet run: B8c10, B8c25, B8c75, B8c90." in page and "52.0%" in page
+    assert "4.7%" in page and "sets the budget" in page
 
 
 # --------------------------------------------------------------------------- abstention and sample
@@ -187,8 +195,21 @@ def test_case_shows_label_only_above_tau_and_actions_come_from_the_catalogue() -
     assert ev["own_max_gather_scatter"] == "not available"
     assert ev["others_fan_out"] == "at least 5, below 10"
     prompt = build_prompt(case, cat)
-    assert '"FAN-OUT"' in prompt and "[others_fan_out]" in prompt
+    assert '"FAN-OUT"' in prompt and "others_fan_out = at least 5, below 10" in prompt
+    assert "[" not in prompt.split("Evidence about this case:")[1]  # A22: no bracketed names
+    assert "own_max_gather_scatter" not in prompt  # missing values are not shown
     assert "CYCLE (" not in prompt  # only the assigned entry as context
+    assert "Red flags" not in prompt and "general reference" in prompt
+    example = prompt.split("fictitious case:\n")[1].split("\n")[0]
+    assert json.loads(example)["typology_id"] == "FAN-OUT"
+    assert not any(ch.isdigit() for ch in example)  # the example cannot leak numbers
+    assert (
+        prompt.index('"narrative"')
+        < prompt.index('"cited_fields"')
+        < prompt.index('"typology_id" (exactly')
+    )
+    old = build_prompt(case, cat, "A21")  # the first run's prompt is kept unchanged
+    assert "[others_fan_out]" in old and "Red flags" in old
     low = build_case(_row(), CLASSES, _proba("CYCLE", 0.3), 0.5, cat, 6)
     assert low["assigned"] == UNATTRIBUTED and len(low["candidates"]) == 3
     assert low["review_actions"][0] == entries["CYCLE"]["review_actions"][0]
@@ -242,6 +263,47 @@ def _good(case: dict[str, Any], text: str = "Accounts were linked across banks."
     )
 
 
+def test_strict_grounding_adds_citations_numbers_and_typology_mentions() -> None:
+    cat = load_catalogue()
+    case = build_case(_row(), CLASSES, _proba("CYCLE", 0.3), 0.5, cat, 6)  # unattributed
+    allowed = nar.allowed_typologies(case)
+    assert allowed == {"CYCLE", "FAN-OUT", "FAN-IN"} or len(allowed) == 3
+    fields = [e["field"] for e in nar.shown(case)]
+    known = nar.evidence_numbers(case)
+    assert 12.0 in known and 0.3 in known and 6.0 not in known  # evidence and confidences only
+
+    def reply(text: str, cited: list[str]) -> dict[str, Any]:
+        raw = json.dumps({"narrative": text, "cited_fields": cited, "typology_id": UNATTRIBUTED})
+        return check_reply(raw, UNATTRIBUTED, fields, known, allowed, cat)
+
+    ok = reply(
+        "One account at your bank paid 12 payees; the analyst could check CYCLE.",
+        ["own_max_fan_out"],
+    )
+    assert ok["grounded"] and ok["strict"]
+    outside = reply("This looks like a gather-scatter scheme.", ["own_max_fan_out"])
+    assert outside["grounded"] and not outside["strict"] and outside["named"] == ["GATHER-SCATTER"]
+    many = reply("Linked accounts.", fields[:5])
+    assert many["grounded"] and not many["cites_ok"] and not many["strict"]
+    none = reply("Linked accounts.", [])
+    assert none["grounded"] and not none["strict"]  # H3b allows no citation; strict does not
+    sums = reply("Together they paid 13 payees.", ["own_max_fan_out"])
+    assert sums["grounded"] and not sums["numeric"] and not sums["strict"]
+
+
+def test_typology_mentions_follow_the_rule() -> None:
+    cat = load_catalogue()
+    named = nar.typologies_named
+    assert named("a Fan Out then fan-in, then Scatter-Gather", cat) == {
+        "FAN-OUT",
+        "FAN-IN",
+        "SCATTER-GATHER",
+    }
+    assert named("a bipartite layer and a CYCLE", cat) == {"BIPARTITE", "CYCLE"}
+    assert named("a random stack of cycles; own_max_fan_out is high", cat) == set()
+    assert named("gather-then-scatter fan", cat) == set()  # an evidence label, not a pattern
+
+
 def test_narrate_retries_once_with_the_schema_then_falls_back() -> None:
     cat = load_catalogue()
     case = build_case(_row(), CLASSES, _proba("FAN-OUT", 0.7), 0.5, cat, 6)
@@ -253,12 +315,25 @@ def test_narrate_retries_once_with_the_schema_then_falls_back() -> None:
     schema = fake.formats[1]
     assert schema["properties"]["typology_id"]["enum"] == ["FAN-OUT"]
     assert "case_accounts" in schema["properties"]["cited_fields"]["items"]["enum"]
+    assert schema["properties"]["cited_fields"]["maxItems"] == 4
+    assert list(schema["properties"]) == ["narrative", "cited_fields", "typology_id"]
+    # A22 retries on a strict failure: grounded but naming an outside typology.
+    bad = json.dumps(
+        {"typology_id": "FAN-OUT", "cited_fields": ["case_accounts"], "narrative": "A CYCLE."}
+    )
+    strict = narrate(case, cat, FakeModel([bad, _good(case)]))
+    assert strict["first"]["grounded"] and strict["final_source"] == "retry"
+    # A21 kept its rule: an H3b-grounded reply is accepted.
+    loose = narrate(case, cat, FakeModel([bad]), protocol="A21")
+    assert loose["final_source"] == "first"
     down = narrate(case, cat, FakeModel([TimeoutError("slow"), OSError("refused")]))
     assert down["final_source"] == "template" and len(down["errors"]) == 2
     assert down["narrative"] == template_narrative(case) and down["final_numeric"]
+    assert down["final_mentions_ok"]
     una = build_case(_row(), CLASSES, _proba("CYCLE", 0.3), 0.5, cat, 6)
     t = template_narrative(una)
     assert "unattributed" in t and "CYCLE" in t
+    assert nar.typologies_named(t, cat) <= nar.allowed_typologies(una)  # template is safe too
 
 
 def test_summary_rates_and_h3b() -> None:
@@ -327,32 +402,65 @@ def test_run_narrative_end_to_end_with_a_fake_model(
     t = _table()
     proba: dict[str, Any] = {}
     attribute(t, "S2", 0, load_catalogue(), proba)
+    s0 = t.with_columns(pl.col("own_max_fan_in") * 0, pl.col("own_max_fan_out") * 0)  # no signal
+    proba0: dict[str, Any] = {}
+    attribute(s0, "S0", 0, load_catalogue(), proba0)
+    seen: list[tuple[str, ...]] = []
 
     def fake_x6(*_: Any, **kw: Any) -> dict[str, Any]:
-        assert kw["levels"] == ("S2",) and kw["keep_tables"]
-        return {"tables": {"S2": {"table": t, **proba}}}
+        seen.append(kw["levels"])
+        assert kw["keep_tables"]
+        tables = {"S0": {"table": s0, **proba0}, "S2": {"table": t, **proba}}
+        return {"tables": {lv: tables[lv] for lv in kw["levels"]}}
 
     monkeypatch.setattr("finmesh.training.x6.run_seed_x6", fake_x6)
 
     def model(prompt: str, fmt: Any) -> str:
-        assigned = (
-            UNATTRIBUTED
-            if "UNATTRIBUTED" in prompt
-            else prompt.split('"typology_id" to "')[1].split('"')[0]
+        import re
+
+        m = re.search(r'"typology_id" \(exactly "([^"]+)"\)', prompt) or re.search(
+            r'"typology_id" to "([^"]+)"', prompt
         )
+        assert m is not None
         return json.dumps(
-            {"typology_id": assigned, "cited_fields": ["case_members"], "narrative": "Linked."}
+            {"typology_id": m.group(1), "cited_fields": ["case_members"], "narrative": "Linked."}
         )
 
     r = nar.run_narrative(fixture_paths, n=40, call=model)
+    assert seen[-1] == ("S0", "S2") and r["protocol"] == "A22"
     s = r["summary"]
     assert s["cases"] == 40 and s["H3b"]["grounding"]["estimate"] == 1.0
+    assert s["strict_grounding"]["estimate"] == 1.0
     assert r["selective"]["detected_schemes"] == 216 and r["selective"]["tau"] is not None
     assert {c["pattern"] for c in r["cases"]} == {"FAN-IN", "FAN-OUT", "CYCLE"}
-    page = render_narrative(r)
-    assert "H3b on validation" in page and "Example cases" in page
+    tk = r["topk"]
+    assert tk["schemes"] == 240 and tk["levels"]["S2"]["top3"]["estimate"] == pytest.approx(0.9)
+    assert tk["comparisons"]["S2 - S0 (top 1)"]["low"] > 0
+    old = nar.run_narrative(fixture_paths, n=40, call=model, protocol="A21")
+    assert seen[-1] == ("S2",) and old["topk"] is None
+    page = render_narrative(r, previous=old)
+    assert "Strict grounding (A22)" in page and "A21 → A22" in page and "top three" in page
+    assert "H3b on validation" in render_narrative(old)
     out = write_cases(r, Path(str(fixture_paths.parquet)) / "cases.jsonl")  # type: ignore[attr-defined]
     assert len(out.read_text().splitlines()) == 40
+    from finmesh.attribution.narrative_report import write_review
+
+    rev = write_review(r, Path(str(fixture_paths.parquet)) / "review.csv")  # type: ignore[attr-defined]
+    text = rev.read_text()
+    assert len(text.strip().splitlines()) == 31 and "faithful" in text
+    assert "FAN-IN," not in text.split("\n")[0]  # no true-pattern column
+
+
+def test_topk_and_frequency_baseline() -> None:
+    pats = np.array(["A"] * 6 + ["B"] * 3 + ["C"] * 2 + ["D"] * 1)
+    det = np.ones(12, dtype=bool)
+    det[-1] = False
+    proba = np.tile([0.1, 0.2, 0.3, 0.4], (12, 1))  # always ranks D, C, B, A
+    h3 = nar.topk_hits(pats, det, ["A", "B", "C", "D"], proba, 3)
+    assert h3.tolist() == [False] * 6 + [True] * 5 + [False]  # D undetected counts as a miss
+    fold = np.array([0, 1] * 6)
+    f = nar.frequency_top3(pats, det, fold)
+    assert f[:6].all()  # A is among the three most frequent in either half
 
 
 def test_narrative_refuses_remote_endpoints() -> None:

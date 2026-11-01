@@ -50,6 +50,7 @@ def collect(dataset: str, artifacts: Path, parquet: Path) -> list[dict[str, Any]
     """
     full = _load(parquet / "eval_w6_B8" / "meta.json")
     full_accounts = (full or {}).get("counts", {}).get("val", {}).get("accounts")
+    full_held = _held(parquet / "eval_w6_B8")
     rows = []
     for option in coverage_options():
         x1 = _load(artifacts / f"x1_{_tag(dataset, option)}.json")
@@ -64,6 +65,8 @@ def collect(dataset: str, artifacts: Path, parquet: Path) -> list[dict[str, Any]
             if option == "B8"
             else (int(option.split("c")[1]) if "c" in option else None),
             "account_share": (val["accounts"] / full_accounts) if full_accounts else None,
+            # All accounts held by members: the x-axis, and what sets the alert budget.
+            "held_share": _share(_held(parquet / f"eval_w6_{option}"), full_held),
             "schemes": val["schemes"],
             "multi_member": val["multi_member_schemes"],
         }
@@ -72,7 +75,27 @@ def collect(dataset: str, artifacts: Path, parquet: Path) -> list[dict[str, Any]
         row["S2-S0"] = ((s.get("S2/stacker") or {}).get("linked_gain") or {}).get("difference")
         row["S2 share"] = ((s.get("H1b") or {}).get("oracle-relational") or {}).get("S2/stacker")
         rows.append(row)
-    return sorted(rows, key=lambda r: (r["account_share"] is None, r["account_share"] or 0.0))
+    return sorted(rows, key=lambda r: (_x(r) is None, _x(r) or 0.0))
+
+
+def _held(folder: Path) -> int | None:
+    """Accounts held by the federation's members (the alert budget's base)."""
+    path = folder / "accounts_per_member.parquet"
+    if not path.exists():
+        return None
+    import polars as pl
+
+    return int(pl.read_parquet(path)["accounts"].sum())
+
+
+def _share(part: int | None, whole: int | None) -> float | None:
+    return part / whole if part is not None and whole else None
+
+
+def _x(r: dict[str, Any]) -> float | None:
+    """The curve's x-axis: share of all accounts held; validation share if that is missing."""
+    held: float | None = r.get("held_share")
+    return held if held is not None else r["account_share"]
 
 
 def _ci(d: dict[str, Any] | None) -> str:
@@ -82,14 +105,14 @@ def _ci(d: dict[str, Any] | None) -> str:
 
 
 def coverage_figure(rows: list[dict[str, Any]], dataset: str, path: Path) -> Path | None:
-    pts = [r for r in rows if r["account_share"] is not None]
+    pts = [r for r in rows if _x(r) is not None]
     if len(pts) < 2:
         return None
     from finmesh.training.x1_report import _plt
 
     plt = _plt()
     fig, ax = plt.subplots(figsize=(7.5, 4.4), dpi=150)
-    xs = [100 * r["account_share"] for r in pts]
+    xs = [100 * (_x(r) or 0.0) for r in pts]
     styles = {
         "S0": ("#718096", "o", "-"),
         "S1": ("#4299e1", "s", "-"),
@@ -107,7 +130,7 @@ def coverage_figure(rows: list[dict[str, Any]], dataset: str, path: Path) -> Pat
     for x, r in zip(xs, pts, strict=True):
         ax.annotate(r["option"], (x, 0), xytext=(0, 4), textcoords="offset points",
                     fontsize=6, ha="center", color="#4a5568")  # fmt: skip
-    ax.set_xlabel("Validation accounts held by federation members (%)")
+    ax.set_xlabel("Accounts held by federation members (%; the alert budget scales with it)")
     ax.set_ylabel("Linked scheme detection")
     ax.set_xlim(0, 103)
     ax.set_ylim(0, 1)
@@ -129,6 +152,7 @@ def render_coverage(rows: list[dict[str, Any]], dataset: str, figure: str | None
             "option": r["option"],
             "target": f"{r['target']}%" if r["target"] is not None else "64 banks",
             "share": None if r["account_share"] is None else f"{100 * r['account_share']:.1f}%",
+            "held": None if r.get("held_share") is None else f"{100 * r['held_share']:.1f}%",
             "schemes": f"{r['multi_member']:,} of {r['schemes']:,}",
             **{short: _ci(r[short]) for _, short in LEVELS},
         }
@@ -147,7 +171,11 @@ def render_coverage(rows: list[dict[str, Any]], dataset: str, figure: str | None
             "then grouped into 8 members; accounts at other banks are outside the federation. "
             "B8 (every bank) and A64 (64 largest banks, one member each) are the end points. The "
             "scheme denominator is the same in every row (all validation schemes), so detection "
-            "is end to end.",
+            "is end to end. The x-axis is the share of all accounts the members hold. The alert "
+            "budget (1 per 1,000 held accounts per day) scales with it, while accounts active in "
+            "validation sit mostly at the larger banks: from about 75% held, almost every "
+            "validation account is covered, so the remaining gain to B8 comes mainly from the "
+            "larger alert budget (and the different grouping into members), not from reach.",
             "",
             *([f"![Coverage curve]({figure})", ""] if figure else []),
             "## Linked detection by coverage [95% CI]",
@@ -157,6 +185,7 @@ def render_coverage(rows: list[dict[str, Any]], dataset: str, figure: str | None
                 [
                     ("option", "Federation"),
                     ("target", "Target"),
+                    ("held", "Accounts held (sets the budget)"),
                     ("share", "Validation accounts covered"),
                     ("schemes", "Multi-member schemes"),
                     *[(short, short) for _, short in LEVELS],

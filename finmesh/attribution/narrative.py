@@ -20,6 +20,13 @@ equal to the assigned one (or UNATTRIBUTED), cited fields all in the evidence;
 target 0.95. Numeric grounding (every number in the narrative appears in the
 prompt), retry and fallback rates and latency (target p95 ≤ 30 s) are reported
 alongside.
+
+**A22** (after the A21 validation run failed; the A21 path is kept for
+reproducibility): plain ``field = value`` evidence, the narrative written before
+the constrained fields, 1–4 citations, a digit-free worked example, candidate
+descriptions marked as general reference, and **strict grounding** (H3b plus
+1–4 citations, numbers only from the evidence, no typology named outside the
+candidates), which also triggers the retry and the fallback.
 """
 
 from __future__ import annotations
@@ -48,7 +55,11 @@ SAMPLE_SEED = 0
 LATENCY_TARGET_S = 30.0
 GROUNDING_TARGET = 0.95
 NARRATIVE_MAX_CHARS = 900
-MAX_TOKENS = 320  # bounds a runaway reply; a cut-off reply fails the check and is retried
+PROTOCOLS: tuple[str, ...] = ("A21", "A22")
+# Bounds a runaway reply; a cut-off reply fails the check and is retried.
+MAX_TOKENS = {"A21": 320, "A22": 400}
+TIMEOUT_S = {"A21": 120.0, "A22": 600.0}
+MAX_CITED = 4
 
 # A model call: (prompt, format) -> raw response text. Raises on transport failure.
 Call = Callable[[str, dict[str, Any] | str], str]
@@ -260,7 +271,89 @@ def shown(case: dict[str, Any]) -> list[dict[str, str]]:
     return [e for e in case["evidence"] if e["value"] not in MISSING]
 
 
-def build_prompt(case: dict[str, Any], catalogue: dict[str, Any]) -> str:
+def build_prompt(case: dict[str, Any], catalogue: dict[str, Any], protocol: str = "A22") -> str:
+    if protocol == "A21":
+        return build_prompt_a21(case, catalogue)
+    return build_prompt_a22(case, catalogue)
+
+
+def _confidence_lines(case: dict[str, Any]) -> list[str]:
+    if case["assigned"] == UNATTRIBUTED:
+        return [
+            f"{c['id']} (attributor confidence {c['confidence']:.2f})" for c in case["candidates"]
+        ]
+    return [f"{case['assigned']} (attributor confidence {case['confidence']:.2f})"]
+
+
+def build_prompt_a22(case: dict[str, Any], catalogue: dict[str, Any]) -> str:
+    """A22: plain evidence lines, narrative first, 1-4 citations, reference marked as such."""
+    entries = {e["id"]: e for e in catalogue["entries"]}
+    expected = case["assigned"]
+    if expected == UNATTRIBUTED:
+        decision = (
+            "The attributor is not confident about the pattern, so the case is UNATTRIBUTED. "
+            "You may say which candidate patterns the analyst could check, but do not claim that "
+            "the case matches any of them. Name no pattern that is not a candidate."
+        )
+        ids = [c["id"] for c in case["candidates"]]
+        heading = "Candidate patterns to check"
+    else:
+        decision = (
+            f"The pattern has been assigned: {expected}. Do not argue for another pattern and "
+            "name no other pattern."
+        )
+        ids = [expected]
+        heading = "Assigned pattern"
+    reference = [
+        f"- {line}: {entries[i]['description']}"
+        for i, line in zip(ids, _confidence_lines(case), strict=True)
+    ]
+    lines: list[str] = []
+    section = None
+    for ev in shown(case):
+        if ev["section"] != section:
+            section = ev["section"]
+            lines.append(f"{section}:")
+        lines.append(f"{ev['field']} = {ev['value']} ({ev['label']})")
+    example = json.dumps(
+        {
+            "narrative": "Several accounts at your bank received money from many payers and "
+            "passed most of it on. Other members report accounts with similar inflows.",
+            "cited_fields": ["own_max_fan_in", "own_mean_pass_through", "others_fan_in"],
+            "typology_id": expected,
+        }
+    )
+    return "\n".join(
+        [
+            "You help an anti-money-laundering analyst write a short summary of one case.",
+            "",
+            "Rules:",
+            "- Describe only what the evidence lines below state. Do not add facts, causes, "
+            "names, accounts or dates.",
+            "- Copy any number exactly as written in the evidence. Do not calculate or round.",
+            "- The pattern descriptions are general reference: they say what a pattern looks like "
+            "in general, NOT what happened in this case. Never present them as observations.",
+            f"- {decision}",
+            "- Do not recommend actions; they are added separately.",
+            "- Reply with one JSON object with these keys in this order: "
+            '"narrative" (two to four plain sentences for the analyst), "cited_fields" (the one '
+            "to four field names, written exactly as before the = sign, that your narrative "
+            f'relies on most) and "typology_id" (exactly "{expected}").',
+            "",
+            "Example reply for a different, fictitious case:",
+            example,
+            "",
+            f"{heading} (general reference, not observations about this case):",
+            *reference,
+            "",
+            "Evidence about this case:",
+            *lines,
+        ]
+    )
+
+
+def build_prompt_a21(case: dict[str, Any], catalogue: dict[str, Any]) -> str:
+    """The A21 prompt, kept unchanged so the first validation run stays reproducible."""
     entries = {e["id"]: e for e in catalogue["entries"]}
     if case["assigned"] == UNATTRIBUTED:
         decision = (
@@ -310,8 +403,24 @@ def build_prompt(case: dict[str, Any], catalogue: dict[str, Any]) -> str:
     )
 
 
-def reply_schema(expected: str, fields: list[str]) -> dict[str, Any]:
+def reply_schema(expected: str, fields: list[str], protocol: str = "A22") -> dict[str, Any]:
     """The schema for the constrained retry: only the assigned typology, only real fields."""
+    if protocol == "A22":
+        return {
+            "type": "object",
+            "properties": {
+                "narrative": {"type": "string", "maxLength": NARRATIVE_MAX_CHARS},
+                "cited_fields": {
+                    "type": "array",
+                    "items": {"type": "string", "enum": fields},
+                    "minItems": 1,
+                    "maxItems": MAX_CITED,
+                },
+                "typology_id": {"type": "string", "enum": [expected]},
+            },
+            "required": ["narrative", "cited_fields", "typology_id"],
+            "additionalProperties": False,
+        }
     return {
         "type": "object",
         "properties": {
@@ -332,11 +441,54 @@ def numbers_in(text: str) -> set[float]:
     return {round(float(m.replace(",", "")), 6) for m in _NUMBER.findall(text)}
 
 
+def evidence_numbers(case: dict[str, Any]) -> set[float]:
+    """A22: the numbers a narrative may use: evidence values and the confidence lines."""
+    text = " ".join(e["value"] for e in shown(case)) + " " + " ".join(_confidence_lines(case))
+    return numbers_in(text)
+
+
+_COMMON_WORD_IDS = frozenset({"CYCLE", "STACK", "RANDOM"})
+
+
+def _mention_patterns(catalogue: dict[str, Any]) -> dict[str, re.Pattern[str]]:
+    out = {}
+    for e in catalogue["entries"]:
+        i = e["id"]
+        if i in _COMMON_WORD_IDS:  # ordinary English words: only the upper-case id counts
+            out[i] = re.compile(rf"\b{i}\b")
+        else:
+            body = r"[\s-]?".join(re.escape(part) for part in i.lower().split("-"))
+            out[i] = re.compile(rf"\b{body}\b", re.IGNORECASE)
+    return out
+
+
+def typologies_named(text: str, catalogue: dict[str, Any]) -> set[str]:
+    """Catalogue typologies a text names (ids; multi-word names in any case or hyphenation)."""
+    return {i for i, rx in _mention_patterns(catalogue).items() if rx.search(text)}
+
+
+def allowed_typologies(case: dict[str, Any]) -> set[str]:
+    if case["assigned"] == UNATTRIBUTED:
+        return {c["id"] for c in case["candidates"]}
+    return {case["assigned"]}
+
+
 def check_reply(
-    text: str, expected: str, fields: list[str], prompt_numbers: set[float]
+    text: str,
+    expected: str,
+    fields: list[str],
+    prompt_numbers: set[float],
+    allowed: set[str] | None = None,
+    catalogue: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """H3b checks on one raw reply, before any repair."""
+    """H3b checks on one raw reply, before any repair. With ``allowed`` and ``catalogue``
+    (A22) it also judges strict grounding: H3b + 1-4 citations + numbers from the evidence
+    + no typology named outside ``allowed``."""
     out: dict[str, Any] = {
+        "strict": False,
+        "cites_ok": False,
+        "mentions_ok": False,
+        "named": [],
         "json": False,
         "typology": False,
         "cited": False,
@@ -367,11 +519,39 @@ def check_reply(
     if isinstance(cited, list):
         out["cited_fields"] = [str(f) for f in cited]
         out["cites_any"] = bool(cited)
+        out["cites_ok"] = 1 <= len(cited) <= MAX_CITED
+    if allowed is not None and catalogue is not None and out["narrative"]:
+        named = typologies_named(out["narrative"], catalogue)
+        out["named"] = sorted(named)
+        out["mentions_ok"] = named <= allowed
+    out["strict"] = bool(
+        out["grounded"] and out["cites_ok"] and out["numeric"] and out["mentions_ok"]
+    )
     return out
 
 
-def template_narrative(case: dict[str, Any]) -> str:
+def template_narrative(case: dict[str, Any], protocol: str = "A22") -> str:
     """Deterministic fallback, built only from the evidence values (grounded by construction)."""
+    if protocol == "A21":
+        return template_narrative_a21(case)
+    ev = {e["field"]: e["value"] for e in case["evidence"]}
+    if case["assigned"] == UNATTRIBUTED:
+        what = "The pattern is unattributed; candidates to check: " + ", ".join(
+            c["id"] for c in case["candidates"]
+        )
+    else:
+        what = f"Assigned pattern: {case['assigned']}"
+    return (
+        f"The linked case holds {ev['case_accounts']} accounts at {ev['case_members']} "
+        f"federation members over {ev['case_span_hours']} hours, of which {ev['own_accounts']} "
+        f"are at your bank. {what}. At your bank, the most distinct payees of one account: "
+        f"{ev['own_max_fan_out']}; the most distinct payers: {ev['own_max_fan_in']}; mean share "
+        f"of inflow paid out again: {ev['own_mean_pass_through']}."
+    )
+
+
+def template_narrative_a21(case: dict[str, Any]) -> str:
+    """The A21 template, unchanged."""
     ev = {e["field"]: e["value"] for e in case["evidence"]}
     if case["assigned"] == UNATTRIBUTED:
         what = "The pattern is unattributed; candidates to check: " + ", ".join(
@@ -419,12 +599,18 @@ def build_case(
     }
 
 
-def narrate(case: dict[str, Any], catalogue: dict[str, Any], call: Call) -> dict[str, Any]:
-    """One case: JSON-only call, one schema-constrained retry if needed, else the template."""
-    prompt = build_prompt(case, catalogue)
+def narrate(
+    case: dict[str, Any], catalogue: dict[str, Any], call: Call, protocol: str = "A22"
+) -> dict[str, Any]:
+    """One case: JSON-only call, one schema-constrained retry if needed, else the template.
+
+    A21 retries on an H3b failure; A22 on a strict-grounding failure."""
+    prompt = build_prompt(case, catalogue, protocol)
     fields = [e["field"] for e in shown(case)]
     expected = case["assigned"]
-    known = numbers_in(prompt)
+    known = numbers_in(prompt) if protocol == "A21" else evidence_numbers(case)
+    allowed = allowed_typologies(case)
+    gate = "grounded" if protocol == "A21" else "strict"
     t0 = time.perf_counter()
     errors: list[str] = []
 
@@ -434,23 +620,26 @@ def narrate(case: dict[str, Any], catalogue: dict[str, Any], call: Call) -> dict
         except (urllib.error.URLError, TimeoutError, OSError, ValueError) as exc:
             errors.append(f"{type(exc).__name__}: {exc}"[:200])
             raw = ""
-        return {"raw": raw, **check_reply(raw, expected, fields, known)}
+        return {"raw": raw, **check_reply(raw, expected, fields, known, allowed, catalogue)}
 
     first = attempt("json", prompt)
     first_s = time.perf_counter() - t0
     retry = None
     final_source = "first"
     final = first
-    if not first["grounded"]:
+    if not first[gate]:
         retry = attempt(
-            reply_schema(expected, fields),
+            reply_schema(expected, fields, protocol),
             prompt + "\n\nYour previous reply did not follow the rules. Reply with the JSON "
             "object only.",
         )
         final, final_source = retry, "retry"
-        if not retry["grounded"]:
+        if not retry[gate]:
             final_source = "template"
-    narrative = template_narrative(case) if final_source == "template" else final["narrative"]
+    narrative = (
+        template_narrative(case, protocol) if final_source == "template" else final["narrative"]
+    )
+    final_named = typologies_named(narrative, catalogue)
     return {
         **case,
         "prompt_chars": len(prompt),
@@ -459,17 +648,19 @@ def narrate(case: dict[str, Any], catalogue: dict[str, Any], call: Call) -> dict
         "final_source": final_source,
         "narrative": narrative,
         "final_numeric": numbers_in(narrative) <= known,
+        "final_mentions_ok": final_named <= allowed,
+        "protocol": protocol,
         "latency_first_s": round(first_s, 3),
         "latency_total_s": round(time.perf_counter() - t0, 3),
         "errors": errors,
     }
 
 
-def ollama_call(url: str, model: str, timeout: float) -> Call:
+def ollama_call(url: str, model: str, timeout: float, max_tokens: int = MAX_TOKENS["A22"]) -> Call:
     assert_local(url)
 
     def call(prompt: str, fmt: dict[str, Any] | str) -> str:
-        reply = call_ollama(url, model, prompt, fmt, timeout, max_tokens=MAX_TOKENS)
+        reply = call_ollama(url, model, prompt, fmt, timeout, max_tokens=max_tokens)
         return str(reply.get("response", ""))
 
     return call
@@ -503,9 +694,25 @@ def summarise(results: list[dict[str, Any]]) -> dict[str, Any]:
             "attributed": sum(r["assigned"] != UNATTRIBUTED for r in rs),
             "correct": sum(r["assigned"] == p for r in rs),
             "grounded": _rate([r["first"]["grounded"] for r in rs]),
+            "strict": _rate([bool(r["first"].get("strict")) for r in rs]),
+            "top3": _rate([p in {c["id"] for c in r["candidates"]} for r in rs]),
         }
+    strict = [bool(r["first"].get("strict")) for r in results]
     return {
         "cases": n,
+        "strict_grounding": _wilson(sum(strict), n),
+        "first_reply_strict": {
+            k: _rate([bool(r["first"].get(k)) for r in results])
+            for k in ("cites_ok", "mentions_ok")
+        },
+        "final_mentions_ok": _rate([bool(r.get("final_mentions_ok", True)) for r in results]),
+        "answered": sum(bool(r["first"]["raw"]) for r in results),
+        "grounded_when_answered": _rate(
+            [r["first"]["grounded"] for r in results if r["first"]["raw"]]
+        ),
+        "strict_when_answered": _rate(
+            [bool(r["first"].get("strict")) for r in results if r["first"]["raw"]]
+        ),
         "H3b": {
             "grounding": _wilson(sum(grounded), n),
             "target": GROUNDING_TARGET,
@@ -540,6 +747,86 @@ def summarise(results: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+# --------------------------------------------------------------------------- top-k (A22)
+def _ci(draws: np.ndarray, est: float) -> dict[str, float]:
+    return {
+        "estimate": float(est),
+        "low": float(np.quantile(draws, 0.025)),
+        "high": float(np.quantile(draws, 0.975)),
+    }
+
+
+def topk_hits(
+    patterns: np.ndarray, detected: np.ndarray, classes: list[str], proba: np.ndarray, k: int
+) -> np.ndarray:
+    """Per scheme: detected and the true pattern among the attributor's top k (end to end)."""
+    out = np.zeros(len(patterns), dtype=bool)
+    idx = np.nonzero(detected)[0]
+    if len(idx):
+        top = np.argsort(-proba[idx], axis=1, kind="stable")[:, :k]
+        names = np.array(classes, dtype=object)[top]
+        out[idx] = (names == patterns[idx, None]).any(axis=1)
+    return out
+
+
+def frequency_top3(patterns: np.ndarray, detected: np.ndarray, fold: np.ndarray) -> np.ndarray:
+    """Baseline: the three most frequent patterns of the other time half (cross-fitted)."""
+    out = np.zeros(len(patterns), dtype=bool)
+    for k in (0, 1):
+        train = detected & (fold == k)
+        apply = detected & (fold != k)
+        src = patterns[train] if train.any() else patterns[detected]
+        if not apply.any() or not len(src):
+            continue
+        labels, counts = np.unique(src, return_counts=True)
+        top = set(labels[np.argsort(-counts, kind="stable")[:3]].tolist())
+        out[apply] = np.isin(patterns[apply], list(top))
+    return out
+
+
+def topk_analysis(tables: dict[str, dict[str, Any]], reps: int = 1000) -> dict[str, Any]:
+    """Top-1 and top-3 accuracy per level, end to end and on detected schemes, with a scheme
+    bootstrap, the paired S2 - S0 difference and the frequency and chance baselines."""
+    aligned = {lv: t["table"].with_row_index("_row").sort("scheme_id") for lv, t in tables.items()}
+    first = next(iter(aligned.values()))
+    patterns = first["pattern"].to_numpy().astype(str)
+    n = len(patterns)
+    rng = np.random.default_rng(0)
+    idx = rng.integers(0, n, size=(reps, n)) if n else np.zeros((reps, 0), dtype=int)
+    hits: dict[str, np.ndarray] = {}
+    out: dict[str, Any] = {"schemes": n, "levels": {}}
+    for lv, t in aligned.items():
+        assert (t["pattern"].to_numpy().astype(str) == patterns).all()
+        det = t["incident"].is_not_null().to_numpy()
+        proba = tables[lv]["p"][t["_row"].to_numpy()]
+        level: dict[str, Any] = {"detected_share": float(det.mean()) if n else None}
+        for k in (1, 3):
+            h = topk_hits(patterns, det, tables[lv]["classes"], proba, k)
+            hits[f"{lv}/top{k}"] = h
+            level[f"top{k}"] = _ci(h[idx].mean(axis=1), h.mean()) if n else None
+            level[f"top{k}_detected"] = float(h[det].mean()) if det.any() else None
+        if lv == "S2":
+            f = frequency_top3(patterns, det, t["fold"].to_numpy())
+            hits["S2/frequency_top3"] = f
+            level["frequency_top3"] = _ci(f[idx].mean(axis=1), f.mean()) if n else None
+            level["frequency_top3_detected"] = float(f[det].mean()) if det.any() else None
+            level["chance_top3_detected"] = 3 / len(tables[lv]["classes"])
+        out["levels"][lv] = level
+
+    def diff(a: str, b: str) -> dict[str, float]:
+        d = hits[a].astype(float) - hits[b].astype(float)
+        return _ci(d[idx].mean(axis=1), d.mean())
+
+    comps: dict[str, Any] = {}
+    if n and {"S0/top3", "S2/top3"} <= hits.keys():
+        comps["S2 - S0 (top 3)"] = diff("S2/top3", "S0/top3")
+        comps["S2 - S0 (top 1)"] = diff("S2/top1", "S0/top1")
+    if n and "S2/frequency_top3" in hits:
+        comps["S2 top 3 - frequency top 3"] = diff("S2/top3", "S2/frequency_top3")
+    out["comparisons"] = comps
+    return out
+
+
 # --------------------------------------------------------------------------- driver
 def run_narrative(
     paths: Any,
@@ -547,17 +834,22 @@ def run_narrative(
     n: int = SAMPLE_N,
     model: str = DEFAULT_MODEL,
     url: str = "http://localhost:11434",
-    timeout: float = 120.0,
+    timeout: float | None = None,
     call: Call | None = None,
     progress: Callable[[str], None] | None = None,
+    protocol: str = "A22",
 ) -> dict[str, Any]:
     from finmesh.eval.split_io import load_plan
     from finmesh.sysinfo import AnonPeak
     from finmesh.training.x6 import load_catalogue, run_seed_x6
 
+    if protocol not in PROTOCOLS:
+        raise ValueError(f"unknown narrative protocol {protocol!r}; use one of {PROTOCOLS}")
     t0 = time.perf_counter()
     if call is None:
-        call = ollama_call(url, model, timeout)
+        call = ollama_call(
+            url, model, timeout or TIMEOUT_S[protocol], max_tokens=MAX_TOKENS[protocol]
+        )
         try:  # untimed warm-up, before the expensive part: fail fast if Ollama is down
             call('Reply with the JSON object {"ok": true}.', "json")
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
@@ -565,7 +857,8 @@ def run_narrative(
     catalogue = load_catalogue()
     window_hours = int(load_plan(paths).window_hours)
     with AnonPeak() as anon:
-        r = run_seed_x6(paths, option, SAMPLE_SEED, progress, levels=("S2",), keep_tables=True)
+        levels = ("S2",) if protocol == "A21" else ("S0", "S2")
+        r = run_seed_x6(paths, option, SAMPLE_SEED, progress, levels=levels, keep_tables=True)
         t_x6 = time.perf_counter() - t0
         got = r["tables"]["S2"]
         table: pl.DataFrame = got["table"]
@@ -583,16 +876,19 @@ def run_narrative(
         results = []
         for k, i in enumerate(pick):
             case = build_case(rows[i], classes, proba[i], tau, catalogue, window_hours)
-            results.append(narrate(case, catalogue, call))
+            results.append(narrate(case, catalogue, call, protocol))
             if progress and (k + 1) % 25 == 0:
                 progress(f"narratives {k + 1}/{len(pick)}")
     return {
         "dataset": paths.name,
         "option": option,
+        "protocol": protocol,
+        "topk": topk_analysis(r["tables"]) if protocol == "A22" else None,
         "level": "S2",
         "seed": SAMPLE_SEED,
         "model": model,
         "decoding": "json-only first, schema-constrained retry, template fallback",
+        "timeout_s": timeout or TIMEOUT_S[protocol],
         "selective": {
             "tau": tau,
             "grid": risk_coverage(conf, correct),
@@ -609,6 +905,7 @@ def run_narrative(
 
 
 __all__ = [
+    "PROTOCOLS",
     "TAU_GRID",
     "UNATTRIBUTED",
     "bucket_range",
@@ -616,6 +913,7 @@ __all__ = [
     "build_prompt",
     "check_reply",
     "evidence",
+    "evidence_numbers",
     "narrate",
     "numbers_in",
     "risk_coverage",
@@ -624,4 +922,6 @@ __all__ = [
     "stratified_sample",
     "summarise",
     "template_narrative",
+    "topk_analysis",
+    "typologies_named",
 ]

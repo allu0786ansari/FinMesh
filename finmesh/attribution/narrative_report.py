@@ -1,8 +1,11 @@
-"""Narrative page (week 14, A21): abstention, H3b grounding, latency, and example cases."""
+"""Narrative page (week 14, A21/A22): abstention, H3b and strict grounding, top-3 typology
+accuracy, latency, example cases, and the owner's blind review sheet."""
 
 from __future__ import annotations
 
+import csv
 import json
+import random
 from pathlib import Path
 from typing import Any
 
@@ -16,9 +19,10 @@ def _pct(v: float | None) -> str:
 
 def _example(title: str, r: dict[str, Any]) -> list[str]:
     checks = r["first"]
-    flags = ", ".join(
-        f"{k} {'yes' if checks[k] else 'no'}" for k in ("json", "typology", "cited", "numeric")
-    )
+    keys = ["json", "typology", "cited", "numeric"]
+    if "strict" in checks and r.get("protocol") == "A22":
+        keys += ["cites_ok", "mentions_ok", "strict"]
+    flags = ", ".join(f"{k} {'yes' if checks.get(k) else 'no'}" for k in keys)
     cands = ", ".join(f"{c['id']} {c['confidence']:.2f}" for c in r["candidates"])
     return [
         f"### {title}",
@@ -45,15 +49,140 @@ def _pick(cases: list[dict[str, Any]]) -> list[tuple[str, dict[str, Any]]]:
     if good or att:
         out.append(("An attributed case", (good or att)[0]))
     una = [c for c in cases if c["assigned"] == UNATTRIBUTED]
-    if una:
-        out.append(("An unattributed case", una[0]))
-    fixed = [c for c in cases if c["final_source"] != "first"]
+    written = [c for c in una if c["final_source"] == "first"]
+    if written or una:
+        out.append(("An unattributed case written by the model", (written or una)[0]))
+    used = {c["scheme_id"] for _, c in out}
+    fixed = [c for c in cases if c["final_source"] != "first" and c["scheme_id"] not in used]
     if fixed:
         out.append(("A case whose first reply failed the check", fixed[0]))
     return out
 
 
-def render_narrative(r: dict[str, Any]) -> str:
+def _cil(d: dict[str, Any] | None) -> str:
+    if not d or d.get("estimate") is None:
+        return "—"
+    return f"{fmt(d['estimate'])} [{fmt(d['low'])}, {fmt(d['high'])}]"
+
+
+def _a22_sections(r: dict[str, Any], previous: dict[str, Any] | None) -> list[str]:
+    s = r["summary"]
+    st = s["strict_grounding"]
+    fs = s["first_reply_strict"]
+    lines = [
+        "## Strict grounding (A22)",
+        "",
+        "Strict = H3b, plus 1 to 4 cited fields, every number in the narrative taken from the "
+        "evidence or confidence lines, and no typology named outside the candidates. The retry "
+        "and the template are triggered by strict failure, so the analyst only sees strictly "
+        "checked text.",
+        "",
+        table(
+            [
+                {"item": "Strictly grounded first replies [95% Wilson CI]", "value": _cil(st)},
+                {"item": "First reply cites 1 to 4 fields", "value": _pct(fs["cites_ok"])},
+                {"item": "First reply names no outside typology", "value": _pct(fs["mentions_ok"])},
+                {
+                    "item": "Replies that arrived (no timeout or error)",
+                    "value": f"{s['answered']} of {s['cases']}",
+                },
+                {
+                    "item": "H3b among replies that arrived",
+                    "value": _pct(s["grounded_when_answered"]),
+                },
+                {
+                    "item": "Strict among replies that arrived",
+                    "value": _pct(s["strict_when_answered"]),
+                },
+                {
+                    "item": "Delivered text names no outside typology",
+                    "value": _pct(s["final_mentions_ok"]),
+                },
+            ],
+            [("item", "Item"), ("value", "Validation")],
+        ),
+        "",
+    ]
+    if previous:
+        ps = previous["summary"]
+        rows = [
+            ("H3b: grounded first replies", ps["H3b"]["grounding"]["estimate"],
+             s["H3b"]["grounding"]["estimate"]),
+            ("Valid JSON", ps["first_reply"]["json"], s["first_reply"]["json"]),
+            ("Cited fields all real", ps["first_reply"]["cited"], s["first_reply"]["cited"]),
+            ("Template fallback", ps["fallback_rate"], s["fallback_rate"]),
+            ("Cases with a call error", ps["errors"] / max(ps["cases"], 1),
+             s["errors"] / max(s["cases"], 1)),
+        ]  # fmt: skip
+        lines += [
+            "## A21 → A22 on the same sample",
+            "",
+            table(
+                [{"item": a, "a21": _pct(b), "a22": _pct(c)} for a, b, c in rows],
+                [("item", "Item"), ("a21", "A21 (first run)"), ("a22", "A22")],
+            ),
+            "",
+        ]
+    tk = r.get("topk")
+    if tk:
+        lv = tk["levels"]
+        rows2 = []
+        for name, label in (("S0", "S0 · own data only"), ("S2", "S2 · + shared evidence")):
+            if name in lv:
+                v = lv[name]
+                rows2.append(
+                    {
+                        "level": label,
+                        "top1": _cil(v["top1"]),
+                        "top3": _cil(v["top3"]),
+                        "top3d": _pct(v["top3_detected"]),
+                    }
+                )
+        s2 = lv.get("S2", {})
+        if s2.get("frequency_top3"):
+            rows2.append(
+                {
+                    "level": "Baseline · 3 most frequent patterns",
+                    "top1": "—",
+                    "top3": _cil(s2["frequency_top3"]),
+                    "top3d": _pct(s2["frequency_top3_detected"]),
+                }
+            )
+            rows2.append(
+                {
+                    "level": "Baseline · chance",
+                    "top1": "—",
+                    "top3": "—",
+                    "top3d": _pct(s2["chance_top3_detected"]),
+                }
+            )
+        lines += [
+            "## What the analyst sees: the top three candidates (A22, secondary)",
+            "",
+            f"Cross-fitted attributor, seed 0, all {tk['schemes']} pattern-labelled validation "
+            "schemes; end to end counts undetected schemes as misses; 1,000-replicate scheme "
+            "bootstrap.",
+            "",
+            table(
+                rows2,
+                [
+                    ("level", "Level"),
+                    ("top1", "Top 1, end to end [95% CI]"),
+                    ("top3", "Top 3, end to end [95% CI]"),
+                    ("top3d", "Top 3, detected schemes"),
+                ],
+            ),
+            "",
+            table(
+                [{"c": k, "v": _cil(v)} for k, v in tk["comparisons"].items()],
+                [("c", "Comparison"), ("v", "Difference [95% CI]")],
+            ),
+            "",
+        ]
+    return lines
+
+
+def render_narrative(r: dict[str, Any], previous: dict[str, Any] | None = None) -> str:
     s = r["summary"]
     sel = r["selective"]
     h = s["H3b"]
@@ -86,14 +215,16 @@ def render_narrative(r: dict[str, Any]) -> str:
         examples += _example(title, case)
     return "\n".join(
         [
-            f"# Constrained case narrative (H3b) · {r['dataset']}",
+            f"# Constrained case narrative (H3b) · {r['dataset']}"
+            + (f" · protocol {r.get('protocol')}" if r.get("protocol") == "A22" else ""),
             "",
             f"Level S2, seed {r['seed']}; {s['cases']} detected validation schemes sampled by "
             f"pattern (up to 25 each). Model `{r['model']}` on this machine, temperature 0; "
-            f"{r['decoding']} (A21). The model writes the text only: the typology comes from the "
+            f"{r['decoding']} ({r.get('protocol', 'A21')}). The model writes the text only: "
+            "the typology comes from the "
             "X6 attributor (shown only above τ), the evidence from a fixed template of what S2 "
             "reveals to the owner, and the review actions from the catalogue. "
-            f"{r['seconds']['total']:,.0f} s in total ({r['seconds']['x6_s2']:,.0f} s for the S2 "
+            f"{r['seconds']['total']:,.0f} s in total ({r['seconds']['x6_s2']:,.0f} s for the "
             f"attributor), peak memory {r['peak_anon_mb']:,.0f} MB.",
             "",
             "## H3b on validation",
@@ -115,6 +246,7 @@ def render_narrative(r: dict[str, Any]) -> str:
             "Grounded = valid JSON, typology equal to the one shown (or UNATTRIBUTED), and every "
             "cited field present in the evidence. Judged on test.",
             "",
+            *(_a22_sections(r, previous) if r.get("protocol") == "A22" else []),
             "## Reply quality and latency",
             "",
             table(
@@ -195,10 +327,46 @@ def render_narrative(r: dict[str, Any]) -> str:
             "",
             *(examples or ["No cases."]),
             f"Every case (prompt size, raw replies, checks, final text) is in "
-            f"`narrative_{r['dataset']}_cases.jsonl`.",
+            f"`narrative_{r['dataset']}{_suffix(r)}_cases.jsonl`.",
             "",
         ]
     )
+
+
+def _suffix(r: dict[str, Any]) -> str:
+    return "_A22" if r.get("protocol") == "A22" else ""
+
+
+REVIEW_N = 30
+REVIEW_SEED = 0
+
+
+def write_review(r: dict[str, Any], path: Path, n: int = REVIEW_N) -> Path:
+    """The owner's blind review sheet (A22): random cases, no true pattern, blank ratings."""
+    cases = list(r["cases"])
+    picked = random.Random(REVIEW_SEED).sample(cases, min(n, len(cases)))
+    with path.open("w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(
+            [
+                "case",
+                "evidence",
+                "candidates",
+                "narrative",
+                "faithful (yes/partly/no)",
+                "useful (1-3)",
+                "notes",
+            ]
+        )
+        for i, c in enumerate(picked, 1):
+            ev = "; ".join(
+                f"{e['field']} = {e['value']}"
+                for e in c["evidence"]
+                if e["value"] not in ("not available", "no record from another member")
+            )
+            cands = ", ".join(f"{x['id']} {x['confidence']:.2f}" for x in c["candidates"])
+            w.writerow([i, ev, cands, c["narrative"], "", "", ""])
+    return path
 
 
 def write_cases(r: dict[str, Any], path: Path) -> Path:
@@ -226,4 +394,4 @@ def write_cases(r: dict[str, Any], path: Path) -> Path:
     return path
 
 
-__all__ = ["render_narrative", "write_cases"]
+__all__ = ["render_narrative", "write_cases", "write_review"]

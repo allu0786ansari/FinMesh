@@ -18,9 +18,10 @@ On track for next gate? yes / at risk / no
 
 Planned: the constrained narrative and its grounding test (H3b).
 Done: week-13 run reviewed (H3a met on HI-Medium, +0.042 [0.016, 0.068]; the gain comes at S1, and the oracle is no better, so incident evidence limits attribution; A64 covers 4.7% of accounts and links almost nothing). After research, the owner approved A21, pre-registered before code (`77c5320`): a coverage curve (B8c10–90, largest banks first) and the narrative with selective abstention. Built: coverage federations and the curve assembler; X6 hooks for the S2 attributor's probabilities; the narrative module (τ rule, stratified sample, evidence template, JSON-only call, schema retry, template fallback, grounding and numeric checks, latency); report and case file; resumable runner that checks Ollama first. Details in `docs/runlog/week-14.md`.
-Not done: the real-data run (needs Ollama with llama3.2:3b on the owner's machine).
-Numbers this week: engineering only (scripted model in tests; fixture; stress scale).
-Risks or blockers: the 30 s latency target is at risk on CPU (G0 probe p50 19.5 s with a shorter prompt); a low attributor confidence may leave most cases UNATTRIBUTED, which is the intended safe outcome.
+Done on real data (31 Oct – 1 Nov, owner's machine): every coverage point and both narrative runs. The narrative failed H3b on prompt flaws, so A22 was pre-registered (`068ae49`) and implemented: plain evidence lines, narrative first, 1–4 citations, a digit-free example, reference marked as such, strict grounding as the retry trigger, top-1/top-3 analysis at S0 and S2, a blind review sheet; the coverage page now plots accounts held and notes the budget.
+Not done: the A22 rerun and the owner's blind review.
+Numbers this week: coverage, HI-Medium S2 − S0 linked 0.056 (B8c10), 0.148 (25%), 0.354 (50%), 0.485 (75%), 0.562 (B8); S2 recovers 0.95–1.05 of the relational-oracle gain at every point (LI 0.68–0.84). Narrative (A21): H3b 0.105 [0.070, 0.155] HI, 0.182 [0.112, 0.282] LI; 59% of HI first calls timed out at 120 s on CPU; no τ qualifies (attributor right 30% even at confidence ≥ 0.95), so every case is UNATTRIBUTED; true pattern among the 3 candidates 53.5% (chance 37.5%).
+Risks or blockers: if H3b stays well below 0.95 after A22, the paper reports a negative result for a 3B CPU model, with the template as the safe default; latency is not judged (owner, 1 Nov).
 Next week: weeks 15–17, the demo path and the analyst console (incident card with the narrative).
 On track for next gate? yes (G4, week 18).
 

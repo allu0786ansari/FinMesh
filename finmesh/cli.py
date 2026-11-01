@@ -1045,11 +1045,11 @@ def cmd_coverage(args: argparse.Namespace) -> int:
 
 
 def cmd_narrative(args: argparse.Namespace) -> int:
-    """A21 / H3b: constrained narratives for sampled S2 cases with a local model."""
+    """A21/A22, H3b: constrained narratives for sampled S2 cases with a local model."""
     from finmesh.attribution.narrative import run_narrative
-    from finmesh.attribution.narrative_report import render_narrative, write_cases
+    from finmesh.attribution.narrative_report import render_narrative, write_cases, write_review
     from finmesh.data.manifest import load_manifest
-    from finmesh.eval.provenance import Stamp, write_artifact
+    from finmesh.eval.provenance import Stamp, read_artifact, write_artifact
 
     paths = dataset_paths(args.dataset)
     result = run_narrative(
@@ -1060,6 +1060,7 @@ def cmd_narrative(args: argparse.Namespace) -> int:
         url=args.url,
         timeout=args.timeout,
         progress=lambda m: print(f"  {m}"),
+        protocol=args.protocol,
     )
     if "error" in result:
         print(f"  {result['error']}")
@@ -1071,16 +1072,34 @@ def cmd_narrative(args: argparse.Namespace) -> int:
         manifest_hash=manifest.manifest_hash,
         fixture=manifest.fixture,
         split="val",
-        params={"option": args.option, "n": args.n, "model": args.model},
+        params={
+            "option": args.option,
+            "n": args.n,
+            "model": args.model,
+            "protocol": args.protocol,
+        },
     )
     out_root = data_root() / "artifacts" / "week14"
-    name = option_tag(paths.name, args.option)
+    base = option_tag(paths.name, args.option)
+    name = base if args.protocol == "A21" else f"{base}_{args.protocol}"  # A21 keeps its names
     artifact = write_artifact(out_root / f"narrative_{name}.json", stamp, result)
     out_dir = out_root if args.dataset == FIXTURE_DATASET else REPO_ROOT / "docs" / "eval"
     out_dir.mkdir(parents=True, exist_ok=True)
+    previous = None
+    first_run = out_root / f"narrative_{base}.json"
+    if args.protocol != "A21" and first_run.exists():
+        previous = read_artifact(first_run)[1]
     report = out_dir / f"narrative_{name}.md"
-    report.write_text(render_narrative(result))
+    report.write_text(render_narrative(result, previous))
     cases = write_cases(result, out_dir / f"narrative_{name}_cases.jsonl")
+    if args.protocol != "A21":
+        review = write_review(result, out_dir / f"narrative_{name}_review.csv")
+        print(f"  review   {review} (rate these blind; see the run log)")
+        st = result["summary"]["strict_grounding"]
+        if st["estimate"] is not None:
+            print(f"  strict grounding {st['estimate']:.3f} [{st['low']:.3f}, {st['high']:.3f}]")
+        for lv, v in (result.get("topk") or {}).get("levels", {}).items():
+            print(f"  {lv} top-3 end to end {v['top3']['estimate']:.3f}")
     s = result["summary"]
     g = s["H3b"]["grounding"]
     tau = result["selective"]["tau"]
@@ -1373,7 +1392,10 @@ def build_parser() -> argparse.ArgumentParser:
     nr.add_argument("--n", type=int, default=200, help="cases to narrate (stratified)")
     nr.add_argument("--model", default="llama3.2:3b")
     nr.add_argument("--url", default="http://localhost:11434", help="local Ollama only")
-    nr.add_argument("--timeout", type=float, default=120.0, help="seconds per model call")
+    nr.add_argument(
+        "--timeout", type=float, default=None, help="seconds per call (A21: 120, A22: 600)"
+    )
+    nr.add_argument("--protocol", default="A22", choices=["A21", "A22"])
     nr.set_defaults(func=cmd_narrative)
 
     cv = sub.add_parser("coverage", help="A21 coverage curve from the X1 artifacts (week 14)")
