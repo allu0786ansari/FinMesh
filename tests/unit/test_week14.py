@@ -504,3 +504,61 @@ def test_ollama_call_unloads_the_model_after_each_reply(monkeypatch: pytest.Monk
     assert call("hi", "json") == "{}"
     assert sent[0]["keep_alive"] == 0 and sent[0]["options"]["num_predict"] == 400
     assert sent[0]["options"]["temperature"] == 0
+
+
+def test_a_stopped_server_stops_the_run_and_saves_nothing(
+    monkeypatch: pytest.MonkeyPatch, fixture_paths: object, ingested: object
+) -> None:
+    import http.client
+    import urllib.error
+
+    from finmesh.eval.g0 import run_g0
+
+    refused = urllib.error.URLError(ConnectionRefusedError(111, "Connection refused"))
+    assert nar.server_down(refused)
+    assert nar.server_down(http.client.RemoteDisconnected("Remote end closed connection"))
+    assert not nar.server_down(TimeoutError("timed out"))  # a slow model is a failed reply
+    assert not nar.server_down(urllib.error.URLError(TimeoutError("timed out")))
+    http500 = urllib.error.HTTPError("http://localhost", 500, "error", None, None)  # type: ignore[arg-type]
+    assert not nar.server_down(http500)
+
+    run_g0(fixture_paths)  # type: ignore[arg-type]
+    t = _table()
+    proba: dict[str, Any] = {}
+    attribute(t, "S2", 0, load_catalogue(), proba)
+    monkeypatch.setattr(
+        "finmesh.training.x6.run_seed_x6",
+        lambda *_, **kw: {"tables": {lv: {"table": t, **proba} for lv in kw["levels"]}},
+    )
+    calls = {"n": 0}
+
+    def dies_after_three(prompt: str, fmt: Any) -> str:
+        calls["n"] += 1
+        if calls["n"] > 3:
+            raise refused
+        return json.dumps({"narrative": "Linked.", "cited_fields": ["case_members"],
+                           "typology_id": "UNATTRIBUTED"})  # fmt: skip
+
+    r = nar.run_narrative(fixture_paths, n=40, call=dies_after_three)
+    assert "error" in r and "nothing was saved" in r["error"] and " of 40 " in r["error"]
+
+
+def test_rerun_script_discards_a_narrative_made_while_the_server_was_down(tmp_path: Path) -> None:
+    import subprocess
+
+    script = Path(__file__).resolve().parents[2] / "scripts" / "week14_rerun.sh"
+    text = script.read_text()
+    body = text[text.index("discard_if_broken() {") : text.index("\nif ! curl")]
+    good, bad = tmp_path / "good.json", tmp_path / "bad.json"
+    good.write_text(json.dumps({"result": {"cases": [{"errors": ["TimeoutError: timed out"]}]}}))
+    bad.write_text(json.dumps({"result": {"cases": [
+        {"errors": []}, {"errors": ["URLError: <urlopen error [Errno 111] Connection refused>"]}
+    ]}}))  # fmt: skip
+    run = f'set -euo pipefail\n{body}\ndiscard_if_broken "{good}"\ndiscard_if_broken "{bad}"\n'
+    out = subprocess.run(["bash", "-c", run], capture_output=True, text=True, check=True)
+    assert good.exists() and not bad.exists(), out.stdout + out.stderr
+    good2 = tmp_path / "again.json"
+    good2.write_text(good.read_text())
+    fresh = f'set -euo pipefail\n{body}\nFRESH=1 discard_if_broken "{good2}"\n'
+    subprocess.run(["bash", "-c", fresh], capture_output=True, text=True, check=True)
+    assert not good2.exists()

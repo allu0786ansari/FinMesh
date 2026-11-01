@@ -61,6 +61,25 @@ MAX_TOKENS = {"A21": 320, "A22": 400}
 TIMEOUT_S = {"A21": 120.0, "A22": 600.0}
 MAX_CITED = 4
 
+
+class ModelUnavailable(RuntimeError):
+    """The model server stopped answering (connection refused or reset), as opposed to a slow
+    or bad reply. The run stops and saves nothing, so a dead server can never be recorded as
+    a run of failed replies (week-14 rerun: Ollama stopped mid-run)."""
+
+
+def server_down(exc: BaseException) -> bool:
+    """A refused or reset connection, not a timeout and not an HTTP error from the model."""
+    if isinstance(exc, urllib.error.HTTPError):
+        return False
+    reason = exc.reason if isinstance(exc, urllib.error.URLError) else exc
+    if isinstance(reason, TimeoutError):
+        return False
+    return isinstance(
+        reason, ConnectionRefusedError | ConnectionResetError | ConnectionAbortedError
+    ) or "Connection refused" in str(reason)
+
+
 # A model call: (prompt, format) -> raw response text. Raises on transport failure.
 Call = Callable[[str, dict[str, Any] | str], str]
 
@@ -618,6 +637,8 @@ def narrate(
         try:
             raw = call(text, fmt)
         except (urllib.error.URLError, TimeoutError, OSError, ValueError) as exc:
+            if server_down(exc):
+                raise ModelUnavailable(str(exc)) from exc
             errors.append(f"{type(exc).__name__}: {exc}"[:200])
             raw = ""
         return {"raw": raw, **check_reply(raw, expected, fields, known, allowed, catalogue)}
@@ -888,7 +909,14 @@ def run_narrative(
         results = []
         for k, i in enumerate(pick):
             case = build_case(rows[i], classes, proba[i], tau, catalogue, window_hours)
-            results.append(narrate(case, catalogue, call, protocol))
+            try:
+                results.append(narrate(case, catalogue, call, protocol))
+            except ModelUnavailable as exc:
+                return {
+                    "error": f"the model server stopped answering at case {k + 1} of "
+                    f"{len(pick)} ({exc}); nothing was saved. Start `ollama serve` and run "
+                    "the same command again"
+                }
             if progress and (k + 1) % 25 == 0:
                 progress(f"narratives {k + 1}/{len(pick)}")
     return {
@@ -920,6 +948,7 @@ __all__ = [
     "PROTOCOLS",
     "TAU_GRID",
     "UNATTRIBUTED",
+    "ModelUnavailable",
     "bucket_range",
     "build_case",
     "build_prompt",
@@ -931,6 +960,7 @@ __all__ = [
     "risk_coverage",
     "run_narrative",
     "selective_threshold",
+    "server_down",
     "stratified_sample",
     "summarise",
     "template_narrative",

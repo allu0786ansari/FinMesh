@@ -84,6 +84,14 @@ memory=10GB
 
 then run `wsl --shutdown` in PowerShell and reopen the terminal. A machine with 16 GB can give WSL 10–12 GB.
 
+### Fix 1 Nov evening: HI-Medium skipped after a restart
+
+If `ollama serve` is stopped while the script is still running, every remaining call fails at once with "connection refused". Each case then falls back to the template in milliseconds, so the step "finishes" and saves a result made of failed calls. On the next run the script saw that file and skipped HI-Medium.
+
+- **Now:** a refused or reset connection stops the narrative at once and saves nothing. The script also checks each saved A22 narrative and removes any made while the server was down, so that dataset runs again from case 1.
+- **Always stop the script first** (Ctrl+C), then `ollama serve`.
+- **To restart both narratives from case 1 on purpose,** use `FRESH=1` once. Don't use it when resuming, or it also removes a finished one.
+
 ### What you run now
 
 ```bash
