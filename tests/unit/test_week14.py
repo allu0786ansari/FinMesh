@@ -482,7 +482,7 @@ def test_narrative_fails_fast_when_ollama_is_down(fixture_paths: object) -> None
     assert "error" in r and "ollama serve" in r["error"]
 
 
-def test_ollama_call_unloads_the_model_after_each_reply(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_ollama_call_unloads_the_model_periodically(monkeypatch: pytest.MonkeyPatch) -> None:
     sent: list[dict[str, Any]] = []
 
     class Reply:
@@ -501,9 +501,15 @@ def test_ollama_call_unloads_the_model_after_each_reply(monkeypatch: pytest.Monk
 
     monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
     call = nar.ollama_call("http://localhost:11434", "llama3.2:3b", 600)
-    assert call("hi", "json") == "{}"
-    assert sent[0]["keep_alive"] == 0 and sent[0]["options"]["num_predict"] == 400
-    assert sent[0]["options"]["temperature"] == 0
+    for _ in range(12):
+        assert call("hi", "json") == "{}"
+    unloads = [i for i, body in enumerate(sent, 1) if body.get("keep_alive") == 0]
+    assert unloads == [6, 12]  # bounded prompt cache without a reload per call
+    assert "keep_alive" not in sent[0]  # Ollama's default keeps the model between calls
+    assert sent[0]["options"]["num_predict"] == 400 and sent[0]["options"]["temperature"] == 0
+    each = nar.ollama_call("http://localhost:11434", "llama3.2:3b", 600, unload_every=1)
+    each("hi", "json")
+    assert sent[-1]["keep_alive"] == 0
 
 
 def test_a_stopped_server_stops_the_run_and_saves_nothing(

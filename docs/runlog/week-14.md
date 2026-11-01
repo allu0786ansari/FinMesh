@@ -71,7 +71,7 @@ The `ollama serve` log from your first rerun attempt showed the model answering,
 
 The cause is recent Ollama's built-in llama.cpp server. It keeps every finished prompt's state in RAM as a prompt cache, about 110 MB per prompt and up to 8 GB in total. The log showed 32 prompts and 3.5 GB. With about 5.8 GB available, that cache pushed the model's own weights out of memory, so each generated token waited on the disk. Ollama has no setting for this cache's size.
 
-The fix is in the client: every call now sends `keep_alive: 0`. The model unloads after each reply, which frees its cache, and reloads from the disk cache in a few seconds. Replies are unchanged; only memory use differs.
+The fix is in the client: the model is unloaded (`keep_alive: 0`) every 6 calls, which empties the cache, so it never holds more than about 0.7 GB. Unloading after every call also worked (6.2 tokens/s in your 17:23 log), but each reload on CPU takes about 50 s, longer than the reply itself; every 6 calls keeps the memory bound and cuts that overhead about sixfold. Replies are unchanged; only memory use and time differ.
 
 If you have already started the rerun: stop it (Ctrl+C), stop `ollama serve` (Ctrl+C) and start it again. Then follow the steps below. The narrative step restarts from case 1, because nothing was saved yet.
 
