@@ -656,11 +656,23 @@ def narrate(
     }
 
 
-def ollama_call(url: str, model: str, timeout: float, max_tokens: int = MAX_TOKENS["A22"]) -> Call:
+def ollama_call(
+    url: str,
+    model: str,
+    timeout: float,
+    max_tokens: int = MAX_TOKENS["A22"],
+    keep_alive: int | str | None = 0,
+) -> Call:
+    """A call to the local model. ``keep_alive=0`` unloads it after every reply: recent Ollama
+    keeps each finished prompt's state in RAM (up to 8 GB), which on a small CPU machine pushed
+    the model's weights out of memory and slowed generation about 25-fold (week-14 rerun).
+    Reloading from the page cache takes seconds; the replies are unchanged."""
     assert_local(url)
 
     def call(prompt: str, fmt: dict[str, Any] | str) -> str:
-        reply = call_ollama(url, model, prompt, fmt, timeout, max_tokens=max_tokens)
+        reply = call_ollama(
+            url, model, prompt, fmt, timeout, max_tokens=max_tokens, keep_alive=keep_alive
+        )
         return str(reply.get("response", ""))
 
     return call

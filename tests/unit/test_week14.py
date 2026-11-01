@@ -480,3 +480,27 @@ def test_cli_has_the_week14_commands() -> None:
 def test_narrative_fails_fast_when_ollama_is_down(fixture_paths: object) -> None:
     r = nar.run_narrative(fixture_paths, url="http://localhost:9", timeout=2)
     assert "error" in r and "ollama serve" in r["error"]
+
+
+def test_ollama_call_unloads_the_model_after_each_reply(monkeypatch: pytest.MonkeyPatch) -> None:
+    sent: list[dict[str, Any]] = []
+
+    class Reply:
+        def __enter__(self) -> Reply:
+            return self
+
+        def __exit__(self, *_: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return b'{"response": "{}"}'
+
+    def fake_urlopen(request: Any, timeout: float) -> Reply:
+        sent.append(json.loads(request.data))
+        return Reply()
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    call = nar.ollama_call("http://localhost:11434", "llama3.2:3b", 600)
+    assert call("hi", "json") == "{}"
+    assert sent[0]["keep_alive"] == 0 and sent[0]["options"]["num_predict"] == 400
+    assert sent[0]["options"]["temperature"] == 0

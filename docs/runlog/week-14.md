@@ -65,6 +65,25 @@ Research behind it:
 
 The A21 pages stay unchanged; A22 writes `*_A22*` files, and its page compares the two runs on the same 200 cases.
 
+### Fix 1 Nov afternoon: generation slowed 25-fold during the rerun
+
+The `ollama serve` log from your first rerun attempt showed the model answering, but generation fell from **5.5 tokens/s** on the first case to **0.2–0.3 tokens/s**. A reply then took 9–10 min and hit the 600 s limit. Prompt reading stayed normal (26–44 tokens/s).
+
+The cause is recent Ollama's built-in llama.cpp server. It keeps every finished prompt's state in RAM as a prompt cache, about 110 MB per prompt and up to 8 GB in total. The log showed 32 prompts and 3.5 GB. With about 5.8 GB available, that cache pushed the model's own weights out of memory, so each generated token waited on the disk. Ollama has no setting for this cache's size.
+
+The fix is in the client: every call now sends `keep_alive: 0`. The model unloads after each reply, which frees its cache, and reloads from the disk cache in a few seconds. Replies are unchanged; only memory use differs.
+
+If you have already started the rerun: stop it (Ctrl+C), stop `ollama serve` (Ctrl+C) and start it again. Then follow the steps below. The narrative step restarts from case 1, because nothing was saved yet.
+
+Optional, if Windows (WSL) has more RAM than Linux sees: in `C:\Users\<you>\.wslconfig`, set
+
+```
+[wsl2]
+memory=10GB
+```
+
+then run `wsl --shutdown` in PowerShell and reopen the terminal. A machine with 16 GB can give WSL 10–12 GB.
+
 ### What you run now
 
 ```bash
