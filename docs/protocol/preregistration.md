@@ -208,6 +208,15 @@ Fixed after the A21 validation run failed H3b and before its rerun; test still s
 - **Typology:** τ rule unchanged. Secondary: top-1 and top-3 accuracy at S0 and S2 (seed 0), end to end and on detected schemes, scheme bootstrap, paired S2 − S0, against the training-half frequency top-3 and chance.
 - **Owner review:** 30 random HI-Medium cases rated blind to the true pattern for faithfulness and usefulness.
 
+## 6g. Final narrative protocol (amendment A23, frozen for the test)
+
+Fixed after the A22 validation run (format solved; 92% copied the worked example and most claims contradicted the evidence). Frozen for the test whatever its validation result; A21, A22 and A23 are all reported.
+
+- **Prompt:** reply shape only, no content example; every count and share value carries a fixed plain-word reading (counts: none, one, two, several 3–9, many 10+; shares: none < 0.05, under half < 0.5, most < 0.8, nearly all).
+- **Claim consistency:** per-sentence rules tie pass-through, many payers, many payees, cycles, gathering and splitting claims to their evidence fields; layering claims are never supported; hedged sentences are skipped; number words count in the numeric check; placeholders count as copying.
+- **Strict grounding (A23)** = A22 strict + claim-consistent + no copying; triggers retry and fallback. H3b unchanged. A22 replies re-scored with the same rules.
+- **Blind A/B review:** 30 random HI-Medium cases, model narrative and template in seeded random order; faithfulness, usefulness, preference; claim check against the owner's faithfulness rating (Cohen's kappa).
+
 ## 7. Seeds and statistics
 
 - **Seeds:**
