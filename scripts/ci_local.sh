@@ -46,4 +46,8 @@ step uv run finmesh features --dataset FIXTURE-Small --option B8c50 --view poole
 step uv run finmesh x1 --dataset FIXTURE-Small --option B8c50 --seeds 0 --reps 50 --no-sweeps --no-audit
 step uv run finmesh coverage --dataset FIXTURE-Small
 step uv run finmesh check
+# The secret scan of the GitHub workflow, when gitleaks is installed (scans the working tree).
+if command -v gitleaks >/dev/null 2>&1; then
+  step gitleaks detect --no-git --source . --redact --exit-code 2
+fi
 echo; echo "local CI: all steps passed"
