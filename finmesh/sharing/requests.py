@@ -33,8 +33,8 @@ HOP_LIMIT = 1  # responders never forward
 class RequestIssuer:
     """Signs requests on behalf of nodes; holds the only signing key."""
 
-    def __init__(self) -> None:
-        self.__key = Ed25519PrivateKey.generate()
+    def __init__(self, key: Ed25519PrivateKey | None = None) -> None:
+        self.__key = key if key is not None else Ed25519PrivateKey.generate()
         self.public_key: Ed25519PublicKey = self.__key.public_key()
         self._next = 0
 

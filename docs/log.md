@@ -14,6 +14,16 @@ Next week: <first two tasks>
 On track for next gate? yes / at risk / no
 ```
 
+## Week 16 · 8 – 14 Feb 2027
+
+Planned: the analyst console and the privacy ledger.
+Done: a demo world built from real validation data (the slice's setup, saved with its secrets at mode 0600) and served through the HTTP services with one orchestrator per member; a persistent request-signing key; a case summary in the A23 style with a catalogue typology hint; the privacy ledger (no shared model per G3, evidence disclosures per member, OPRF budget use, full audit); the analyst console (ranked queue with the budget cut, evidence view by member and level, actions with four-eyes approval, ledger tab). Details in `docs/runlog/week-16.md`.
+Not done: the owner's run on HI-Medium and the console check; the A23 blind review.
+Numbers this week: at fixture scale, 6 of 6 sessions closed, a replayed run sends nothing. Found: the frozen A23 claim check misreads negated cycle sentences (all 7 HI cycle flags were "no cycles"), so A23's first-reply consistency is understated (exploratory).
+Risks or blockers: none.
+Next week: X7 (latency, fault and chaos tests, resource benchmark) and the container packaging.
+On track for next gate? yes (G4, week 18).
+
 ## Week 15 · 1 – 7 Feb 2027
 
 Planned: the demo path (node, token and orchestration services; sessions, signed tokens, fault tests).

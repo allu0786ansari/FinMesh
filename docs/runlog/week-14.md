@@ -29,7 +29,10 @@ LI-Medium (77 cases), A23: H3b 0.883 [0.793, 0.937]; first replies claim-consist
 1. **Faithfulness is solved where it matters.** Worded evidence and no copyable example lifted claim consistency of the model's own first replies from about 17% to 87.5%. With the retry and the template, every delivered narrative passes the claim check. Copying fell from 92% to 0%.
 2. **Strict grounding fell to 0.12 because of citation counts, not content.** Without the example, the model cites a median of 13 fields (up to 32), where the rule allows 1 to 4. The constrained retry fixes this every time. Leaving out only that rule, strict grounding would be 0.76 (HI) and 0.73 (LI). That figure is post hoc, so the paper must label it exploratory.
 3. **H3b is not met on validation** (0.920 HI, 0.883 LI, against 0.95). The test will decide, as pre-registered, and the paper should state the shortfall plainly.
-4. **The claim check has some false positives.** About 6 of the 21 pass-through flags on HI are really about the cross-bank share ("most transfers going to other banks"). Your blind review measures how far the check agrees with a human.
+4. **The claim check has false positives (found 2 Nov, exploratory).**
+   - **Cycle flags:** every one of the 7 HI cycle flags, and 3 of the 4 on LI, is a correct negated sentence ("no cycles"). The frozen cycle rule does not handle negation.
+   - **Pass-through flags:** about 6 of the 21 on HI are really about the cross-bank share ("most transfers going to other banks").
+   - **So the 87.5% is understated.** The frozen check stays unchanged for the test; the paper reports its figure and these corrections side by side. Your blind review measures the check against a human.
 5. **Top-3 candidates are unchanged.** A23 reuses the same attributor: S2 0.470 against S0 0.410 (+0.060 [0.013, 0.109]) on HI.
 
 **For the paper:** a 3B model on a laptop CPU can write grounded case summaries only inside a checked pipeline: worded evidence, a claim check, a constrained retry and a template fallback. The format check alone (H3b) overstated quality badly in A22. This holds whatever the test shows.

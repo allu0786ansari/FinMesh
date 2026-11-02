@@ -158,6 +158,21 @@ class SessionStore(_Db):
             out.append(d)
         return out
 
+    def all_requests(self) -> list[dict[str, Any]]:
+        """Every request of every session, with its session's member (privacy ledger)."""
+        with self.lock:
+            rows = self.conn.execute(
+                "SELECT r.*, s.member AS requester FROM requests r "
+                "JOIN sessions s ON s.key = r.session ORDER BY r.session, r.idx"
+            ).fetchall()
+        out = []
+        for r in rows:
+            d = dict(r)
+            d["request"] = json.loads(d["request"])
+            d["response"] = json.loads(d["response"]) if d["response"] else None
+            out.append(d)
+        return out
+
     def mark_sent(self, key: str, idx: int) -> None:
         with self.lock, self.conn:
             self.conn.execute(

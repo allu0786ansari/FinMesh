@@ -1156,6 +1156,60 @@ def cmd_narrative_review(args: argparse.Namespace) -> int:
     return 0
 
 
+def demo_folder(dataset: str) -> Path:
+    return data_root() / "demo" / dataset
+
+
+def cmd_demo_build(args: argparse.Namespace) -> int:
+    """Week 16: build the demo world from real validation data (data/demo/<dataset>/)."""
+    from finmesh.services.world import build_world
+
+    paths = dataset_paths(args.dataset)
+    folder = demo_folder(paths.name)
+    meta = build_world(paths, folder, option=args.option, n_alerts=args.alerts, seed=args.seed)
+    print(f"  {meta['alerts']} alerts across {len(meta['members'])} members, level {meta['level']}")
+    print(f"  setup {meta['setup_seconds']:.0f} s; world in {folder}")
+    return 0 if meta["alerts"] else 1
+
+
+def cmd_demo_run(args: argparse.Namespace) -> int:
+    """Week 16: every alert of the demo world through the HTTP services and orchestrators."""
+    from finmesh.services.world import load_world, run_world
+
+    folder = demo_folder(dataset_paths(args.dataset).name)
+    if not (folder / "meta.json").exists():
+        print(f"  no demo world in {folder}; run `finmesh demo-build --dataset {args.dataset}`")
+        return 1
+    r = run_world(load_world(folder), limit=args.limit)
+    lat = r["latency_s"]
+    print(f"  sessions {r['sessions']}: {r['states']}")
+    if lat["p50"] is not None:
+        print(f"  latency per alert p50 {lat['p50']:.3f} s, p95 {lat['p95']:.3f} s (PT6: 3 s)")
+    print(f"  sessions in {folder / 'sessions.db'}; open them with `finmesh console`")
+    return 0 if r["states"]["closed"] else 1
+
+
+def cmd_console(args: argparse.Namespace) -> int:
+    """Week 16: the analyst console and privacy ledger on 127.0.0.1 only."""
+    import uvicorn
+
+    from finmesh.services.console import console_app
+    from finmesh.services.store import BudgetLedger, SessionStore
+    from finmesh.services.world import load_world
+
+    folder = demo_folder(dataset_paths(args.dataset).name)
+    if not (folder / "sessions.db").exists():
+        print(f"  no sessions in {folder}; run `finmesh demo-run --dataset {args.dataset}` first")
+        return 1
+    world = load_world(folder)
+    app = console_app(
+        SessionStore(folder / "sessions.db"), BudgetLedger(folder / "budget.db"), world.meta
+    )
+    print(f"  console on http://127.0.0.1:{args.port}  (Ctrl+C to stop)")
+    uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="warning")
+    return 0
+
+
 def fmt_float(v: float | None) -> str:
     return "—" if v is None else f"{v:.3f}"
 
@@ -1439,6 +1493,25 @@ def build_parser() -> argparse.ArgumentParser:
     )
     nr.add_argument("--protocol", default="A23", choices=["A21", "A22", "A23"])
     nr.set_defaults(func=cmd_narrative)
+
+    db = sub.add_parser("demo-build", help="week 16: demo world from real validation data")
+    db.add_argument("--dataset", required=True)
+    db.add_argument("--option", default="B8")
+    db.add_argument(
+        "--alerts", type=int, default=200, help="alerts with cross-member counterparties"
+    )
+    db.add_argument("--seed", type=int, default=0)
+    db.set_defaults(func=cmd_demo_build)
+
+    dr = sub.add_parser("demo-run", help="week 16: the demo world through the services")
+    dr.add_argument("--dataset", required=True)
+    dr.add_argument("--limit", type=int, default=None, help="only the first N alerts")
+    dr.set_defaults(func=cmd_demo_run)
+
+    co = sub.add_parser("console", help="week 16: the analyst console and privacy ledger")
+    co.add_argument("--dataset", required=True)
+    co.add_argument("--port", type=int, default=8050)
+    co.set_defaults(func=cmd_console)
 
     rv = sub.add_parser("narrative-review", help="A23: score the owner's blind A/B review")
     rv.add_argument("--dataset", required=True)

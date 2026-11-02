@@ -83,9 +83,12 @@ def attribute(row: dict[str, Any]) -> tuple[str, str]:
     return "unknown", "no rule fired"
 
 
-def run_slice(
+def setup_slice(
     paths: DatasetPaths, option: str = "B8", n_alerts: int = 50, seed: int = 0
 ) -> dict[str, Any]:
+    """The slice's untimed setup: detectors, calibration, alerts, evidence records, token
+    indexes, and the sampled sessions with cross-member counterparties. Shared by the slice
+    and the demo world (week 16)."""
     t_setup = time.perf_counter()
     plan = load_plan(paths)
     store = EvalStore(paths, option)
@@ -192,6 +195,35 @@ def run_slice(
     pick = rng.choice(with_cp.height, min(n_alerts, with_cp.height), replace=False)
     sessions = with_cp[np.sort(pick)]
     feats_by_row = {r["row"]: r for r in own_feats.iter_rows(named=True)}
+    return {
+        "prob": prob,
+        "records": records,
+        "sessions": sessions,
+        "sides": sides,
+        "feats_by_row": feats_by_row,
+        "env": env,
+        "issuer": issuer,
+        "nodes": nodes,
+        "schema": schema,
+        "v0": v0,
+        "lookback": lookback,
+        "setup_seconds": setup_seconds,
+        "apm": apm,
+    }
+
+
+def run_slice(
+    paths: DatasetPaths, option: str = "B8", n_alerts: int = 50, seed: int = 0
+) -> dict[str, Any]:
+    w_ = setup_slice(paths, option, n_alerts, seed)
+    prob, sessions, sides = w_["prob"], w_["sessions"], w_["sides"]
+    feats_by_row, env, issuer, nodes = w_["feats_by_row"], w_["env"], w_["issuer"], w_["nodes"]
+    schema, v0, lookback, setup_seconds = (
+        w_["schema"],
+        w_["v0"],
+        w_["lookback"],
+        w_["setup_seconds"],
+    )
     prob_idx = WIRE_FIELDS.index("prob_bucket")
 
     latencies, cards, ledger = [], [], []
@@ -314,4 +346,4 @@ def render_slice(r: dict[str, Any]) -> str:
     )
 
 
-__all__ = ["attribute", "render_slice", "run_slice"]
+__all__ = ["attribute", "render_slice", "run_slice", "setup_slice"]
