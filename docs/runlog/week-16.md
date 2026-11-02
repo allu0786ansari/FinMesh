@@ -4,7 +4,7 @@
 - **Console:** an incident queue cut at the bank's budget; a cross-bank evidence view showing which sharing level each response used; the attribution and summary; approve and reject controls for high-impact actions.
 - **Privacy ledger:** model ε per bank, evidence disclosure, OPRF queries against budget, and every evidence request and response.
 
-**State (2 Nov):** code complete and tested here: unit cases, and the whole real-data path at fixture scale. On your machine it is three commands and about 20–40 minutes, plus a look at the console in your browser.
+**State (2 Nov, evening):** done on your machine. The demo world was built from HI-Medium and run through the services; the console and the four-eyes approval were checked by both team members. Three console fixes followed (below).
 
 ## What was built
 
@@ -30,6 +30,30 @@
 | CI mirror | All steps pass |
 
 **Found while building the summary:** the frozen A23 claim check does not see negation for cycles. All 7 HI cycle flags (3 of 4 on LI) were correct "no cycles" sentences. This is noted in the week-14 run log, and the console's summary avoids the word.
+
+## Your run (2 Nov, HI-Medium, 200 alerts, from your screenshots)
+
+| What | Result |
+| --- | --- |
+| Evidence requests | **733** for 200 alerts (about 3.7 per alert), all eight members both asking and answering |
+| Answered with a record | **308 of 733 (42%)**. Each member released 27–46 records |
+| Alert flags revealed | 184 (25%) |
+| Refused / unreachable | **0 / 0** |
+| OPRF tokens (epoch 1) | 7,031–9,896 evaluations per bank, **9.4–13.3% of the 74,510 budget**, 0 refused. Most of this is each node tokenising its own accounts; the alerts' lookups are a small part |
+| Four-eyes approval | `file_report` recorded by Allaudin Ansari and approved by Ravi. Self-approval is refused |
+| Model privacy | No shared model, as decided at G3 |
+
+**What the screenshots showed, and what changed:**
+
+1. **Many top alerts tie at 1.000.** On real data the calibrated probability often saturates, so the fused score cannot order the top of the queue. Ties now go to the case with more peer alerts, then more peer records, then the earlier window. Where calibration saturates, the evidence from other members is what ranks the cases, which is the point of sharing.
+2. **The "all members" view was grouped by member.** It is now one list ranked by priority. Each row keeps its rank *within its member* (column "Rank"; a dot marks a case beyond that member's alert budget), because budgets are per member.
+3. **Scores showed as "1" next to "1.000".** Scores now always show three decimals; counts stay whole numbers.
+4. **The typology hint is mostly RANDOM.** A bank's own view of one account rarely meets the catalogue's fan-out or cycle thresholds, so the rules fall through. This is an honest limit of a rule-based hint on one bank's view, and it matches X6: the bank's own view (S0) attributes worst. The console keeps it labelled as a hint. The evaluated attributor (X6, top-3 accuracy 0.47 at S2) works on incidents assembled over the validation period, which the demo path does not build.
+5. **Several evidence rows per member.** There is one row per counterparty account and epoch, so a member with four of the case's counterparties appears four times. The table now says so.
+
+**Not reported:** the `demo-run` latency. X7 (week 17) measures it formally, so nothing is lost.
+
+**The warning `Using httpx with starlette.testclient is deprecated`:** fixed. The project now uses `httpx2` (2.16.0, the maintained successor to httpx, by the pydantic team) everywhere, in the clients, the orchestrator and the tests. The warning filter is gone, and a test run with deprecation warnings as errors passes.
 
 ## What you run on your machine
 

@@ -115,6 +115,7 @@ def test_console_queue_case_actions_and_ledger(worked: tuple[SessionStore, dict[
     q = c.get("/api/queue").json()
     scores = [r["fused_score"] for r in q]
     assert len(q) == 3 and scores == sorted(scores, reverse=True) and q[0]["rank"] == 1
+    assert "toFixed(3)" in c.get("/").text  # scores always show three decimals
     assert c.get("/api/queue?member=5").json() == []
     key = q[0]["key"]
     case = c.get(f"/api/session/{key}").json()
@@ -178,3 +179,24 @@ def test_demo_world_on_the_fixture_end_to_end(
     card = c.get(f"/api/session/{q[0]['key']}").json()["card"]
     assert card["summary"] and card["typology_hint"] and card["requests"] >= 1
     assert len(privacy_ledger(store, None, world.meta)["requests"]) == n_requests
+
+
+def test_queue_breaks_ties_by_peer_evidence_and_ranks_across_members(tmp_path: Path) -> None:
+    from finmesh.services.console import queue
+
+    store = SessionStore(tmp_path / "q.db")
+    cards = {  # (member, account, window): (fused, peer alerts, peer records)
+        (0, 1, 5): (1.0, 0, 0), (0, 2, 5): (1.0, 2, 1), (0, 3, 4): (1.0, 2, 2),
+        (1, 4, 6): (0.9, 0, 0), (1, 5, 6): (1.0, 1, 0),
+    }  # fmt: skip
+    for (m, a, w), (f, pa, pr) in cards.items():
+        store.open(f"{m}:{a}:{w}", m, w)
+        store.close_with_card(
+            f"{m}:{a}:{w}", {"fused_score": f, "peer_alerts": pa, "peer_records": pr}
+        )
+    rows = queue(store, {"accounts_per_member": {0: 1000, 1: 1000}}, None)
+    assert [r["key"] for r in rows] == ["0:3:4", "0:2:5", "1:5:6", "0:1:5", "1:4:6"]
+    assert {r["key"]: r["rank"] for r in rows} == {
+        "0:3:4": 1, "0:2:5": 2, "0:1:5": 3, "1:5:6": 1, "1:4:6": 2
+    }  # fmt: skip
+    assert [r["key"] for r in queue(store, {}, 1)] == ["1:5:6", "1:4:6"]

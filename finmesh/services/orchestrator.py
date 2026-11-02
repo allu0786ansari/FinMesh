@@ -30,7 +30,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-import httpx
+import httpx2
 import numpy as np
 
 from finmesh.fusion.triage import BUCKET_MID
@@ -45,7 +45,7 @@ from finmesh.sharing.requests import RequestIssuer
 
 FLAG_WEIGHT = 0.5  # noisy-OR weight of a peer's alert flag (the slice's fixed value)
 LOOKBACK = 12  # 72 h of 6-hour windows
-TRANSPORT_ERRORS = (httpx.TransportError, ServiceError, OSError)
+TRANSPORT_ERRORS = (httpx2.TransportError, ServiceError, OSError)
 _PROB = WIRE_FIELDS.index("prob_bucket")
 
 

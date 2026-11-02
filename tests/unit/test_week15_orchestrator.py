@@ -6,7 +6,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-import httpx
+import httpx2
 import polars as pl
 import pytest
 from fastapi.testclient import TestClient
@@ -52,7 +52,7 @@ class Counting:
 
     def __init__(self, inner: Any, fail: int = 0, exc: BaseException | None = None) -> None:
         self.inner, self.fail, self.calls = inner, fail, 0
-        self.exc = exc or httpx.ConnectError("node down")
+        self.exc = exc or httpx2.ConnectError("node down")
 
     def respond(self, request: EvidenceRequest) -> EvidenceResponse:
         self.calls += 1
@@ -137,7 +137,7 @@ def test_token_service_failure_ends_failed_after_max_attempts(tmp_path: Path) ->
     store = SessionStore(tmp_path / "s.db")
 
     def down(bank: int, epoch: int, blinded: list[bytes]) -> list[bytes]:
-        raise httpx.ConnectError("token service down")
+        raise httpx2.ConnectError("token service down")
 
     orch = Orchestrator(0, TokenClient(0, down), RequestIssuer(), {}, store,
                         sleep=lambda _: None, max_attempts=2)  # fmt: skip

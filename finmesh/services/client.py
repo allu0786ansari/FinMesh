@@ -7,7 +7,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 
-import httpx
+import httpx2
 
 from finmesh.matching.tokens import BudgetExceeded
 from finmesh.services.auth import sign_headers
@@ -24,7 +24,7 @@ class ServiceError(RuntimeError):
     """A service refused or failed a call (not a protocol-level refusal)."""
 
 
-def _raise(r: httpx.Response) -> None:
+def _raise(r: httpx2.Response) -> None:
     if r.status_code >= 400:
         detail = r.json().get("detail", r.text) if r.content else r.reason_phrase
         raise ServiceError(f"{r.request.url.path}: HTTP {r.status_code}: {detail}")
@@ -34,7 +34,7 @@ def _raise(r: httpx.Response) -> None:
 class HttpTokenTransport:
     """``(bank, epoch, blinded) -> evaluated`` over HTTP, authenticated as ``bank``."""
 
-    http: httpx.Client
+    http: httpx2.Client
     bank: int
     key: bytes
 
@@ -55,7 +55,7 @@ class HttpTokenTransport:
 class HttpNode:
     """A remote bank node: ``respond(request)`` over HTTP."""
 
-    http: httpx.Client
+    http: httpx2.Client
 
     def respond(self, request: EvidenceRequest) -> EvidenceResponse:
         r = self.http.post("/v1/evidence", json=encode(request))

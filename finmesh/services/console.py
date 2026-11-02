@@ -65,7 +65,7 @@ def queue(store: SessionStore, meta: dict[str, Any], member: int | None) -> list
         if member is not None and m != member:
             continue
         mine = [s for s in sessions if s["member"] == m]
-        mine.sort(key=lambda s: -(s["card"] or {}).get("fused_score", -1.0))
+        mine.sort(key=_priority)
         for rank, s in enumerate(mine, 1):
             card = s["card"] or {}
             pending = sum(a["status"] == "pending_approval" for a in store.actions(s["key"]))
@@ -80,6 +80,7 @@ def queue(store: SessionStore, meta: dict[str, Any], member: int | None) -> list
                     "fused_score": card.get("fused_score"),
                     "own_probability": card.get("own_probability"),
                     "peer_alerts": card.get("peer_alerts"),
+                    "peer_records": card.get("peer_records"),
                     "evidence_incomplete": card.get("evidence_incomplete"),
                     "typology_hint": card.get("typology_hint"),
                     "suggested_action": card.get("suggested_action"),
@@ -87,7 +88,31 @@ def queue(store: SessionStore, meta: dict[str, Any], member: int | None) -> list
                     "error": s["error"],
                 }
             )
+    # Across members, one list by priority; each row keeps its rank within its own member,
+    # because the alert budget applies per member.
+    out.sort(
+        key=lambda r: (
+            -(r["fused_score"] if r["fused_score"] is not None else -1.0),
+            -(r["peer_alerts"] or 0),
+            -(r["peer_records"] or 0),
+            r["window"],
+            r["key"],
+        )
+    )
     return out
+
+
+def _priority(s: dict[str, Any]) -> tuple[float, int, int, int, str]:
+    """Fused score first; calibrated scores often tie at 1.000 on real data, so ties go to the
+    case with more peer alerts, then more peer records, then the earlier window."""
+    card = s["card"] or {}
+    return (
+        -float(card.get("fused_score", -1.0)),
+        -int(card.get("peer_alerts", 0)),
+        -int(card.get("peer_records", 0)),
+        int(s["window"]),
+        str(s["key"]),
+    )
 
 
 def console_app(store: SessionStore, budget: BudgetLedger | None, meta: dict[str, Any]) -> FastAPI:
@@ -194,7 +219,8 @@ const el = (tag, attrs = {}, ...kids) => { const e = document.createElement(tag)
   for (const k of kids) e.append(k instanceof Node ? k : document.createTextNode(k ?? "")); return e; };
 const api = async (path, opts) => { const r = await fetch(path, opts); const j = await r.json();
   if (!r.ok) throw new Error(j.detail || r.statusText); return j; };
-const fmt = (v) => v === null || v === undefined ? "—" : (typeof v === "number" ? (Number.isInteger(v) ? v : v.toFixed(3)) : v);
+const fmt = (v) => v === null || v === undefined ? "—" : (typeof v === "number" ? v.toFixed(3) : v);
+const count = (v) => v === null || v === undefined ? "—" : String(v);
 let meta, current;
 async function init() {
   meta = await api("/api/meta");
@@ -205,7 +231,7 @@ async function init() {
 }
 async function loadQueue() {
   const m = $("#member").value; const rows = await api("/api/queue" + (m ? "?member=" + m : ""));
-  const t = $("#queue"); t.replaceChildren(el("tr", {}, el("th", {}, "#"), el("th", {}, "Member"),
+  const t = $("#queue"); t.replaceChildren(el("tr", {}, el("th", {title: "rank within the member; · = beyond the member's alert budget"}, "Rank"), el("th", {}, "Member"),
     el("th", {}, "Window"), el("th", {}, "Score"), el("th", {}, "Hint")));
   for (const r of rows) {
     const tr = el("tr", {class: "row" + (r.key === current ? " sel" : "")},
@@ -222,15 +248,15 @@ async function openCase(key) {
   const box = $("#case"); box.replaceChildren();
   box.append(el("h2", {}, `Incident ${s.key} · ${s.state}`));
   if (s.error) box.append(el("p", {class: "warn"}, s.error));
-  box.append(el("div", {class: "grid2"}, ...[["Own probability", c.own_probability], ["Fused score", c.fused_score],
-    ["Members asked", c.members_asked], ["Peer alerts", c.peer_alerts], ["Records received", c.peer_records],
-    ["Suggested", c.suggested_action]].map(([k, v]) => el("div", {class: "kpi"}, el("span", {class: "muted"}, k), el("b", {}, String(fmt(v)))))));
+  box.append(el("div", {class: "grid2"}, ...[["Own probability", fmt(c.own_probability)], ["Fused score", fmt(c.fused_score)],
+    ["Members asked", count(c.members_asked)], ["Peer alerts", count(c.peer_alerts)], ["Records received", count(c.peer_records)],
+    ["Suggested", c.suggested_action ?? "—"]].map(([k, v]) => el("div", {class: "kpi"}, el("span", {class: "muted"}, k), el("b", {}, v)))));
   if (c.summary) { box.append(el("h2", {}, "Summary"), el("p", {}, c.summary)); }
   if (c.typology_hint) box.append(el("p", {}, el("b", {}, "Typology hint: " + c.typology_hint + " "),
     el("span", {class: "muted"}, "(" + c.typology_hint_basis + ") "), c.typology_description || ""));
   if (c.review_actions) { box.append(el("h2", {}, "Review actions (catalogue)"));
     const ol = el("ol"); for (const a of c.review_actions) ol.append(el("li", {}, a)); box.append(ol); }
-  box.append(el("h2", {}, "Evidence from other members"));
+  box.append(el("h2", {}, "Evidence from other members"), el("p", {class: "muted"}, "One row per counterparty and epoch; a member appears once for each of its accounts the case touches."));
   const t = el("table", {}, el("tr", {}, ...["Member", "Epoch", "Level", "Status", "Peer alert", "Record"].map((h) => el("th", {}, h))));
   for (const e of c.evidence || []) t.append(el("tr", {}, el("td", {}, String(e.member)), el("td", {}, String(e.epoch)),
     el("td", {}, e.level || "—"), el("td", {class: e.status === "ok" ? "ok" : (e.status === "unavailable" ? "warn" : "")}, e.status),

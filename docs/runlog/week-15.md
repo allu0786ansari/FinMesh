@@ -76,4 +76,4 @@ uv sync
 bash scripts/ci_local.sh
 ```
 
-`uv sync` installs the three new dependencies: FastAPI, uvicorn and httpx.
+`uv sync` installs the three new dependencies: FastAPI, uvicorn and httpx2 (the successor to httpx; switched on 2 Nov).

@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 from dataclasses import replace
 
-import httpx
+import httpx2
 import polars as pl
 import pytest
 from fastapi.testclient import TestClient
@@ -194,10 +194,10 @@ def test_node_clock_is_set_by_orchestration_only_and_never_goes_back() -> None:
 
 
 def test_http_client_reports_service_errors() -> None:
-    def broken(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(503, json={"detail": "down"})
+    def broken(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(503, json={"detail": "down"})
 
-    node = HttpNode(httpx.Client(transport=httpx.MockTransport(broken), base_url="http://n"))
+    node = HttpNode(httpx2.Client(transport=httpx2.MockTransport(broken), base_url="http://n"))
     with pytest.raises(ServiceError, match="503"):
         node.respond(RequestIssuer().issue(0, 1, b"t" * 16, 0, 0, 9, 3, now=9))
 
@@ -224,13 +224,13 @@ def test_token_service_runs_as_a_separate_process() -> None:
         env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
     )  # fmt: skip
     try:
-        http = httpx.Client(base_url=f"http://127.0.0.1:{port}", timeout=5)
+        http = httpx2.Client(base_url=f"http://127.0.0.1:{port}", timeout=5)
         deadline = time.monotonic() + 30
         while True:
             try:
                 if http.get("/v1/health").status_code == 200:
                     break
-            except httpx.TransportError:
+            except httpx2.TransportError:
                 pass
             assert time.monotonic() < deadline, "token service did not start"
             time.sleep(0.2)
@@ -241,5 +241,5 @@ def test_token_service_runs_as_a_separate_process() -> None:
     finally:
         proc.terminate()
         proc.wait(timeout=10)
-    with pytest.raises(httpx.TransportError):  # a stopped service fails loudly, never silently
+    with pytest.raises(httpx2.TransportError):  # a stopped service fails loudly, never silently
         TokenClient(1, HttpTokenTransport(http, 1, KEYS[1])).tokens(3, [identifier(4)])

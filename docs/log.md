@@ -18,7 +18,8 @@ On track for next gate? yes / at risk / no
 
 Planned: the analyst console and the privacy ledger.
 Done: a demo world built from real validation data (the slice's setup, saved with its secrets at mode 0600) and served through the HTTP services with one orchestrator per member; a persistent request-signing key; a case summary in the A23 style with a catalogue typology hint; the privacy ledger (no shared model per G3, evidence disclosures per member, OPRF budget use, full audit); the analyst console (ranked queue with the budget cut, evidence view by member and level, actions with four-eyes approval, ledger tab). Details in `docs/runlog/week-16.md`.
-Not done: the owner's run on HI-Medium and the console check; the A23 blind review.
+Done on real data (2 Nov, owner's machine): HI-Medium demo, 200 alerts, 733 evidence requests (308 records released, 184 alert flags, 0 refused, 0 unreachable), OPRF use 9.4–13.3% of the budget; four-eyes approval checked by both members. Console fixed after: tie-break for saturated scores, one ranked list across members, consistent score format. httpx replaced by httpx2.
+Not done: the A23 blind review (optional; sheets pushed unrated).
 Numbers this week: at fixture scale, 6 of 6 sessions closed, a replayed run sends nothing. Found: the frozen A23 claim check misreads negated cycle sentences (all 7 HI cycle flags were "no cycles"), so A23's first-reply consistency is understated (exploratory).
 Risks or blockers: none.
 Next week: X7 (latency, fault and chaos tests, resource benchmark) and the container packaging.
