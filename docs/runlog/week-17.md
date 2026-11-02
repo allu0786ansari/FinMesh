@@ -42,6 +42,7 @@ After the phases:
 
 - **A check must prove its fault happened.** The first run passed every criterion, but the slow-node phase had asked only the slowed member's own alerts, so nothing timed out. The cached tokens might also have hidden the token outage. X7 now has a criterion **"each fault scenario was really exercised"**. It counts the requests lost to the killed node, the sessions the token outage stopped and resumed, and the requests that timed out. Each fault's target is chosen from that phase's alerts.
 - **Rounding can empty a phase.** With very few alerts, "recovered" got none. Every phase now gets at least one alert.
+- **The container needs OpenMP.** The first CI build of the image worked, but X7 failed inside it: LightGBM needs `libgomp1`, which the slim Python image lacks. The CI container job caught it, and the Dockerfile now installs it.
 
 ## What I ran here (results)
 

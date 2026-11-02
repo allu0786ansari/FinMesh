@@ -12,6 +12,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PATH=/opt/venv/bin:$PATH \
     FINMESH_DATA=/data
 
+# LightGBM needs the OpenMP runtime, which the slim image does not ship.
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
 RUN pip install --no-cache-dir uv==0.13.1
 
 WORKDIR /app
