@@ -14,6 +14,16 @@ Next week: <first two tasks>
 On track for next gate? yes / at risk / no
 ```
 
+## Week 15 · 1 – 7 Feb 2027
+
+Planned: the demo path (node, token and orchestration services; sessions, signed tokens, fault tests).
+Done: strict JSON wire format with the allowlist enforced on both sides; HMAC service authentication with replay protection; token service and bank node as FastAPI services wrapping the harness objects; HTTP clients that plug into the harness interfaces; a real separate-process run; durable orchestration in SQLite (sessions keyed by alert, plan stored before sending, resume after a crash without re-sending answered requests, unreachable members recorded and flagged, terminal states guaranteed), four-eyes approval for high-impact actions, token budgets kept across restarts. Details in `docs/runlog/week-15.md`.
+Not done: real-data nodes and the issuer key persistence (week 16).
+Numbers this week: engineering only; contract tests show identical tokens, evidence responses and incident cards over HTTP and in process.
+Risks or blockers: none new; the owner's blind A/B review of the A23 narrative is still open.
+Next week: the analyst console and the privacy ledger on real validation data.
+On track for next gate? yes (G4, week 18).
+
 ## Week 14 · 25 – 31 Jan 2027
 
 Planned: the constrained narrative and its grounding test (H3b).

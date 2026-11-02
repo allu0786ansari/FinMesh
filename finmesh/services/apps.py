@@ -26,6 +26,7 @@ from fastapi.responses import JSONResponse
 
 from finmesh.matching.tokens import BudgetExceeded, TokenService
 from finmesh.services.auth import AuthError, Verifier
+from finmesh.services.store import BudgetLedger
 from finmesh.services.wire import decode, encode
 from finmesh.sharing.messages import (
     BlindedAnswer,
@@ -44,7 +45,10 @@ async def _json(request: Request) -> tuple[bytes, Any]:
         raise HTTPException(400, "body is not JSON") from exc
 
 
-def token_app(service: TokenService, bank_keys: dict[int, bytes]) -> FastAPI:
+def token_app(
+    service: TokenService, bank_keys: dict[int, bytes], ledger: BudgetLedger | None = None
+) -> FastAPI:
+    """``ledger`` keeps the per-bank budgets across restarts (week 15 part 2)."""
     app = FastAPI(title="FinMesh token service", docs_url=None, redoc_url=None)
     verifier = Verifier(bank_keys)
     lock = threading.Lock()  # budgets and the nonce cache are shared state
@@ -67,12 +71,19 @@ def token_app(service: TokenService, bank_keys: dict[int, bytes]) -> FastAPI:
                 raise HTTPException(400, str(exc)) from exc
             if query.bank != bank:
                 raise HTTPException(403, "authenticated bank differs from the query's bank")
+            n = len(query.points)
+            if ledger is not None:  # the durable count is the truth, not process memory
+                service.used[(query.bank, query.epoch)] = ledger.used(query.bank, query.epoch)
             try:
                 points = service.evaluate(query.bank, query.epoch, list(query.points))
             except BudgetExceeded as exc:
+                if ledger is not None:
+                    ledger.record(query.bank, query.epoch, 0, n)
                 raise HTTPException(429, str(exc)) from exc
             except ValueError as exc:  # an invalid curve point
                 raise HTTPException(400, "invalid blinded point") from exc
+            if ledger is not None:
+                ledger.record(query.bank, query.epoch, n, 0)
         return JSONResponse(encode(BlindedAnswer(tuple(points))))
 
     return app

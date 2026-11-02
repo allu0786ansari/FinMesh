@@ -5,7 +5,8 @@ the banks' keys never appear on a command line (where other users could read the
 
 * ``FINMESH_TOKEN_SEED``: 64 hex characters, the OPRF key seed;
 * ``FINMESH_BANK_KEYS``: JSON object ``{"<bank>": "<hex key>"}``;
-* ``FINMESH_TOKEN_BUDGET`` (optional): evaluations per bank and epoch.
+* ``FINMESH_TOKEN_BUDGET`` (optional): evaluations per bank and epoch;
+* ``FINMESH_TOKEN_LEDGER`` (optional): SQLite file that keeps the budgets across restarts.
 
 Run it with ``uvicorn --factory finmesh.services.run:token_app_from_env``.
 """
@@ -19,6 +20,7 @@ from fastapi import FastAPI
 
 from finmesh.matching.tokens import QUERY_BUDGET, TokenService
 from finmesh.services.apps import token_app
+from finmesh.services.store import BudgetLedger
 
 
 def token_app_from_env() -> FastAPI:
@@ -29,7 +31,9 @@ def token_app_from_env() -> FastAPI:
         int(b): bytes.fromhex(k) for b, k in json.loads(os.environ["FINMESH_BANK_KEYS"]).items()
     }
     budget = int(os.environ.get("FINMESH_TOKEN_BUDGET", QUERY_BUDGET))
-    return token_app(TokenService(seed=bytes.fromhex(seed_hex), budget=budget), keys)
+    ledger_path = os.environ.get("FINMESH_TOKEN_LEDGER")
+    ledger = BudgetLedger(ledger_path) if ledger_path else None
+    return token_app(TokenService(seed=bytes.fromhex(seed_hex), budget=budget), keys, ledger)
 
 
 __all__ = ["token_app_from_env"]
