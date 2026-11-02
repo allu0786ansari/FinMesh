@@ -18,7 +18,7 @@ On track for next gate? yes / at risk / no
 
 Planned: X7 (latency, fault and chaos tests, resource benchmark) and the container packaging.
 Done: real service processes (start, SIGKILL, restart, /proc resources); a node process loading its member's records; nonces kept across node restarts; X7 in five phases (baseline, node killed, token service killed, slow node, recovered), replay, 10 security probes over HTTP, four-eyes check, per-process resources and the acceptance table; a smoke world that exercises every fault; Dockerfile, compose profiles (smoke, console), and a CI job that builds the image and runs X7 smoke inside it. Details in `docs/runlog/week-17.md`.
-Not done: X7 on HI-Medium (owner's machine).
+Done on real data (2 Nov, owner's machine): X7 on HI-Medium, every acceptance criterion passes; PT6 p95 0.179 s on normal phases (p50 0.069 s); 200 of 200 sessions closed; 23 requests lost to the killed node, 18 sessions resumed after the token outage, 9 timeouts at the slow node; replay 733 → 733 requests; about 2.1 GB peak in total. Found and fixed first: clock updates were sent to a node that was down.
 Numbers this week: smoke world, every acceptance criterion passes; PT6 p95 0.05 s on normal phases; 24 of 24 sessions closed under faults; replay 144 → 144 requests; 10 of 10 probes refused; nodes about 207 MB each.
 Risks or blockers: image registries are blocked here, so the image is built and tested in GitHub CI only.
 Next week: open the sealed test once with the frozen configurations (Gate G4).

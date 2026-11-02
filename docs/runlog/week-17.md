@@ -5,7 +5,37 @@
 - Fault and chaos tests, a resource benchmark, and the containerised smoke pipeline.
 - A pass or fail for each engineering acceptance criterion.
 
-**State (2 Nov):** code complete and tested here on real processes. The smoke world passes every criterion. One command runs it on your HI-Medium demo world (about 10–20 min). The container image is built and smoke-tested by GitHub CI, because image registries are blocked in this environment.
+**State (2 Nov, evening):** **done on real data.** X7 on your HI-Medium demo world passes every engineering acceptance criterion (results below). The container image is built and smoke-tested by GitHub CI on every push.
+
+## Your run on HI-Medium (2 Nov, 200 alerts, 8 nodes, 97 s)
+
+"Killed node 4" and "killed token service" in the log are **planned faults**, not errors: X7 kills them on purpose and restarts them.
+
+| Criterion | Result |
+| --- | --- |
+| **PT6:** p95 session opened → action recorded ≤ 3 s, normal phases | **pass: p95 0.179 s**, p50 0.069 s (130 alerts) |
+| Every session ends closed or failed, under every fault | pass: **200 of 200 closed** |
+| A replayed alert never dispatches twice | pass: requests 733 → 733, node answers 710 → 710 |
+| Unauthenticated, expired, replayed, over-budget, out-of-scope rejected | pass: 10 of 10 probes |
+| No high-impact action without a second person | pass |
+| Each action links to its session, evidence and card | pass |
+| An unreachable member gives a flagged partial case | pass: 22 cases flagged |
+| Each fault really exercised | pass: 23 requests lost to killed node 4; 18 sessions stopped by the token outage and resumed; 9 timeouts at slow node 7 |
+| Harness and demo path identical | pass (contract tests in CI) |
+
+| Phase | p50 (s) | p95 (s) | Closed |
+| --- | --- | --- | --- |
+| baseline | 0.064 | 0.177 | 100 |
+| node_down | 0.107 | 0.862 | 30 |
+| token_down | 0.066 | 0.178 | 20 |
+| slow_node | 0.089 | 4.318 | 20 |
+| recovered | 0.082 | 0.211 | 30 |
+
+**Reading it:**
+
+- **Latency.** In normal operation the demo path handles an alert in about **0.07 s (p95 0.18 s), 17 times under PT6**. With a member down, the retries add under a second at p95. With a member slower than the 2 s timeout, p95 rises to 4.3 s (2 attempts × 2 s), but those cases still close, flagged as partial.
+- **Same evidence as the week-16 demo.** The run sent the same 733 evidence requests. Across 8 separate processes and five fault phases, the protocol's traffic matches the in-process demo.
+- **Resources.** Token service 102 MB; each node about 225 MB; orchestration 213 MB. In total about **2.1 GB for the whole consortium on one laptop**. Each node starts (and rebuilds its token index) in about 3 s.
 
 ## How X7 works
 
@@ -127,5 +157,5 @@ git push
 - [x] Fault and chaos tests: node killed, token service killed, slow node, replay, security probes
 - [x] Resource benchmark per process
 - [x] Container image and compose profiles; container smoke in CI
-- [ ] Your X7 run on HI-Medium
+- [x] Your X7 run on HI-Medium (2 Nov): every criterion passes
 - Week 18: open the sealed test (G4) with the frozen configurations, once each
