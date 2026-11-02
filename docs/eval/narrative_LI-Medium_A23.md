@@ -12,9 +12,9 @@ Level S2, seed 0; 77 detected validation schemes sampled by pattern (up to 25 ea
 
 Grounded = valid JSON, typology equal to the one shown (or UNATTRIBUTED), and every cited field present in the evidence. Judged on test.
 
-## Strict grounding (A22)
+## Strict grounding (A23)
 
-Strict = H3b, plus 1 to 4 cited fields, every number in the narrative taken from the evidence or confidence lines, and no typology named outside the candidates. The retry and the template are triggered by strict failure, so the analyst only sees strictly checked text.
+Strict = H3b, plus 1 to 4 cited fields, every number in the narrative taken from the evidence or confidence lines, and no typology named outside the candidates; A23 adds claim consistency, number words and no copied placeholders. The retry and the template are triggered by strict failure, so the analyst only sees strictly checked text.
 
 | Item | Validation |
 | --- | --- |
@@ -53,7 +53,7 @@ Per-sentence rules tie the claims small models make most often to the evidence t
 | Cases with a call error | 1.3% | 0.0% |
 | Delivered text claim-consistent (A23 rules) | 5.2% | 100.0% |
 
-## What the analyst sees: the top three candidates (A22, secondary)
+## What the analyst sees: the top three candidates (secondary)
 
 Cross-fitted attributor, seed 0, all 93 pattern-labelled validation schemes; end to end counts undetected schemes as misses; 1,000-replicate scheme bootstrap.
 

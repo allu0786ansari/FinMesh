@@ -124,12 +124,17 @@ def _a22_sections(r: dict[str, Any], previous: dict[str, Any] | None) -> list[st
     st = s["strict_grounding"]
     fs = s["first_reply_strict"]
     lines = [
-        "## Strict grounding (A22)",
+        f"## Strict grounding ({r.get('protocol', 'A22')})",
         "",
         "Strict = H3b, plus 1 to 4 cited fields, every number in the narrative taken from the "
-        "evidence or confidence lines, and no typology named outside the candidates. The retry "
-        "and the template are triggered by strict failure, so the analyst only sees strictly "
-        "checked text.",
+        "evidence or confidence lines, and no typology named outside the candidates"
+        + (
+            "; A23 adds claim consistency, number words and no copied placeholders"
+            if r.get("protocol") == "A23"
+            else ""
+        )
+        + ". The retry and the template are triggered by strict failure, so the analyst only "
+        "sees strictly checked text.",
         "",
         table(
             [
@@ -223,7 +228,7 @@ def _a22_sections(r: dict[str, Any], previous: dict[str, Any] | None) -> list[st
                 }
             )
         lines += [
-            "## What the analyst sees: the top three candidates (A22, secondary)",
+            "## What the analyst sees: the top three candidates (secondary)",
             "",
             f"Cross-fitted attributor, seed 0, all {tk['schemes']} pattern-labelled validation "
             "schemes; end to end counts undetected schemes as misses; 1,000-replicate scheme "

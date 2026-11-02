@@ -4,7 +4,55 @@
 - RQ3, part 2: give the analyst a short, grounded narrative for each detected case, written by a local model that cannot change the decision, and measure how often its raw output is grounded (H3b).
 - External validity of the headline: replace the single real-bank point (A64) with a **coverage curve**, the sharing gain as the federation grows from 10% to 100% of accounts.
 
-**State (1 Nov, night):** coverage curve final. Narrative: A21 failed on format; A22 fixed the format but the text was unfaithful; **A23, the final protocol, is ready to run:** `bash scripts/week14_a23.sh`, then your blind A/B review. The earlier sections are kept for the record.
+**State (2 Nov):** the coverage curve is final. The narrative went through three validation runs (A21, A22, A23). **A23 is frozen** for the test in week 18. Only your blind A/B review is left (steps below). The earlier sections are kept for the record.
+
+## Update 2 Nov: A23 results (your run, pushed 2 Nov)
+
+### The three validation runs side by side
+
+| HI-Medium (200 cases) | A21 | A22 | **A23 (frozen)** |
+| --- | --- | --- | --- |
+| H3b: grounded first replies (target 0.95) | 0.105 | 0.935 | **0.920** [0.874, 0.950] |
+| First replies claim-consistent (A23 rules) | — | about 0.17 (delivered text) | **0.875** |
+| First replies copying the A22 example | — | 92% | **0%** |
+| Strict grounding of first replies (each run's rules) | — | 0.610 | 0.120 |
+| ...without the 1–4 citation rule (exploratory) | — | — | 0.760 |
+| Template fallback | 64.5% | 1.5% | 6.5% |
+| **Delivered text claim-consistent** | — | 17% | **100%** |
+| Delivered text names no outside typology | — | 100% | 100% |
+| Latency p50 per case | — | 45 s | 64 s |
+
+LI-Medium (77 cases), A23: H3b 0.883 [0.793, 0.937]; first replies claim-consistent 85.7%; strict 0.195 (0.727 without the citation rule); fallback 10.4%; delivered text 100% claim-consistent.
+
+**What it means:**
+
+1. **Faithfulness is solved where it matters.** Worded evidence and no copyable example lifted claim consistency of the model's own first replies from about 17% to 87.5%. With the retry and the template, every delivered narrative passes the claim check. Copying fell from 92% to 0%.
+2. **Strict grounding fell to 0.12 because of citation counts, not content.** Without the example, the model cites a median of 13 fields (up to 32), where the rule allows 1 to 4. The constrained retry fixes this every time. Leaving out only that rule, strict grounding would be 0.76 (HI) and 0.73 (LI). That figure is post hoc, so the paper must label it exploratory.
+3. **H3b is not met on validation** (0.920 HI, 0.883 LI, against 0.95). The test will decide, as pre-registered, and the paper should state the shortfall plainly.
+4. **The claim check has some false positives.** About 6 of the 21 pass-through flags on HI are really about the cross-bank share ("most transfers going to other banks"). Your blind review measures how far the check agrees with a human.
+5. **Top-3 candidates are unchanged.** A23 reuses the same attributor: S2 0.470 against S0 0.410 (+0.060 [0.013, 0.109]) on HI.
+
+**For the paper:** a 3B model on a laptop CPU can write grounded case summaries only inside a checked pipeline: worded evidence, a claim check, a constrained retry and a template fallback. The format check alone (H3b) overstated quality badly in A22. This holds whatever the test shows.
+
+### The blind review: what's left
+
+Your A23 run made the sheets, but `.gitignore` excluded every `.csv`, so they never reached the repo. That is now fixed. On your machine:
+
+1. `git pull`
+2. Open `docs/eval/narrative_HI-Medium_A23_review.csv` in a spreadsheet. **Do not open** the `_KEY_do_not_open.csv` file. For each of the 30 rows, rate narrative A and narrative B using the evidence column only:
+   - **faithful:** `yes` if every statement is in the evidence; `partly` if one statement goes beyond it; `no` if it misstates the evidence or presents a pattern as fact.
+   - **useful:** `1` = no help; `2` = saves some reading; `3` = a clear, correct summary.
+   - **prefer:** `A`, `B` or `same`.
+3. Save it as CSV under the same name, then:
+
+```bash
+uv run finmesh narrative-review --dataset HI-Medium
+git add docs/eval/narrative_HI-Medium_A23_review*.csv docs/eval/narrative_HI-Medium_A23_review_result.md
+git commit -m "Week 14: blind A/B review of the A23 narrative"
+git push
+```
+
+If you already rated the sheet, just run the last two steps.
 
 ## Update 1 Nov night: A22 results and the final protocol (A23)
 
