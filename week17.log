@@ -1,0 +1,17 @@
+  started token service and 8 nodes
+  killed node 4
+  killed token service
+  token service restarted
+  node 7 answers after 3.0 s
+  phases done
+  pass  PT6: p95 from session opened to action recorded ≤ 3 s (normal phases)
+  pass  Every session ends closed or failed, under every fault
+  pass  A replayed alert never dispatches twice
+  pass  Unauthenticated, expired, replayed, over-budget and out-of-scope requests are rejected
+  pass  No high-impact action runs without a second person's approval
+  pass  Each action links to its session, evidence and card
+  pass  An unreachable member gives a flagged partial case, not a failure
+  pass  Each fault scenario was really exercised
+  pass  Harness and demo path emit identical messages
+  latency (normal phases) p50 0.0693 s, p95 0.1793 s; 96.9 s
+  report   /home/allu786ansari/FinMesh/docs/eval/x7_HI-Medium.md
