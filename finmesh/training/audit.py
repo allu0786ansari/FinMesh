@@ -41,7 +41,6 @@ from sklearn.metrics import roc_auc_score
 
 from finmesh.data.lowmem import hashed_key
 from finmesh.data.splits import window_index_expr
-from finmesh.eval.sealed import EvalStore
 from finmesh.eval.stats import interval_from
 from finmesh.features.build import FeatureStore
 from finmesh.fusion.local import link_edges
@@ -49,7 +48,7 @@ from finmesh.matching.tokens import QUERY_BUDGET, HashTokenClient, TokenClient, 
 from finmesh.paths import DatasetPaths
 from finmesh.sharing.evidence import S4_FIELDS, WIRE_FIELDS
 from finmesh.training.attacks import a4_linkability, a6_query_leakage
-from finmesh.training.data import slices
+from finmesh.training.data import feature_slices
 from finmesh.training.sharing_run import store_membership
 
 MARGIN = 0.05  # H1c: attack - prior TPR at 1% FPR, upper 95% bound (A15)
@@ -143,7 +142,9 @@ class Auditor:
     a5: dict[str, Any] | None = None
     a6: dict[str, Any] | None = None
     n_features: int = 47
+    partition: str = "val"  # week 18: the test run audits the test partition's traffic
     _s2: pl.DataFrame | None = None
+    _s1_inbound: pl.DataFrame | None = None  # kept for A6 until labels exist (test run)
 
     # --- ground truth (harness only) -------------------------------------------------
 
@@ -182,12 +183,11 @@ class Auditor:
         # Attribute truth from the responder's own feature rows.
         want = t.select(pl.col("cp").alias("account"), pl.col("tw").alias("window")).unique()
         feats = FeatureStore(self.paths, self.option, "member")
-        store = EvalStore(self.paths, self.option)
         parts = [
             feat.select("account", "window", *TRUTH_FEATURES).join(
                 want, on=["account", "window"], how="semi"
             )
-            for _, feat in slices(store, feats, "val")
+            for feat in feature_slices(feats, self.partition)
         ]
         truth = pl.concat(parts).rename({"account": "cp", "window": "tw"})
         t = t.join(truth, on=["cp", "tw"], how="left")
@@ -277,9 +277,12 @@ class Auditor:
             self.a4[name] = a4_linkability(
                 "S3", self._s2, self.v0, self.v1, self.seed, eps, self.n_features
             )
-        if level == "S1" and self.own is not None and self.a6 is None:
-            cands, lab, use = self.own
-            self.a6 = a6_query_leakage(cands, lab, use, run.inbound, self.seed)
+        if level == "S1" and self.a6 is None:
+            if self.own is not None:
+                cands, lab, use = self.own
+                self.a6 = a6_query_leakage(cands, lab, use, run.inbound, self.seed)
+            else:  # labels are not known yet (test): A6 runs at finish
+                self._s1_inbound = run.inbound
         if "prior" not in self.test_scores:
             self.test_scores["prior"] = {}
             for target in TARGETS:
@@ -299,6 +302,10 @@ class Auditor:
     def finish(
         self, tokens: Any = None, records: dict[int, pl.DataFrame] | None = None
     ) -> dict[str, Any]:
+        if self.a6 is None and self.own is not None and self._s1_inbound is not None:
+            cands, lab, use = self.own
+            self.a6 = a6_query_leakage(cands, lab, use, self._s1_inbound, self.seed)
+            self._s1_inbound = None
         out: dict[str, Any] = {
             "seed": self.seed,
             "margin": MARGIN,

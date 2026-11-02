@@ -966,9 +966,17 @@ def frequency_top3(patterns: np.ndarray, detected: np.ndarray, fold: np.ndarray)
     return out
 
 
-def topk_analysis(tables: dict[str, dict[str, Any]], reps: int = 1000) -> dict[str, Any]:
+def topk_analysis(
+    tables: dict[str, dict[str, Any]],
+    reps: int = 1000,
+    frequency_source: np.ndarray | None = None,
+) -> dict[str, Any]:
     """Top-1 and top-3 accuracy per level, end to end and on detected schemes, with a scheme
-    bootstrap, the paired S2 - S0 difference and the frequency and chance baselines."""
+    bootstrap, the paired S2 - S0 difference and the frequency and chance baselines.
+
+    ``frequency_source`` (test): the detected validation schemes' patterns; the frequency
+    baseline is then their three most frequent patterns instead of the other time half's.
+    """
     aligned = {lv: t["table"].with_row_index("_row").sort("scheme_id") for lv, t in tables.items()}
     first = next(iter(aligned.values()))
     patterns = first["pattern"].to_numpy().astype(str)
@@ -988,7 +996,12 @@ def topk_analysis(tables: dict[str, dict[str, Any]], reps: int = 1000) -> dict[s
             level[f"top{k}"] = _ci(h[idx].mean(axis=1), h.mean()) if n else None
             level[f"top{k}_detected"] = float(h[det].mean()) if det.any() else None
         if lv == "S2":
-            f = frequency_top3(patterns, det, t["fold"].to_numpy())
+            if frequency_source is None:
+                f = frequency_top3(patterns, det, t["fold"].to_numpy())
+            else:
+                labels, counts = np.unique(frequency_source, return_counts=True)
+                top = labels[np.argsort(-counts, kind="stable")[:3]].tolist()
+                f = det & np.isin(patterns, top)
             hits["S2/frequency_top3"] = f
             level["frequency_top3"] = _ci(f[idx].mean(axis=1), f.mean()) if n else None
             level["frequency_top3_detected"] = float(f[det].mean()) if det.any() else None
@@ -1009,6 +1022,141 @@ def topk_analysis(tables: dict[str, dict[str, Any]], reps: int = 1000) -> dict[s
     return out
 
 
+# --------------------------------------------------------------------------- test (week 18)
+def _run_narrative_test(
+    paths: Any,
+    option: str,
+    n: int,
+    model: str,
+    url: str,
+    timeout: float | None,
+    call: Call | None,
+    progress: Callable[[str], None] | None,
+    protocol: str,
+    allow_repeat: bool,
+) -> dict[str, Any]:
+    import hashlib
+
+    from finmesh.eval.sealed import EvalStore, open_sealed_test, opened_before
+    from finmesh.eval.split_io import load_plan
+    from finmesh.training.sealed_runs import _load, _save, test_dir
+    from finmesh.training.x6 import load_catalogue
+
+    if protocol != "A23":
+        return {"error": "only the frozen protocol A23 runs on test"}
+    folder = test_dir(paths, option)
+    inputs = folder / "narrative_inputs.pkl"
+    if not inputs.exists():
+        return {
+            "error": f"{inputs} is missing; run `finmesh test-x1 --dataset {paths.name}` first "
+            "(its seed 0 saves the attribution tables the narrative uses)"
+        }
+    t0 = time.perf_counter()
+    if call is None:
+        call = ollama_call(
+            url, model, timeout or TIMEOUT_S[protocol], max_tokens=MAX_TOKENS[protocol]
+        )
+        try:  # fail fast, before the seal is touched
+            call('Reply with the JSON object {"ok": true}.', "json")
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            return {"error": f"cannot reach Ollama at {url} ({exc}); start it with `ollama serve`"}
+    digest = hashlib.sha256(inputs.read_bytes()).hexdigest()
+    got = _load(inputs)
+    config = {"experiment": f"narrative-{protocol}", "dataset": paths.name, "option": option}
+    ckpt = folder / f"narrative_{protocol}_cases.pkl"
+    done: list[dict[str, Any]] = []
+    if ckpt.exists():
+        saved = _load(ckpt)
+        if saved["inputs_sha256"] == digest and saved["n"] == n:
+            done = saved["results"]
+    store = EvalStore(paths, option)
+    first = opened_before(paths, config, int(got["seed"]))
+    if first is None or (not done and allow_repeat):
+        part = open_sealed_test(
+            store,
+            config,
+            int(got["seed"]),
+            "week 18: A23 narratives (H3b) and top-k attribution on test",
+            allow_repeat=allow_repeat,
+            extra={"inputs_sha256": digest, "model": model},
+        )
+        truth = dict(part.schemes.select("scheme_id", "pattern").iter_rows())
+        for lv in got["test"].values():
+            for sid, pat in lv["table"].select("scheme_id", "pattern").iter_rows():
+                if truth.get(sid) != pat:
+                    raise RuntimeError("saved test tables disagree with the opened test schemes")
+    elif not done:
+        return {
+            "error": f"the narrative already opened the test on {first['time']} and left no "
+            "saved cases; rerun with --allow-repeat only if that run crashed (logged)"
+        }
+    catalogue = load_catalogue()
+    window_hours = int(load_plan(paths).window_hours)
+    val = got["val"]["S2"]
+    det_v = val["table"]["incident"].is_not_null().to_numpy()
+    idx_v = np.nonzero(det_v)[0]
+    pat_v = val["table"]["pattern"].to_numpy().astype(str)
+    p_v = val["p"][idx_v]
+    classes: list[str] = val["classes"]
+    conf_v = p_v.max(axis=1) if len(idx_v) else np.zeros(0)
+    correct_v = np.array(classes, dtype=object)[p_v.argmax(axis=1)] == pat_v[idx_v]
+    tau = selective_threshold(conf_v, correct_v)  # frozen: the validation rule's value
+
+    test = got["test"]["S2"]
+    table: pl.DataFrame = test["table"]
+    proba: np.ndarray = test["p"]
+    det = table["incident"].is_not_null().to_numpy()
+    patterns = table["pattern"].to_numpy().astype(str)
+    idx_det = np.nonzero(det)[0]
+    p_det = proba[idx_det]
+    conf = p_det.max(axis=1) if len(idx_det) else np.zeros(0)
+    correct = np.array(classes, dtype=object)[p_det.argmax(axis=1)] == patterns[idx_det]
+    pick = idx_det[stratified_sample(table["scheme_id"].to_numpy()[det], patterns[det], n=n)]
+    rows = table.to_dicts()
+    results = list(done)
+    if progress and done:
+        progress(f"resuming after {len(done)} saved cases")
+    for k in range(len(done), len(pick)):
+        case = build_case(rows[pick[k]], classes, proba[pick[k]], tau, catalogue, window_hours)
+        try:
+            results.append(narrate(case, catalogue, call, protocol))
+        except ModelUnavailable as exc:
+            return {
+                "error": f"the model server stopped answering at case {k + 1} of {len(pick)} "
+                f"({exc}); {len(results)} cases are saved. Start `ollama serve` and run the "
+                "same command again: it resumes"
+            }
+        _save(ckpt, {"inputs_sha256": digest, "n": n, "results": results})
+        if progress and (k + 1) % 25 == 0:
+            progress(f"narratives {k + 1}/{len(pick)}")
+    return {
+        "dataset": paths.name,
+        "option": option,
+        "split": "test",
+        "protocol": protocol,
+        "topk": topk_analysis(got["test"], frequency_source=pat_v[idx_v]),
+        "level": "S2",
+        "seed": int(got["seed"]),
+        "model": model,
+        "decoding": "json-only first, schema-constrained retry, template fallback",
+        "timeout_s": timeout or TIMEOUT_S[protocol],
+        "inputs_sha256": digest,
+        "selective": {
+            "tau": tau,
+            "tau_from": "validation (frozen)",
+            "grid": risk_coverage(conf, correct),
+            "detected_schemes": int(det.sum()),
+            "schemes": len(det),
+            "accuracy_detected": float(correct.mean()) if len(correct) else None,
+            "rule": "smallest tau with selective accuracy >= 0.5 and coverage >= 10%",
+        },
+        "summary": summarise(results),
+        "cases": results,
+        "seconds": {"total": round(time.perf_counter() - t0, 1)},
+        "peak_anon_mb": None,
+    }
+
+
 # --------------------------------------------------------------------------- driver
 def run_narrative(
     paths: Any,
@@ -1020,10 +1168,21 @@ def run_narrative(
     call: Call | None = None,
     progress: Callable[[str], None] | None = None,
     protocol: str = "A23",
+    split: str = "val",
+    allow_repeat: bool = False,
 ) -> dict[str, Any]:
+    """The narrative run. ``split`` "test" (week 18) reads the tables the X1+X6 test run
+    saved (attributor fitted on validation, applied to test; tau from validation), logs its
+    own opening, and saves each case as it is done, so a stopped model server loses
+    nothing: the same command resumes."""
     from finmesh.eval.split_io import load_plan
     from finmesh.sysinfo import AnonPeak
     from finmesh.training.x6 import load_catalogue, run_seed_x6
+
+    if split == "test":
+        return _run_narrative_test(
+            paths, option, n, model, url, timeout, call, progress, protocol, allow_repeat
+        )
 
     if protocol not in PROTOCOLS:
         raise ValueError(f"unknown narrative protocol {protocol!r}; use one of {PROTOCOLS}")

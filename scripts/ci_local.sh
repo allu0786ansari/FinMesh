@@ -34,6 +34,12 @@ step uv run finmesh membership --dataset FIXTURE-Small --reps 50 --rounds 5 --lo
 step uv run finmesh ensemble --dataset FIXTURE-Small --reps 50
 step uv run finmesh g3
 step uv run finmesh x6 --dataset FIXTURE-Small --seeds 0 --reps 100
+step uv run finmesh test-x1 --dataset FIXTURE-Small --headline-seeds 0,1 --seeds 0 --reps 50 --window-reps 20
+step uv run finmesh test-baselines --dataset FIXTURE-Small --reps 50
+step uv run finmesh test-x5 --dataset FIXTURE-Small --reps 20
+step uv run finmesh test-ensemble --dataset FIXTURE-Small --reps 20
+step uv run finmesh test-report --fixture
+step uv run finmesh sealed-log --dataset FIXTURE-Small
 step uv run finmesh federation --dataset FIXTURE-Small --option A8 --force
 step uv run finmesh labels --dataset FIXTURE-Small --option A8
 step uv run finmesh features --dataset FIXTURE-Small --option A8

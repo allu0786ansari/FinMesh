@@ -27,7 +27,8 @@ import numpy as np
 import polars as pl
 
 from finmesh.eval.guard import KEY_COLUMNS
-from finmesh.eval.sealed import EvalStore, label_variant
+from finmesh.eval.sealed import EvalStore, PartitionData, SealedTestError, label_variant
+from finmesh.eval.universe import SEALED_PARTITIONS
 from finmesh.features.build import FeatureStore
 from finmesh.models.gbdt import matrix
 
@@ -56,10 +57,30 @@ def training_windows(store: EvalStore, features: FeatureStore) -> Windows:
     return Windows(burn_in, stop_from, int(last))
 
 
+def feature_slices(features: FeatureStore, partition: str) -> Iterator[pl.DataFrame]:
+    """Feature frames per slice, label-free (week 18): how the test partition is scored
+    before its seal is opened. Same slice and row order as :func:`slices`."""
+    for ff in sorted(features.layout.partition_dir(partition).glob("feat_*.parquet")):
+        yield pl.read_parquet(ff)
+
+
 def slices(
-    store: EvalStore, features: FeatureStore, partition: str, variant: str = "primary"
+    store: EvalStore,
+    features: FeatureStore,
+    partition: str,
+    variant: str = "primary",
+    opened: PartitionData | None = None,
 ) -> Iterator[tuple[pl.DataFrame, pl.DataFrame]]:
-    """(labels, features) per slice, checked to line up row for row."""
+    """(labels, features) per slice, checked to line up row for row.
+
+    A sealed partition needs ``opened``, the data returned by
+    :func:`finmesh.eval.sealed.open_sealed_test` for it, so labels are never read
+    from disk around the access log.
+    """
+    if partition in SEALED_PARTITIONS and (opened is None or opened.partition != partition):
+        raise SealedTestError(
+            f"the {partition!r} partition is sealed; open it with open_sealed_test first"
+        )
     lab_dir = store.layout.partition_dir(partition)
     feat_dir = features.layout.partition_dir(partition)
     lab_files = sorted(lab_dir.glob("universe_*.parquet"))

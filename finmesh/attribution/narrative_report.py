@@ -559,6 +559,186 @@ def score_review(rated: Path, key: Path) -> dict[str, Any]:
     return out
 
 
+FAITHFUL = ("no", "partly", "yes")  # ordered
+USEFUL = ("1", "2", "3")
+PREFER = ("model", "same", "template")
+
+
+def cohen_kappa(
+    a: list[str], b: list[str], categories: tuple[str, ...], weights: str | None = None
+) -> float | None:
+    """Cohen's kappa between two raters; ``weights`` "linear" for ordered categories."""
+    n = len(a)
+    if not n:
+        return None
+    idx = {c: i for i, c in enumerate(categories)}
+    k = len(categories)
+    obs = [[0.0] * k for _ in range(k)]
+    for x, y in zip(a, b, strict=True):
+        obs[idx[x]][idx[y]] += 1 / n
+    ra = [sum(row) for row in obs]
+    rb = [sum(obs[i][j] for i in range(k)) for j in range(k)]
+
+    def w(i: int, j: int) -> float:
+        if weights == "linear":
+            return abs(i - j) / (k - 1)
+        return 0.0 if i == j else 1.0
+
+    do = sum(w(i, j) * obs[i][j] for i in range(k) for j in range(k))
+    de = sum(w(i, j) * ra[i] * rb[j] for i in range(k) for j in range(k))
+    return None if de == 0 else 1 - do / de
+
+
+def _ratings(rated: Path, key: Path) -> dict[tuple[int, str], dict[str, str]]:
+    """(case, source) -> faithful, useful, prefer (as a source), for fully rated cases."""
+    with rated.open(newline="") as f:
+        rows = {int(x["case"]): x for x in csv.DictReader(f)}
+    with key.open(newline="") as f:
+        keys = {int(x["case"]): x for x in csv.DictReader(f)}
+    out: dict[tuple[int, str], dict[str, str]] = {}
+    for case, k in keys.items():
+        row = rows.get(case)
+        if not row:
+            continue
+        cells = {
+            side: (
+                row[f"faithful {side} (yes/partly/no)"].strip().lower(),
+                row[f"useful {side} (1-3)"].strip(),
+            )
+            for side in ("A", "B")
+        }
+        if not all(fa in FAITHFUL and us in USEFUL for fa, us in cells.values()):
+            continue
+        p = row["prefer (A/B/same)"].strip().upper()
+        pref = k[p] if p in ("A", "B") else ("same" if p else "")
+        for side in ("A", "B"):
+            out[(case, k[side])] = {
+                "faithful": cells[side][0],
+                "useful": cells[side][1],
+                "prefer": pref,
+                "checker": k["model_claim_consistent"].strip().lower(),
+            }
+    return out
+
+
+def score_two_raters(sheets: dict[str, Path], key: Path) -> dict[str, Any]:
+    """Each rater scored alone (:func:`score_review`), their agreement (Cohen's kappa:
+    linear-weighted for faithfulness and usefulness, unweighted for preference), and the
+    claim check against their consensus (model narratives both rate faithful = yes)."""
+    names = sorted(sheets)
+    per = {n: score_review(sheets[n], key) for n in names}
+    out: dict[str, Any] = {"raters": names, "per_rater": per}
+    if len(names) != 2:
+        return out
+    ra, rb = (_ratings(sheets[n], key) for n in names)
+    both = sorted(set(ra) & set(rb))
+    fa = [ra[i]["faithful"] for i in both], [rb[i]["faithful"] for i in both]
+    us = [ra[i]["useful"] for i in both], [rb[i]["useful"] for i in both]
+    cases = sorted({c for c, src in both if src == "model"})
+    pa = [ra[(c, "model")]["prefer"] for c in cases]
+    pb = [rb[(c, "model")]["prefer"] for c in cases]
+    pref = [(x, y) for x, y in zip(pa, pb, strict=True) if x and y]
+    model = [i for i in both if i[1] == "model"]
+    consensus = [ra[i]["faithful"] == "yes" and rb[i]["faithful"] == "yes" for i in model]
+    checker = [ra[i]["checker"] == "true" for i in model]
+    out["agreement"] = {
+        "cases": len(cases),
+        "faithful_exact": (sum(x == y for x, y in zip(*fa, strict=True)) / len(both))
+        if both
+        else None,
+        "faithful_kappa": cohen_kappa(fa[0], fa[1], FAITHFUL, "linear"),
+        "useful_kappa": cohen_kappa(us[0], us[1], USEFUL, "linear"),
+        "prefer_kappa": cohen_kappa([x for x, _ in pref], [y for _, y in pref], PREFER),
+    }
+    out["checker_vs_consensus"] = {
+        "agreement": (sum(a == b for a, b in zip(checker, consensus, strict=True)) / len(model))
+        if model
+        else None,
+        "kappa": _kappa(checker, consensus),
+        "consensus_faithful": sum(consensus),
+        "checker_consistent": sum(checker),
+    }
+    return out
+
+
+def render_two_raters(s: dict[str, Any], dataset: str) -> str:
+    def f(v: float | None, pct: bool = True) -> str:
+        if v is None:
+            return "—"
+        return f"{100 * v:.0f}%" if pct else f"{v:.2f}"
+
+    rows = []
+    for name in s["raters"]:
+        r = s["per_rater"][name]
+        for key, label in (("model", "model"), ("template", "template")):
+            v = r["sources"][key]
+            rows.append(
+                {
+                    "rater": name,
+                    "source": label,
+                    "n": r["rated"],
+                    "yes": f(v["faithful_yes"]),
+                    "partly": f(v["faithful_partly"]),
+                    "no": f(v["faithful_no"]),
+                    "useful": f(v["useful_mean"], pct=False),
+                    "prefer": r["prefer"][key],
+                }
+            )
+    out = [
+        f"# Blind review of the narratives (A23), two raters · {dataset}",
+        "",
+        "Each rater filled a separate copy of the same sheet, blind to which text is the "
+        "model's and which is the template, to the true pattern, and to the other rater.",
+        "",
+        table(
+            rows,
+            [
+                ("rater", "Rater"),
+                ("source", "Narrative"),
+                ("n", "Cases"),
+                ("yes", "Faithful: yes"),
+                ("partly", "Partly"),
+                ("no", "No"),
+                ("useful", "Useful (1-3)"),
+                ("prefer", "Preferred"),
+            ],
+        ),
+        "",
+    ]
+    ag = s.get("agreement")
+    if ag:
+        ck = s["checker_vs_consensus"]
+        out += [
+            "## Agreement between the raters",
+            "",
+            f"{ag['cases']} cases rated by both. Faithfulness: exact agreement "
+            f"{f(ag['faithful_exact'])}, linear-weighted kappa {f(ag['faithful_kappa'], False)}; "
+            f"usefulness: linear-weighted kappa {f(ag['useful_kappa'], False)}; preference: kappa "
+            f"{f(ag['prefer_kappa'], False)}. Kappa above 0.6 is usually read as substantial, "
+            "0.4–0.6 moderate.",
+            "",
+            "## The claim check against both raters",
+            "",
+            f"Model narratives the check accepts versus those both raters call faithful: "
+            f"agreement {f(ck['agreement'])}, Cohen's kappa {f(ck['kappa'], False)} "
+            f"(check accepted {ck['checker_consistent']}, both raters faithful "
+            f"{ck['consensus_faithful']}).",
+            "",
+        ]
+    return "\n".join(out)
+
+
+def prepare_rater_sheets(master: Path, raters: list[str]) -> list[Path]:
+    """One blank copy of the review sheet per rater (an existing copy is never replaced)."""
+    out = []
+    for name in raters:
+        copy = master.with_name(master.stem + f"_{name}.csv")
+        if not copy.exists():
+            copy.write_bytes(master.read_bytes())
+        out.append(copy)
+    return out
+
+
 def render_review(s: dict[str, Any], dataset: str) -> str:
     src = s["sources"]
 
@@ -633,10 +813,14 @@ def write_cases(r: dict[str, Any], path: Path) -> Path:
 
 
 __all__ = [
+    "cohen_kappa",
+    "prepare_rater_sheets",
     "render_narrative",
     "render_review",
+    "render_two_raters",
     "rescored_consistency",
     "score_review",
+    "score_two_raters",
     "write_cases",
     "write_review",
     "write_review_ab",

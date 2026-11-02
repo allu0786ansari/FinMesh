@@ -14,6 +14,16 @@ Next week: <first two tasks>
 On track for next gate? yes / at risk / no
 ```
 
+## Week 18 · 22 – 28 Feb 2027 (prepared 2 Nov 2026)
+
+Planned: open the sealed test once for the frozen configurations and decide every hypothesis.
+Done: validation frozen (owner, 2 Nov); test paths for X1–X3 + audit + X6 (`finmesh test-x1`), baselines, X5, ensemble and the narrative; preflight and results page; amendment A24 and `docs/protocol/test_plan.md`; determinism fixes (A4 grouping, relational summation); fixture dry run of the whole plan; two-rater review sheets and scorer.
+Not done: the test itself, which waits for the owner's sign-off and the two blind reviews.
+Numbers this week: none on test (seal closed). Validation outputs reproduced exactly after the refactor; reruns give bit-identical scores.
+Risks or blockers: machine time (about 27–30 h over three or four nights); a crash after an opening needs a logged repeat.
+Next week: the owner signs and runs the plan; then results into the paper tables (weeks 19–20).
+On track for next gate? yes (G4).
+
 ## Week 17 · 15 – 21 Feb 2027
 
 Planned: X7 (latency, fault and chaos tests, resource benchmark) and the container packaging.

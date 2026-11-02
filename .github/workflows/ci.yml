@@ -49,6 +49,12 @@ jobs:
           uv run finmesh ensemble --dataset FIXTURE-Small --reps 50
           uv run finmesh g3
           uv run finmesh x6 --dataset FIXTURE-Small --seeds 0 --reps 100
+          uv run finmesh test-x1 --dataset FIXTURE-Small --headline-seeds 0,1 --seeds 0 --reps 50 --window-reps 20
+          uv run finmesh test-baselines --dataset FIXTURE-Small --reps 50
+          uv run finmesh test-x5 --dataset FIXTURE-Small --reps 20
+          uv run finmesh test-ensemble --dataset FIXTURE-Small --reps 20
+          uv run finmesh test-report --fixture
+          uv run finmesh sealed-log --dataset FIXTURE-Small
           uv run finmesh federation --dataset FIXTURE-Small --option A8 --force
           uv run finmesh labels --dataset FIXTURE-Small --option A8
           uv run finmesh features --dataset FIXTURE-Small --option A8

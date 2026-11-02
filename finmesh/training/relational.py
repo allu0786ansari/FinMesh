@@ -87,8 +87,9 @@ def neighbour_features(
         )
         .group_by("row", "cp")
         .agg(pl.col("cp_prob").max(), pl.col("cp_alert").max())
+        .sort("row", "cp")  # week 18: a fixed summation order, so scores repeat bit for bit
     )
-    agg = per_cp.group_by("row").agg(
+    agg = per_cp.group_by("row", maintain_order=True).agg(
         pl.len().alias("n_cp"),
         pl.col("cp_alert").sum().alias("n_cp_alert"),
         pl.col("cp_prob").max().alias("max_cp_prob"),

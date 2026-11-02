@@ -83,6 +83,7 @@ def a4_linkability(
         .sort("window")
         .group_by("adversary", "responder", "cp", "half")
         .agg(pl.col("record").last())
+        .sort("adversary", "responder", "cp", "half")  # week 18: same result on every run
     )
     x_all = _record_matrix(level, r["record"])
     if epsilon is not None:
@@ -101,6 +102,7 @@ def a4_linkability(
     pairs = late.join(
         early.select("adversary", "responder", "cp", pl.col("i").alias("j")),
         on=["adversary", "responder", "cp"],
+        maintain_order="left",
     )
     if pairs.height > A4_MAX_QUERIES:
         pairs = pairs.sample(n=A4_MAX_QUERIES, seed=seed)

@@ -6,6 +6,9 @@
 # The owner's blind review sheets (no data, only narratives and ratings) are versioned.
 !docs/eval/*_review.csv
 !docs/eval/*_review_KEY_do_not_open.csv
+!docs/eval/*_review_*.csv
+!docs/eval/test/*_review.csv
+!docs/eval/test/*_review_*.csv
 
 # Python
 __pycache__/

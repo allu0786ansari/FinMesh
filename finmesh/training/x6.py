@@ -40,7 +40,7 @@ from sklearn.metrics import f1_score
 
 from finmesh.eval.guard import KEY_COLUMNS
 from finmesh.eval.schemes import _within_delay
-from finmesh.eval.sealed import EvalStore
+from finmesh.eval.sealed import EvalStore, PartitionData
 from finmesh.eval.split_io import load_plan
 from finmesh.features.build import FeatureStore
 from finmesh.fusion.local import Linker, link_edges
@@ -50,7 +50,7 @@ from finmesh.sharing.evidence import bucket, load_evidence_schema
 from finmesh.sharing.ldp import k_rr
 from finmesh.sysinfo import AnonPeak
 from finmesh.training.baselines import DELAY_WINDOWS, feature_sets
-from finmesh.training.data import slices
+from finmesh.training.data import feature_slices
 from finmesh.training.x1 import _alerts, _halves, run_seed
 
 CATALOGUE_PATH = Path(__file__).resolve().parent.parent / "schemas" / "typology_catalogue.json"
@@ -82,12 +82,12 @@ def load_catalogue() -> dict[str, Any]:
 
 # --------------------------------------------------------------------------- incidents
 def gather_rows(
-    store: EvalStore, feats: FeatureStore, rows: np.ndarray, cols: tuple[str, ...]
+    feats: FeatureStore, rows: np.ndarray, cols: tuple[str, ...], partition: str = "val"
 ) -> np.ndarray:
-    """Feature matrix of the given validation rows (sorted, in the keys' row order)."""
+    """Feature matrix of the given rows of a partition (sorted, in the keys' row order)."""
     out = np.full((len(rows), len(cols)), np.nan)
     offset = 0
-    for _, feat in slices(store, feats, "val"):
+    for feat in feature_slices(feats, partition):
         n = feat.height
         lo, hi = np.searchsorted(rows, offset), np.searchsorted(rows, offset + n)
         if hi > lo:
@@ -341,7 +341,49 @@ def run_seed_x6(
     t_levels = round(time.perf_counter() - t_start, 1)
     if progress:
         progress(f"seed {seed} levels: {t_levels:.0f} s")
-    keys: pl.DataFrame = r["keys"]
+    store = EvalStore(paths, option)
+    tables = level_tables(
+        paths, option, seed, r["keys"], r["scores"], store.partition("val"), levels
+    )
+    out: dict[str, Any] = {"seed": seed, "levels": {}}
+    for lv in levels:
+        table, n_inc, n_feat = tables[lv]
+        proba: dict[str, Any] = {}
+        preds = attribute(table, lv, seed, catalogue, proba if keep_tables else None)
+        if keep_tables:
+            out.setdefault("tables", {})[lv] = {"table": table, **proba}
+        out["levels"][lv] = level_entry(table, preds, n_inc, n_feat)
+    out["seconds"] = {"levels": t_levels, "total": round(time.perf_counter() - t_start, 1)}
+    if progress:
+        progress(f"seed {seed} attribution: {out['seconds']['total'] - t_levels:.0f} s")
+    return out
+
+
+def level_entry(
+    table: pl.DataFrame, preds: dict[str, np.ndarray], incidents: int, features: int
+) -> dict[str, Any]:
+    return {
+        "scheme_id": table["scheme_id"].to_list(),
+        "pattern": table["pattern"].to_list(),
+        "detected": table["incident"].is_not_null().to_list(),
+        "predictions": {m: [None if p is None else str(p) for p in v] for m, v in preds.items()},
+        "incidents": incidents,
+        "features": features,
+    }
+
+
+def level_tables(
+    paths: DatasetPaths,
+    option: str,
+    seed: int,
+    keys: pl.DataFrame,
+    scores: dict[str, np.ndarray],
+    part: PartitionData,
+    levels: tuple[str, ...] = tuple(LEVELS),
+) -> dict[str, tuple[pl.DataFrame, int, int]]:
+    """Per level: the scheme table (one row per pattern-labelled scheme of ``part``, with its
+    incident's features), the number of incidents and of features. ``scores`` are the
+    levels' final scores on ``part``'s rows (keyed by the X1 configuration name)."""
     store = EvalStore(paths, option)
     plan = load_plan(paths)
     apm = store.accounts_per_member()
@@ -349,18 +391,17 @@ def run_seed_x6(
     pooled = FeatureStore(paths, option, "pooled")
     cols = feature_sets()["all"]
     lookback = int(feats.meta["neighbourhood"]["lookback_windows"])
-    v0, v1 = (int(x) for x in store.meta["partition_windows"]["val"])
-    part = store.partition("val")
+    v0, v1 = part.windows
     schemes = part.schemes
     sw = _within_delay(part.scheme_windows, schemes, DELAY_WINDOWS)
 
-    alerts = {lv: _alerts(keys, r["scores"][LEVELS[lv]], apm, plan.window_hours) for lv in levels}
+    alerts = {lv: _alerts(keys, scores[LEVELS[lv]], apm, plan.window_hours) for lv in levels}
     any_alert = np.zeros(keys.height, dtype=bool)
     for a in alerts.values():
         any_alert |= a
     rows = np.nonzero(any_alert)[0]
-    x_member = gather_rows(store, feats, rows, cols)
-    x_pooled = gather_rows(store, pooled, rows, cols)
+    x_member = gather_rows(feats, rows, cols, part.partition)
+    x_pooled = gather_rows(pooled, rows, cols, part.partition)
     pos_of = np.full(keys.height, -1)
     pos_of[rows] = np.arange(len(rows))
     edges = link_edges(
@@ -372,7 +413,7 @@ def run_seed_x6(
         "pattern",
         pl.Series("fold", _halves(schemes["first_window"].to_numpy(), v0, v1)),
     )
-    out: dict[str, Any] = {"seed": seed, "levels": {}}
+    out: dict[str, tuple[pl.DataFrame, int, int]] = {}
     for lv in levels:
         alerted = keys.filter(pl.Series(alerts[lv]))
         inc = Linker(edges, lookback, lv != "S0")(alerted)
@@ -383,24 +424,62 @@ def run_seed_x6(
         table = base.join(best_incident(sw, inc), on="scheme_id", how="left").join(
             feats_inc, on="incident", how="left"
         )
-        proba: dict[str, Any] = {}
-        preds = attribute(table, lv, seed, catalogue, proba if keep_tables else None)
-        if keep_tables:
-            out.setdefault("tables", {})[lv] = {"table": table, **proba}
-        out["levels"][lv] = {
-            "scheme_id": table["scheme_id"].to_list(),
-            "pattern": table["pattern"].to_list(),
-            "detected": table["incident"].is_not_null().to_list(),
-            "predictions": {
-                m: [None if p is None else str(p) for p in v] for m, v in preds.items()
-            },
-            "incidents": int(inc["incident"].n_unique()) if inc.height else 0,
-            "features": len(feats_inc.columns) - 1,
-        }
-    out["seconds"] = {"levels": t_levels, "total": round(time.perf_counter() - t_start, 1)}
-    if progress:
-        progress(f"seed {seed} attribution: {out['seconds']['total'] - t_levels:.0f} s")
+        n_inc = int(inc["incident"].n_unique()) if inc.height else 0
+        out[lv] = (table, n_inc, len(feats_inc.columns) - 1)
     return out
+
+
+def attribute_frozen(
+    train: pl.DataFrame,
+    apply_to: pl.DataFrame,
+    level: str,
+    seed: int,
+    catalogue: dict[str, Any],
+    proba_out: dict[str, Any] | None = None,
+) -> dict[str, np.ndarray]:
+    """Week 18 (test): every method fitted on all detected validation schemes (``train``) and
+    applied to the test schemes (``apply_to``); same settings as the cross-fitted
+    :func:`attribute`. Undetected schemes get None."""
+    det_t = train["incident"].is_not_null().to_numpy()
+    det_a = apply_to["incident"].is_not_null().to_numpy()
+    y_t = train["pattern"].to_numpy()
+    drop = ("scheme_id", "pattern", "fold", "incident", "owner")
+    feat_cols = [c for c in train.columns if c not in drop]
+    if [c for c in apply_to.columns if c not in drop] != feat_cols:
+        raise ValueError("validation and test incident features differ")
+
+    def matrix_of(t: pl.DataFrame) -> np.ndarray:
+        return t.select(feat_cols).cast(pl.Float64).fill_null(np.nan).to_numpy()
+
+    x_t, x_a = matrix_of(train), matrix_of(apply_to)
+    sig_t, sig_a = shape(train, level), shape(apply_to, level)
+    n = apply_to.height
+    preds = {m: np.full(n, None, dtype=object) for m in METHODS}
+    classes = [e["id"] for e in catalogue["entries"]]
+    proba = np.full((n, len(classes)), np.nan)
+    if det_a.any():
+        preds["rules"][det_a] = rule_predict(sig_a[det_a], catalogue)
+        src = y_t[det_t]
+        labels, counts = np.unique(src, return_counts=True)
+        majority = labels[np.argmax(counts)] if len(labels) else None
+        preds["majority"][det_a] = majority
+        preds["catalogue"][det_a] = catalogue_predict(sig_a[det_a], sig_t[det_t], catalogue)
+        if len(labels) < 2:
+            preds["attributor"][det_a] = majority
+            proba[det_a] = 0.0
+            if majority is not None:
+                proba[det_a, classes.index(majority)] = 1.0
+        else:
+            model = LGBMClassifier(**ATTRIBUTOR, random_state=seed).fit(x_t[det_t], y_t[det_t])
+            preds["attributor"][det_a] = model.predict(x_a[det_a])
+            p = np.asarray(model.predict_proba(x_a[det_a]))
+            proba[det_a] = 0.0
+            for j, c in enumerate(model.classes_):
+                proba[np.nonzero(det_a)[0], classes.index(c)] = p[:, j]
+    if proba_out is not None:
+        proba_out["classes"] = classes
+        proba_out["p"] = proba
+    return preds
 
 
 # --------------------------------------------------------------------------- statistics
@@ -480,12 +559,13 @@ def combine(per_seed: list[dict[str, Any]], reps: int = 1000) -> dict[str, Any]:
         "S2_minus_S0": h["S2-S0"],
         "S2_above_majority": h["S2 attributor-majority"],
         "S2_above_rules": h["S2 attributor-rules"],
-        "met_on_validation": bool(
+        "met": bool(
             h["S2-S0"]["low"] > 0
             and h["S2 attributor-majority"]["low"] > 0
             and h["S2 attributor-rules"]["low"] > 0
         ),
     }
+    out["H3a"]["met_on_validation"] = out["H3a"]["met"]  # the validation reports' key
     stages = {e["id"]: e["stage"] for e in load_catalogue()["entries"]}
     stage_counts = {
         st: int(sum(stages.get(p) == st for p in patterns)) for st in set(stages.values())
@@ -524,10 +604,13 @@ __all__ = [
     "LEVELS",
     "METHODS",
     "attribute",
+    "attribute_frozen",
     "best_incident",
     "catalogue_predict",
     "combine",
     "incident_features",
+    "level_entry",
+    "level_tables",
     "load_catalogue",
     "rule_predict",
     "run_x6",

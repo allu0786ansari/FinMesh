@@ -34,10 +34,11 @@ import json
 import platform
 import sys
 from pathlib import Path
+from typing import Any
 
 from finmesh import __version__
 from finmesh.data.schema import FIXTURE_DATASET, PRIMARY_DATASETS
-from finmesh.paths import REPO_ROOT, data_root, dataset_paths
+from finmesh.paths import REPO_ROOT, DatasetPaths, data_root, dataset_paths
 
 
 def _report_path(dataset: str, explicit: str | None) -> Path | None:
@@ -1066,10 +1067,14 @@ def cmd_narrative(args: argparse.Namespace) -> int:
         timeout=args.timeout,
         progress=lambda m: print(f"  {m}"),
         protocol=args.protocol,
+        split="test" if args.test else "val",
+        allow_repeat=args.allow_repeat,
     )
     if "error" in result:
         print(f"  {result['error']}")
         return 1
+    if args.test:
+        return _narrative_test_outputs(paths, args, result)
     manifest = load_manifest(paths.manifest)
     stamp = Stamp(
         kind="narrative",
@@ -1127,9 +1132,47 @@ def cmd_narrative(args: argparse.Namespace) -> int:
     return 0
 
 
+def _narrative_test_outputs(
+    paths: DatasetPaths, args: argparse.Namespace, result: dict[str, Any]
+) -> int:
+    from finmesh.attribution.narrative_report import render_narrative, write_cases, write_review_ab
+    from finmesh.eval.provenance import write_artifact
+
+    art, out = _test_out(paths)
+    name = f"{option_tag(paths.name, args.option)}_A23"
+    params = {"option": args.option, "n": args.n, "model": args.model, "protocol": "A23"}
+    artifact = write_artifact(
+        art / f"narrative_test_{name}.json", _stamp(paths, "narrative-test", params), result
+    )
+    (out / f"narrative_{name}.md").write_text(as_test_page(render_narrative(result)))
+    write_cases(result, out / f"narrative_{name}_cases.jsonl")
+    write_review_ab(
+        result,
+        out / f"narrative_{name}_review.csv",
+        out / f"narrative_{name}_review_KEY_do_not_open.csv",
+    )
+    s = result["summary"]
+    g = s["H3b"]["grounding"]
+    if g["estimate"] is not None:
+        print(f"  H3b grounding {g['estimate']:.3f} [{g['low']:.3f}, {g['high']:.3f}]")
+    st = s["strict_grounding"]
+    if st["estimate"] is not None:
+        print(f"  strict grounding {st['estimate']:.3f} [{st['low']:.3f}, {st['high']:.3f}]")
+    for lv, v in (result.get("topk") or {}).get("levels", {}).items():
+        print(f"  {lv} top-3 end to end {v['top3']['estimate']:.3f}")
+    print(f"  artifact {artifact}")
+    return 0
+
+
 def cmd_narrative_review(args: argparse.Namespace) -> int:
     """A23: score the owner's blind A/B ratings against the hidden key."""
-    from finmesh.attribution.narrative_report import render_review, score_review
+    from finmesh.attribution.narrative_report import (
+        prepare_rater_sheets,
+        render_review,
+        render_two_raters,
+        score_review,
+        score_two_raters,
+    )
 
     paths = dataset_paths(args.dataset)
     out_dir = (
@@ -1143,6 +1186,33 @@ def cmd_narrative_review(args: argparse.Namespace) -> int:
     if not rated.exists() or not key.exists():
         print(f"  {rated.name} or its key is missing; run `finmesh narrative` (A23) first")
         return 1
+    raters = [r.strip().lower() for r in args.raters.split(",") if r.strip()]
+    if args.prepare:
+        for sheet in prepare_rater_sheets(rated, raters):
+            print(f"  sheet    {sheet}")
+        print("  each rater fills only their own copy; do not open the KEY file")
+        return 0
+    sheets = {r: rated.with_name(rated.stem + f"_{r}.csv") for r in raters}
+    sheets = {r: p for r, p in sheets.items() if p.exists()}
+    if sheets:
+        two = score_two_raters(sheets, key)
+        if not any(v["rated"] for v in two["per_rater"].values()):
+            print("  no rated rows yet in the raters' sheets")
+            return 1
+        report = out_dir / f"{name}_review_result.md"
+        report.write_text(render_two_raters(two, paths.name))
+        for r, v in two["per_rater"].items():
+            m = v["sources"]["model"]
+            print(f"  {r:<9} rated {v['rated']}; model faithful yes {m['faithful_yes']}")
+        ag = two.get("agreement")
+        if ag:
+            print(
+                f"  agreement: faithful kappa {ag['faithful_kappa']}, useful kappa "
+                f"{ag['useful_kappa']}; claim check vs both "
+                f"{two['checker_vs_consensus']['kappa']}"
+            )
+        print(f"  report   {report}")
+        return 0
     result = score_review(rated, key)
     if not result["rated"]:
         print(f"  no rated rows in {rated}; fill in the faithful and useful columns first")
@@ -1328,6 +1398,279 @@ def cmd_sealed_log(args: argparse.Namespace) -> int:
         print("  the sealed test has never been opened")
     for e in entries:
         print(f"  {e['time']}  config {e['config_hash'][:12]}  seed {e['seed']}  {e['purpose']}")
+    return 0
+
+
+# --------------------------------------------------------------------------- week 18: test
+TEST_BANNER = (
+    "> **Sealed test (week 18).** Every model trained on the training partition; every "
+    "calibration, threshold, fusion and attribution parameter fitted on validation and "
+    "frozen; test scored label-free, then opened once per seed through the logged seal "
+    "(`finmesh sealed-log`). Wording below that says *validation* in a column or check "
+    "name refers to the frozen rule; every number is on **test**.\n\n"
+)
+
+
+def as_test_page(text: str) -> str:
+    """A validation renderer's page, relabelled for the test run."""
+    for a, b in (
+        ("on validation", "on test"),
+        ("On validation", "On test"),
+        (" validation ·", " test ·"),
+        ("validation windows", "test windows"),
+        ("| Validation |", "| Test |"),
+        ("Met on validation", "Met on test"),
+        ("met on validation", "met on test"),
+        ("Judged on test; validation shown here.", "Decided here, on test."),
+        ("Judged on test.", "Decided here, on test."),
+    ):
+        text = text.replace(a, b)
+    lines = text.split("\n", 1)
+    return lines[0] + "\n\n" + TEST_BANNER + (lines[1].lstrip("\n") if len(lines) > 1 else "")
+
+
+def _test_out(paths: DatasetPaths) -> tuple[Path, Path]:
+    art = data_root() / "artifacts" / "week18"
+    out = art if paths.name == FIXTURE_DATASET else REPO_ROOT / "docs" / "eval" / "test"
+    out.mkdir(parents=True, exist_ok=True)
+    return art, out
+
+
+def _stamp(paths: DatasetPaths, kind: str, params: dict[str, Any]) -> Any:
+    from finmesh.data.manifest import load_manifest
+    from finmesh.eval.provenance import Stamp
+
+    manifest = load_manifest(paths.manifest)
+    return Stamp(
+        kind=kind,
+        dataset=paths.name,
+        manifest_hash=manifest.manifest_hash,
+        fixture=manifest.fixture,
+        split="test",
+        params=params,
+    )
+
+
+def _ints(text: str) -> tuple[int, ...]:
+    return tuple(int(x) for x in text.split(",") if x.strip())
+
+
+def cmd_test_preflight(args: argparse.Namespace) -> int:
+    from finmesh.eval.test_plan import preflight
+
+    report = preflight(dataset_paths(args.dataset), args.option, args.only)
+    for line in report["lines"]:
+        print(f"  {line}")
+    return 0 if report["ok"] else 1
+
+
+def cmd_test_x1(args: argparse.Namespace) -> int:
+    from finmesh.eval.provenance import write_artifact
+    from finmesh.training.sealed_runs import run_x1_test
+    from finmesh.training.x1_report import (
+        frontier_figure,
+        ladder_figure,
+        render_audit,
+        render_x1,
+        render_x3,
+        x3_figure,
+    )
+    from finmesh.training.x6 import ATTRIBUTOR, LEVELS, load_catalogue
+    from finmesh.training.x6_report import render_x6
+
+    paths = dataset_paths(args.dataset)
+    params = {
+        "option": args.option,
+        "headline_seeds": list(_ints(args.headline_seeds)),
+        "seeds": list(_ints(args.seeds)),
+        "reps": args.reps,
+        "window_reps": args.window_reps,
+        "sweeps": not args.no_sweeps,
+        "audit": not args.no_audit,
+        "x6": not args.no_x6,
+    }
+    result = run_x1_test(
+        paths,
+        option=args.option,
+        headline_seeds=_ints(args.headline_seeds),
+        other_seeds=_ints(args.seeds),
+        reps=args.reps,
+        window_reps=args.window_reps,
+        sweeps=not args.no_sweeps,
+        audit=not args.no_audit,
+        x6=not args.no_x6,
+        allow_repeat=args.allow_repeat,
+        progress=lambda m: print(f"  {m}"),
+    )
+    art, out = _test_out(paths)
+    name = option_tag(paths.name, args.option)
+    artifact = write_artifact(
+        art / f"x1_test_{name}.json", _stamp(paths, "x1-test", params), result
+    )
+    ladder = ladder_figure(result, out / f"ladder_{name}.png")
+    (out / f"x1_{name}.md").write_text(as_test_page(render_x1(result, ladder.name)))
+    if result.get("sweeps"):
+        fig = x3_figure(result, out / f"x3_{name}.png")
+        (out / f"x3_{name}.md").write_text(
+            as_test_page(render_x3(result, fig.name if fig else None))
+        )
+    if result.get("audit"):
+        fig = frontier_figure(result, out / f"frontier_{name}.png")
+        page = render_audit(result, fig.name if fig else None)
+        (out / f"audit_{name}.md").write_text(as_test_page(page))
+    if result.get("x6"):
+        x6 = result["x6"]
+        page = render_x6(
+            {
+                "dataset": paths.name,
+                "option": args.option,
+                "seeds": x6["seeds"],
+                "levels": dict(LEVELS),
+                "attributor": ATTRIBUTOR,
+                "catalogue_version": load_catalogue()["version"],
+                "summary": x6["summary"],
+                "per_seed": x6["per_seed"],
+                "seconds": result["seconds"],
+                "peak_anon_mb": result["peak_anon_mb"],
+            }
+        )
+        (out / f"x6_{name}.md").write_text(as_test_page(page))
+    s = result["summary"]
+    for key in ("S0", "S2/stacker", "oracle", "oracle-relational"):
+        v = s.get(key)
+        if v:
+            g = v.get("linked_gain", {})
+            p = g.get("p_holm", g.get("p"))
+            extra = "" if p is None else f"  p {'(Holm) ' if 'p_holm' in g else ''}{p:.4f}"
+            print(f"  {key:<18} linked {v['linked']['estimate']:.3f}{extra}")
+    h = s.get("H1b", {}).get("oracle-relational", {}).get("S2/stacker") or {}
+    if h.get("estimate") is not None:
+        print(f"  H1b: S2 recovers {h['estimate']:.2f} [{h['low']:.2f}, {h['high']:.2f}]")
+    if result.get("x6"):
+        print(f"  H3a met on test: {result['x6']['summary']['H3a']['met']}")
+    print(f"  {result['seconds']:.0f} s, peak memory {result['peak_anon_mb']} MB")
+    print(f"  artifact {artifact}")
+    print(f"  reports  {out}")
+    return 0
+
+
+def cmd_test_baselines(args: argparse.Namespace) -> int:
+    from finmesh.eval.provenance import write_artifact
+    from finmesh.training.report import render_baselines
+    from finmesh.training.sealed_runs import run_baselines_test
+
+    paths = dataset_paths(args.dataset)
+    result = run_baselines_test(
+        paths, option=args.option, reps=args.reps, allow_repeat=args.allow_repeat
+    )
+    art, out = _test_out(paths)
+    name = option_tag(paths.name, args.option)
+    params = {"option": args.option, "seed": 0, "reps": args.reps}
+    artifact = write_artifact(
+        art / f"baselines_test_{name}.json", _stamp(paths, "baselines-test", params), result
+    )
+    (out / f"baselines_{name}.md").write_text(as_test_page(render_baselines(result)))
+    c = result["comparisons"]
+    for pair in ("oracle - S0-BG", "oracle-noart - S0-BG-noart", "S0-BG - S0-B"):
+        d = c[pair]["linked"]["difference"]
+        print(f"  {pair:<28} linked {d['estimate']:+.3f} [{d['low']:+.3f}, {d['high']:+.3f}]")
+    w = c["S0-BG - S0-B"]["window"]["auprc_difference"]
+    print(f"  PT4b AUPRC S0-BG - S0-B {w['estimate']:+.4f} [{w['low']:+.4f}, {w['high']:+.4f}]")
+    print(f"  {result['seconds']:.0f} s, peak memory {result['peak_anon_mb']} MB")
+    print(f"  artifact {artifact}")
+    return 0
+
+
+def _x5_artifact(paths: DatasetPaths) -> dict[str, Any] | None:
+    from finmesh.eval.provenance import read_artifact
+
+    path = data_root() / "artifacts" / "week12" / f"x5_{paths.name}.json"
+    if not path.exists():
+        print(f"  no week-12 X5 run for {paths.name} ({path}); the test scores its saved models")
+        return None
+    return read_artifact(path)[1]
+
+
+def cmd_test_x5(args: argparse.Namespace) -> int:
+    from finmesh.eval.provenance import write_artifact
+    from finmesh.eval.sealed import EvalStore
+    from finmesh.training.sealed_runs import opener_for
+    from finmesh.training.x5 import run_x5_test
+    from finmesh.training.x5_report import render_x5
+
+    paths = dataset_paths(args.dataset)
+    x5 = _x5_artifact(paths)
+    if x5 is None:
+        return 2
+    opener = opener_for(EvalStore(paths, args.option), args.allow_repeat)
+    result = run_x5_test(
+        paths,
+        x5,
+        opener,
+        option=args.option,
+        reps=args.reps,
+        progress=lambda m: print(f"  {m}"),
+        allow_repeat=args.allow_repeat,
+    )
+    art, out = _test_out(paths)
+    params = {"option": args.option, "x5_run": x5["run_id"], "reps": args.reps}
+    artifact = write_artifact(
+        art / f"x5_test_{paths.name}.json", _stamp(paths, "x5-test", params), result
+    )
+    (out / f"x5_{paths.name}.md").write_text(as_test_page(render_x5(result)))
+    s = result["summary"]
+    for eps, h in s["H2a"].items():
+        print(
+            f"  eps {eps}: H2a share {h['share_of_centralised']['estimate']:.2f}, "
+            f"minus local {h['minus_local']['estimate']:+.4f}; "
+            f"H2b window - account {s['H2b'][eps]['window_minus_account']['estimate']:+.4f}"
+        )
+    print(f"  {result['seconds']:.0f} s, peak memory {result['peak_anon_mb']} MB")
+    print(f"  artifact {artifact}")
+    return 0
+
+
+def cmd_test_ensemble(args: argparse.Namespace) -> int:
+    from finmesh.eval.provenance import write_artifact
+    from finmesh.eval.sealed import EvalStore
+    from finmesh.training.ensemble import run_ensemble_test
+    from finmesh.training.ensemble_report import render_ensemble
+    from finmesh.training.sealed_runs import opener_for
+
+    paths = dataset_paths(args.dataset)
+    x5 = _x5_artifact(paths)
+    if x5 is None:
+        return 2
+    opener = opener_for(EvalStore(paths, args.option), args.allow_repeat)
+    result = run_ensemble_test(
+        paths,
+        x5,
+        opener,
+        option=args.option,
+        reps=args.reps,
+        progress=lambda m: print(f"  {m}"),
+        allow_repeat=args.allow_repeat,
+    )
+    art, out = _test_out(paths)
+    params = {"option": args.option, "x5_run": x5["run_id"], "reps": args.reps}
+    artifact = write_artifact(
+        art / f"ensemble_test_{paths.name}.json", _stamp(paths, "ensemble-test", params), result
+    )
+    (out / f"ensemble_{paths.name}.md").write_text(as_test_page(render_ensemble(result)))
+    for k, g in result["summary"]["gain_over_local"].items():
+        print(f"  + {k}: {g['estimate']:+.4f} [{g['low']:+.4f}, {g['high']:+.4f}]")
+    print(f"  {result['seconds']:.0f} s, peak memory {result['peak_anon_mb']} MB")
+    print(f"  artifact {artifact}")
+    return 0
+
+
+def cmd_test_report(args: argparse.Namespace) -> int:
+    from finmesh.eval.test_report import write_results
+
+    art = data_root() / "artifacts" / "week18"
+    target = art if args.fixture else REPO_ROOT / "docs" / "eval" / "test"
+    page = write_results(art, target / "RESULTS.md", fixture=args.fixture)
+    print(f"  report   {page}")
     return 0
 
 
@@ -1531,6 +1874,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--timeout", type=float, default=None, help="seconds per call (A21: 120, A22: 600)"
     )
     nr.add_argument("--protocol", default="A23", choices=["A21", "A22", "A23"])
+    nr.add_argument(
+        "--test", action="store_true", help="week 18: A23 on test (after `finmesh test-x1`)"
+    )
+    nr.add_argument("--allow-repeat", action="store_true")
     nr.set_defaults(func=cmd_narrative)
 
     db = sub.add_parser("demo-build", help="week 16: demo world from real validation data")
@@ -1567,6 +1914,10 @@ def build_parser() -> argparse.ArgumentParser:
     rv = sub.add_parser("narrative-review", help="A23: score the owner's blind A/B review")
     rv.add_argument("--dataset", required=True)
     rv.add_argument("--option", default="B8")
+    rv.add_argument("--raters", default="allaudin,ravi", help="one sheet copy per rater")
+    rv.add_argument(
+        "--prepare", action="store_true", help="write each rater's blank copy of the sheet"
+    )
     rv.set_defaults(func=cmd_narrative_review)
 
     cv = sub.add_parser("coverage", help="A21 coverage curve from the X1 artifacts (week 14)")
@@ -1599,6 +1950,58 @@ def build_parser() -> argparse.ArgumentParser:
     x1.add_argument("--no-sweeps", action="store_true", help="skip the S3 and PD sweeps (X3)")
     x1.add_argument("--no-audit", action="store_true", help="skip the leakage audit (X2)")
     x1.set_defaults(func=cmd_x1)
+
+    tp = sub.add_parser("test-preflight", help="week 18: check everything before opening the test")
+    tp.add_argument("--dataset", required=True)
+    tp.add_argument("--option", default="B8")
+    tp.add_argument(
+        "--only",
+        default="x1,baselines,x5,ensemble,narrative",
+        help="comma-separated runs to check",
+    )
+    tp.set_defaults(func=cmd_test_preflight)
+
+    tx = sub.add_parser("test-x1", help="week 18: X1-X3 (+ X6) on the sealed test")
+    tx.add_argument("--dataset", required=True)
+    tx.add_argument("--option", default="B8")
+    tx.add_argument("--headline-seeds", default="0,1,2,3,4", help="S0, oracles, S2, PD")
+    tx.add_argument("--seeds", default="0,1,2", help="every configuration")
+    tx.add_argument("--reps", type=int, default=1000, help="scheme bootstrap replicates")
+    tx.add_argument("--window-reps", type=int, default=1000, help="account bootstrap replicates")
+    tx.add_argument("--no-sweeps", action="store_true", help="skip the S3 and PD sweeps")
+    tx.add_argument("--no-audit", action="store_true", help="skip the leakage audit")
+    tx.add_argument("--no-x6", action="store_true", help="skip X6 attribution")
+    tx.add_argument(
+        "--allow-repeat",
+        action="store_true",
+        help="rerun a seed that crashed after opening (logged)",
+    )
+    tx.set_defaults(func=cmd_test_x1)
+
+    tb = sub.add_parser("test-baselines", help="week 18: G1 baselines and ablation on test")
+    tb.add_argument("--dataset", required=True)
+    tb.add_argument("--option", default="B8")
+    tb.add_argument("--reps", type=int, default=1000)
+    tb.add_argument("--allow-repeat", action="store_true")
+    tb.set_defaults(func=cmd_test_baselines)
+
+    t5 = sub.add_parser("test-x5", help="week 18: X5 saved models (H2a, H2b) on test")
+    t5.add_argument("--dataset", required=True)
+    t5.add_argument("--option", default="B8")
+    t5.add_argument("--reps", type=int, default=1000)
+    t5.add_argument("--allow-repeat", action="store_true")
+    t5.set_defaults(func=cmd_test_x5)
+
+    te = sub.add_parser("test-ensemble", help="week 18: stacked ensemble on test")
+    te.add_argument("--dataset", required=True)
+    te.add_argument("--option", default="B8")
+    te.add_argument("--reps", type=int, default=1000)
+    te.add_argument("--allow-repeat", action="store_true")
+    te.set_defaults(func=cmd_test_ensemble)
+
+    tr = sub.add_parser("test-report", help="week 18: the hypothesis verdicts on test")
+    tr.add_argument("--fixture", action="store_true", help="include FIXTURE-Small artifacts")
+    tr.set_defaults(func=cmd_test_report)
 
     sl = sub.add_parser("sealed-log", help="show every opening of the sealed test")
     add_dataset(sl)

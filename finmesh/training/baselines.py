@@ -43,7 +43,14 @@ from finmesh.models.gbdt import GBDT
 from finmesh.models.unsupervised import Unsupervised
 from finmesh.paths import DatasetPaths
 from finmesh.sysinfo import AnonPeak
-from finmesh.training.data import Windows, sample_rows, slices, training_rows, training_windows
+from finmesh.training.data import (
+    Windows,
+    feature_slices,
+    sample_rows,
+    slices,
+    training_rows,
+    training_windows,
+)
 
 PRIMARY = Budget("per_1000_per_day", 1.0)  # amendment A10
 DELAY_WINDOWS = 12  # 72 h after a scheme's first window (preregistered)
@@ -130,6 +137,21 @@ def score_rows(
     return pl.concat(parts)
 
 
+def score_keys(
+    features: FeatureStore, partition: str, fn: FeatureFn, window_from: int | None = None
+) -> pl.DataFrame:
+    """Keys and score for a partition, label-free (week 18: the test side, scored before
+    its seal is opened). Same rows and order as :func:`score_rows`."""
+    parts = []
+    for feat in feature_slices(features, partition):
+        if window_from is not None:
+            feat = feat.filter(pl.col("window") >= window_from)
+        parts.append(
+            feat.select(*KEY_COLUMNS).with_columns(pl.Series("score", fn(feat), dtype=pl.Float64))
+        )
+    return pl.concat(parts)
+
+
 class ScoreBook:
     """One key-and-label frame per partition, one score array per scorer.
 
@@ -198,6 +220,28 @@ def calibration(scored: pl.DataFrame) -> dict[str, Any]:
     }
 
 
+def calibration_at_test(val: pl.DataFrame, test: pl.DataFrame) -> dict[str, Any]:
+    """Week 18: per-member isotonic fitted on all of validation, applied to test (section 6)."""
+    ev_v, ev_t = val.filter(~pl.col("masked")), test.filter(~pl.col("masked"))
+    calibrated = np.zeros(ev_t.height)
+    members_t = ev_t["member"].to_numpy()
+    for m in sorted(ev_v["member"].unique().to_list()):
+        whole = ev_v.filter(pl.col("member") == m)
+        idx = members_t == m
+        if whole["label"].sum() > 0 and idx.any():
+            f = _isotonic(whole["score"].to_numpy(), whole["label"].to_numpy())
+            calibrated[idx] = f(ev_t["score"].to_numpy()[idx])
+    y = ev_t["label"].to_numpy().astype(np.float64)
+    raw = np.clip(ev_t["score"].to_numpy(), 0.0, 1.0)
+    return {
+        "brier_raw": float(np.mean((raw - y) ** 2)),
+        "brier_calibrated_on_validation": float(np.mean((calibrated - y) ** 2)),
+        "ece_raw": _ece(raw, y),
+        "ece_calibrated_on_validation": _ece(calibrated, y),
+        "prevalence": float(y.mean()),
+    }
+
+
 def _paired_window(a: pl.DataFrame, b: pl.DataFrame, reps: int, seed: int) -> dict[str, Any]:
     """AUPRC(a) - AUPRC(b) on the same rows, same Poisson weights per account."""
     ev_a, ev_b = a.filter(~pl.col("masked")), b.filter(~pl.col("masked"))
@@ -219,7 +263,11 @@ def run_baselines(
     reps: int = 1000,
     window_reps: int = 200,
     linked_draws: int = 20,
+    opener: Any = None,
 ) -> dict[str, Any]:
+    """Validation run (G1), or with ``opener`` the test run (week 18): every model trained
+    as for G1, FPR thresholds and calibration from validation, test scored label-free and
+    then opened once per label variant (see :mod:`finmesh.training.sealed_runs`)."""
     plan = load_plan(paths)
     store = EvalStore(paths, option)
     member_f = FeatureStore(paths, option, "member")
@@ -228,7 +276,10 @@ def run_baselines(
     sets = feature_sets()
     members = sorted(store.accounts_per_member()["member"].to_list())
     lookback = int(member_f.meta["neighbourhood"]["lookback_windows"])
-    v0, v1 = store.meta["partition_windows"]["val"]
+    test = opener is not None
+    target = "test" if test else "val"  # the partition evaluated
+    source = "val" if test else "stop"  # where FPR thresholds come from (section 3)
+    v0, v1 = store.meta["partition_windows"][target]
     edges = link_edges(paths.transactions, plan, int(v0), int(v1), lookback)
     linkers = {"local": Linker(edges, lookback, False), "pooled": Linker(edges, lookback, True)}
 
@@ -237,6 +288,13 @@ def run_baselines(
 
     def record(name: str, t0: float, extra: dict[str, Any]) -> None:
         info[name] = {**extra, "seconds": round(time.perf_counter() - t0, 1)}
+
+    def add(name: str, feats: FeatureStore, fn: FeatureFn) -> None:
+        book.add(name, "val", score_rows(store, feats, "val", fn))
+        if test:
+            book.add(name, "test", score_keys(feats, "test", fn))
+        else:
+            book.add(name, "stop", score_rows(store, feats, "train", fn, windows.stop_from))
 
     # Reference scorers (label-free) on validation; thresholds from the held-out window span.
     def random_fn(feat: pl.DataFrame) -> np.ndarray:
@@ -248,8 +306,7 @@ def run_baselines(
     reference: dict[str, FeatureFn] = {"random": random_fn, "activity": activity_fn}
     for name, ref in reference.items():
         t0 = time.perf_counter()
-        book.add(name, "val", score_rows(store, member_f, "val", ref))
-        book.add(name, "stop", score_rows(store, member_f, "train", ref, windows.stop_from))
+        add(name, member_f, ref)
         record(name, t0, {"view": "member", "linker": "local"})
 
     # Local LightGBM per member: behaviour only, then every feature.
@@ -262,8 +319,7 @@ def run_baselines(
         t0 = time.perf_counter()
         models = fit_local_models(store, member_f, cols, windows, seed, members)
         local_fn = _per_member(models)
-        book.add(name, "val", score_rows(store, member_f, "val", local_fn))
-        book.add(name, "stop", score_rows(store, member_f, "train", local_fn, windows.stop_from))
+        add(name, member_f, local_fn)
         imp = [mdl.importance() for mdl in models.values()]
         importance[name] = {c: float(np.mean([i[c] for i in imp])) for c in cols} if imp else {}
         record(
@@ -284,10 +340,7 @@ def run_baselines(
         fit, stop = training_rows(store, pooled_f, cols, windows, seed)
         oracle = GBDT(cols, seed).fit(fit.x, fit.y, fit.w, stop.x, stop.y, stop.w)
         del fit, stop
-        book.add(name, "val", score_rows(store, pooled_f, "val", oracle.score))
-        book.add(
-            name, "stop", score_rows(store, pooled_f, "train", oracle.score, windows.stop_from)
-        )
+        add(name, pooled_f, oracle.score)
         importance[name] = oracle.importance()
         record(name, t0, {"view": "pooled", "linker": "pooled", "model": oracle.info})
 
@@ -302,8 +355,7 @@ def run_baselines(
         }
         del sample
         unsup_fn = _per_member(umodels)
-        book.add(kind, "val", score_rows(store, member_f, "val", unsup_fn))
-        book.add(kind, "stop", score_rows(store, member_f, "train", unsup_fn, windows.stop_from))
+        add(kind, member_f, unsup_fn)
         record(
             kind,
             t0,
@@ -315,8 +367,26 @@ def run_baselines(
         )
 
     # Evaluation through the harness.
-    val = store.partition("val")
-    val_touch = store.partition("val", variant="touch")
+    opened: dict[str, Any] = {}
+    if test:
+        from finmesh.eval.sealed import aligned_labels
+        from finmesh.training.sealed_runs import scores_digest
+
+        keys = book.base["test"].select(*KEY_COLUMNS)
+        digest = scores_digest(keys, {n: book.arrays[(n, "test")] for n in book.names()})
+        config = {"experiment": "baselines", "dataset": paths.name, "option": option}
+        extra = {"scores_sha256": digest, "configurations": book.names()}
+        purpose = "week 18: baselines, FPR points, artefact ablation, decomposition"
+        val = opener(config, seed, purpose, extra)
+        val_touch = opener(config, seed, purpose + " (touch label)", extra, variant="touch")
+        label, usable = aligned_labels(val, keys)
+        book.base["test"] = book.base["test"].with_columns(
+            pl.Series("label", label), pl.Series("masked", ~usable)
+        )
+        opened = {"scores_sha256": digest}
+    else:
+        val = store.partition("val")
+        val_touch = store.partition("val", variant="touch")
     apm = store.accounts_per_member()
     budgets = (PRIMARY, *[b for b in DEFAULT_BUDGETS if b.kind == "fpr"])
     results: dict[str, Any] = {}
@@ -326,10 +396,10 @@ def run_baselines(
         outcomes[name] = {}
         results[name] = evaluate(
             val,
-            ScoreFrame(book.frame(name, "val").select(*KEY_COLUMNS, "score")),
+            ScoreFrame(book.frame(name, target).select(*KEY_COLUMNS, "score")),
             accounts_per_member=apm,
             window_hours=plan.window_hours,
-            thresholds=_fpr_thresholds(book.frame(name, "stop")),
+            thresholds=_fpr_thresholds(book.frame(name, source)),
             budgets=budgets,
             delay_windows=DELAY_WINDOWS,
             reps=reps,
@@ -344,7 +414,7 @@ def run_baselines(
     # Decomposition (informational): S0's own alerts, linked with the pooled rule.
     results["S0-BG+pooled-link"] = evaluate(
         val,
-        ScoreFrame(book.frame("S0-BG", "val").select(*KEY_COLUMNS, "score")),
+        ScoreFrame(book.frame("S0-BG", target).select(*KEY_COLUMNS, "score")),
         accounts_per_member=apm,
         window_hours=plan.window_hours,
         thresholds={},
@@ -360,10 +430,10 @@ def run_baselines(
     sensitivity = {
         name: evaluate(
             val_touch,
-            ScoreFrame(book.frame(name, "val").select(*KEY_COLUMNS, "score")),
+            ScoreFrame(book.frame(name, target).select(*KEY_COLUMNS, "score")),
             accounts_per_member=apm,
             window_hours=plan.window_hours,
-            thresholds=_fpr_thresholds(book.frame(name, "stop")),
+            thresholds=_fpr_thresholds(book.frame(name, source)),
             budgets=(PRIMARY,),
             delay_windows=DELAY_WINDOWS,
             reps=reps,
@@ -376,8 +446,14 @@ def run_baselines(
     }
 
     del val_touch
-    comparisons = _comparisons(book, outcomes, reps, window_reps, seed)
-    calib = {name: calibration(book.frame(name, "val")) for name in HEADLINE}
+    comparisons = _comparisons(book, outcomes, reps, window_reps, seed, target)
+    if test:
+        calib = {
+            name: calibration_at_test(book.frame(name, "val"), book.frame(name, "test"))
+            for name in HEADLINE
+        }
+    else:
+        calib = {name: calibration(book.frame(name, "val")) for name in HEADLINE}
     test_thresholds = {
         name: {k: v.to_dicts() for k, v in _fpr_thresholds(book.frame(name, "val")).items()}
         for name in HEADLINE
@@ -386,8 +462,11 @@ def run_baselines(
         "dataset": paths.name,
         "option": option,
         "seed": seed,
+        "split": target,
+        **opened,
         "windows": windows.to_dict(),
-        "validation_windows": [int(v0), int(v1)],
+        "validation_windows": [int(x) for x in store.meta["partition_windows"]["val"]],
+        "evaluated_windows": [int(v0), int(v1)],
         "primary_budget": PRIMARY.name,
         "delay_windows": DELAY_WINDOWS,
         "label_rule": store.meta.get("label_rule"),
@@ -407,6 +486,7 @@ def _comparisons(
     reps: int,
     window_reps: int,
     seed: int,
+    part: str = "val",
 ) -> dict[str, Any]:
     """Paired differences for G1 (oracle vs S0) and PT4b (graph vs behaviour)."""
     pairs = (
@@ -421,7 +501,7 @@ def _comparisons(
     for a, b in pairs:
         oa, ob = outcomes[a][PRIMARY.name], outcomes[b][PRIMARY.name]
         entry: dict[str, Any] = {
-            "window": _paired_window(book.frame(a, "val"), book.frame(b, "val"), window_reps, seed)
+            "window": _paired_window(book.frame(a, part), book.frame(b, part), window_reps, seed)
         }
         for metric in ("linked", "detected"):
             diff, p = paired_difference(

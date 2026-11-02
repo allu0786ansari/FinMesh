@@ -26,7 +26,7 @@ from typing import Any
 
 import polars as pl
 
-from finmesh.eval.guard import LabelFrame
+from finmesh.eval.guard import KEY_COLUMNS, LabelFrame
 from finmesh.eval.provenance import git_commit
 from finmesh.eval.split_io import load_plan
 from finmesh.eval.universe import LABEL_VARIANTS, SEALED_PARTITIONS, EvalLayout, sealed_root
@@ -55,6 +55,27 @@ class PartitionData:
     @property
     def days(self) -> float:
         return self.hours / 24
+
+
+def aligned_labels(part: PartitionData, keys: pl.DataFrame) -> tuple[Any, Any]:
+    """(label, usable) for ``keys`` in their row order, from an opened partition (week 18).
+
+    Scores computed before an opening carry only keys; this attaches the labels after it.
+    Every key must be in the partition's universe.
+    """
+    frame = part.labels.frame
+    cols = list(KEY_COLUMNS)
+    if frame.height == keys.height and all(
+        frame[c].equals(keys[c], check_dtypes=False) for c in cols
+    ):
+        got = frame.select("label", "masked")
+    else:
+        got = keys.select(cols).join(
+            frame.select(*cols, "label", "masked"), on=cols, how="left", maintain_order="left"
+        )
+        if got["label"].null_count():
+            raise ValueError("scored rows missing from the opened partition's universe")
+    return got["label"].to_numpy().astype("int8"), ~got["masked"].to_numpy()
 
 
 def label_variant(frame: pl.DataFrame, variant: str) -> pl.DataFrame:
@@ -152,6 +173,18 @@ def read_access_log(paths: DatasetPaths) -> list[dict[str, Any]]:
     return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
 
 
+def opened_before(
+    paths: DatasetPaths, config: dict[str, Any], seed: int, variant: str = "primary"
+) -> dict[str, Any] | None:
+    """The first logged opening of this configuration and seed, if any (week 18: lets a
+    runner refuse before hours of scoring rather than at the opening)."""
+    digest = config_hash({**config, "label_variant": variant})
+    for e in read_access_log(paths):
+        if e["config_hash"] == digest and e["seed"] == seed:
+            return e
+    return None
+
+
 def open_sealed_test(
     store: EvalStore,
     config: dict[str, Any],
@@ -159,8 +192,13 @@ def open_sealed_test(
     purpose: str,
     allow_repeat: bool = False,
     variant: str = "primary",
+    extra: dict[str, Any] | None = None,
 ) -> PartitionData:
-    """The only way to read test labels. Logs first, then returns the data."""
+    """The only way to read test labels. Logs first, then returns the data.
+
+    ``extra`` goes into the log entry only (not the configuration hash), e.g. the digest
+    of the scores fixed before the opening, so the log shows they predate the labels.
+    """
     digest = config_hash({**config, "label_variant": variant})
     log = read_access_log(store.paths)
     previous = [e for e in log if e["config_hash"] == digest and e["seed"] == seed]
@@ -180,6 +218,7 @@ def open_sealed_test(
         "label_variant": variant,
         "git_commit": git_commit(),
         "user": getpass.getuser(),
+        **({"extra": extra} if extra else {}),
     }
     path = access_log_path(store.paths)
     path.parent.mkdir(parents=True, exist_ok=True)

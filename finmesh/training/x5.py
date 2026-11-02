@@ -38,7 +38,9 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import polars as pl
 
+from finmesh.eval.guard import KEY_COLUMNS
 from finmesh.eval.metrics import RankedScores
 from finmesh.eval.sealed import EvalStore
 from finmesh.eval.stats import interval_from
@@ -51,7 +53,13 @@ from finmesh.models.neural import Encoder, init_params, scores
 from finmesh.paths import DatasetPaths
 from finmesh.sysinfo import AnonPeak
 from finmesh.training.baselines import feature_sets
-from finmesh.training.data import Rows, slices, training_rows, training_windows
+from finmesh.training.data import (
+    Rows,
+    feature_slices,
+    slices,
+    training_rows,
+    training_windows,
+)
 from finmesh.training.neural import UNITS, client_data, dp_hparams, train_private
 from finmesh.training.x4 import H2A_SHARE, SCORE_CHUNK, ledger_append
 
@@ -302,6 +310,150 @@ def run_seed(
     }
 
 
+def view_of(name: str, cap: int) -> str:
+    """The feature view a saved X5 model scores."""
+    return f"cap{cap}" if f"cap{cap}" in name else "member"
+
+
+def _score_keys_view(
+    feats: FeatureStore,
+    partition: str,
+    cols: tuple[str, ...],
+    enc: Encoder,
+    models: dict[str, Model],
+) -> tuple[dict[str, np.ndarray], pl.DataFrame]:
+    """As :func:`_score_view`, label-free (the test side, before its opening)."""
+    parts: dict[str, list[np.ndarray]] = {n: [] for n in models}
+    keys: list[pl.DataFrame] = []
+    for feat in feature_slices(feats, partition):
+        keys.append(feat.select(*KEY_COLUMNS))
+        x = matrix(feat, cols)
+        mem = feat["member"].to_numpy()
+        out = {n: np.zeros(len(x)) for n in models}
+        for m in np.unique(mem):
+            idx = np.nonzero(mem == m)[0]
+            for start in range(0, len(idx), SCORE_CHUNK):
+                part = idx[start : start + SCORE_CHUNK]
+                e = enc(x[part])
+                for n, get in models.items():
+                    out[n][part] = scores(get(int(m)), e)
+        for n in models:
+            parts[n].append(out[n])
+    return {n: np.concatenate(v) for n, v in parts.items()}, pl.concat(keys)
+
+
+def run_x5_test(
+    paths: DatasetPaths,
+    x5: dict[str, Any],
+    opener: Any,
+    option: str = "B8",
+    reps: int = 1000,
+    progress: Callable[[str], None] | None = None,
+    allow_repeat: bool = False,
+) -> dict[str, Any]:
+    """Week 18: the X5 models saved at validation (``x5`` = that run's result), scored on
+    test. No DP model is retrained, so no privacy budget is spent again; only the
+    non-private local-only MLPs (not saved) are retrained, exactly as in X5."""
+    from finmesh.eval.sealed import aligned_labels
+    from finmesh.training.sealed_runs import refuse_if_opened, scores_digest
+
+    cap = int(x5["cap"])
+    steps = int(x5["rounds"]) * int(x5["local_steps"])
+    store = EvalStore(paths, option)
+    cols = feature_sets()["all"]
+    enc = Encoder(cols)
+    members = sorted(store.accounts_per_member()["member"].to_list())
+    views = {
+        "member": FeatureStore(paths, option, "member"),
+        f"cap{cap}": FeatureStore(paths, option, f"cap{cap}"),
+    }
+    windows = training_windows(store, views["member"])
+    config = {"experiment": "X5", "dataset": paths.name, "option": option, "x5_run": x5["run_id"]}
+    t_start = time.perf_counter()
+    per_seed: list[dict[str, Any]] = []
+    with AnonPeak() as anon:
+        for s in x5["per_seed"]:
+            seed = int(s["seed"])
+            if not s.get("models_file"):
+                raise RuntimeError("this X5 run saved no models; the test needs the week-12 run")
+            refuse_if_opened(paths, config, seed, allow_repeat)
+            t0 = time.perf_counter()
+            saved = load_models(Path(s["models_file"]))
+            fit, _ = training_rows(store, views["member"], cols, windows, seed)
+            init = init_params(enc.width, seed)
+            local = {
+                m: local_training(
+                    init,
+                    client_data(fit, m, "window"),
+                    enc,
+                    steps,
+                    np.random.default_rng([seed, 7, m]),
+                )[0]
+                for m in members
+                if (fit.member == m).any()
+            }
+            del fit
+            models: dict[str, dict[str, Model]] = {v: {} for v in views}
+            models["member"]["local"] = _per_member_model(local, init)
+            for name, params in saved.items():
+                models[view_of(name, cap)][name] = _const(params)
+            all_scores: dict[str, np.ndarray] = {}
+            keys: pl.DataFrame | None = None
+            for view, feats in views.items():
+                view_scores, k = _score_keys_view(feats, "test", cols, enc, models[view])
+                all_scores.update(view_scores)
+                if keys is None:
+                    keys = k
+                elif not keys.equals(k):
+                    raise RuntimeError("feature views do not line up row for row")
+            assert keys is not None
+            digest = scores_digest(keys, all_scores)
+            part = opener(
+                config,
+                seed,
+                "week 18: X5 (H2a, H2b) on the saved validation models",
+                {"scores_sha256": digest, "models_file": s["models_file"]},
+            )
+            y, usable = aligned_labels(part, keys)
+            accounts = keys["account"].to_numpy()
+            metrics: dict[str, Any] = {}
+            draws: dict[str, list[float]] = {}
+            for name, sc in all_scores.items():
+                ranked = RankedScores(y[usable], sc[usable])
+                ap, auc = ranked.stats()
+                d, _ = ranked.bootstrap(accounts[usable], reps, 0)
+                metrics[name] = {"auprc": ap, "auroc": auc}
+                draws[name] = d.tolist()
+            per_seed.append(
+                {
+                    "seed": seed,
+                    "metrics": metrics,
+                    "draws": draws,
+                    "scores_sha256": digest,
+                    "seconds": round(time.perf_counter() - t0, 1),
+                }
+            )
+            if progress:
+                progress(f"seed {seed}: {per_seed[-1]['seconds']:.0f} s")
+    return {
+        "dataset": paths.name,
+        "split": "test",
+        "x5_run": x5["run_id"],
+        "run_id": x5["run_id"],
+        "seeds": [s["seed"] for s in per_seed],
+        "cap": cap,
+        "iid": x5.get("iid", True),
+        "rounds": x5["rounds"],
+        "local_steps": x5["local_steps"],
+        "hparams": x5["hparams"],
+        "epsilons": list(X5_EPSILONS),
+        "summary": combine(per_seed, cap),
+        "per_seed": [{k: v for k, v in s.items() if k != "draws"} for s in per_seed],
+        "seconds": round(time.perf_counter() - t_start, 1),
+        "peak_anon_mb": anon.mb,
+    }
+
+
 def combine(per_seed: list[dict[str, Any]], cap: int) -> dict[str, Any]:
     names = list(per_seed[0]["metrics"])
     draws = {n: np.mean([np.asarray(s["draws"][n]) for s in per_seed], axis=0) for n in names}
@@ -431,5 +583,7 @@ __all__ = [
     "iid_partition",
     "load_models",
     "run_x5",
+    "run_x5_test",
     "save_models",
+    "view_of",
 ]
