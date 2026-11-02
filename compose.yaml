@@ -1,0 +1,23 @@
+# FinMesh with Docker Compose (week 17).
+#
+#   docker compose --profile smoke up --build     # X7 on the synthetic smoke world
+#   docker compose --profile console up --build   # console over ./data/demo/<dataset>
+#
+# Your data stays on your machine: ./data is mounted at /data. The console is published
+# on the host's 127.0.0.1 only.
+services:
+  smoke:
+    profiles: ["smoke"]
+    build: .
+    image: finmesh:local
+    command: ["x7", "--smoke", "--node-timeout", "1"]
+
+  console:
+    profiles: ["console"]
+    build: .
+    image: finmesh:local
+    command: ["console", "--dataset", "${FINMESH_DATASET:-HI-Medium}", "--host", "0.0.0.0"]
+    volumes:
+      - ./data:/data
+    ports:
+      - "127.0.0.1:8050:8050"

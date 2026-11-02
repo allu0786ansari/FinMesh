@@ -62,6 +62,19 @@ jobs:
           uv run finmesh coverage --dataset FIXTURE-Small
           uv run finmesh check
 
+  container:
+    # The container smoke pipeline (week 17): build the image, then run X7 on the
+    # synthetic smoke world inside it, as separate processes.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build the image
+        run: docker build -t finmesh:local .
+      - name: X7 smoke inside the container
+        run: docker run --rm finmesh:local x7 --smoke --node-timeout 1
+      - name: Compose file is valid
+        run: docker compose --profile smoke --profile console config --quiet
+
   secret-scan:
     runs-on: ubuntu-latest
     steps:

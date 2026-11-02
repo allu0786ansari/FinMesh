@@ -16,6 +16,7 @@ transport. Every message crossing HTTP is encoded and decoded by
 
 from __future__ import annotations
 
+import asyncio
 import hmac
 import json
 import threading
@@ -89,7 +90,8 @@ def token_app(
     return app
 
 
-def node_app(node: BankNode, admin_key: bytes, clock: int = 0) -> FastAPI:
+def node_app(node: BankNode, admin_key: bytes, clock: int = 0, delay: float = 0.0) -> FastAPI:
+    """``delay`` (seconds before each answer) exists for the X7 slow-node scenario only."""
     app = FastAPI(title=f"FinMesh bank node {node.member}", docs_url=None, redoc_url=None)
     state = {"now": clock}
     lock = threading.Lock()  # the guard, rate counters and LDP budgets are shared state
@@ -117,6 +119,8 @@ def node_app(node: BankNode, admin_key: bytes, clock: int = 0) -> FastAPI:
             req = decode(data, EvidenceRequest)
         except MessageRejected as exc:
             raise HTTPException(400, str(exc)) from exc
+        if delay:
+            await asyncio.sleep(delay)
         with lock:
             response = node.respond(req, now=state["now"])
         return JSONResponse(encode(response))

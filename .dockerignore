@@ -1,0 +1,7 @@
+# Only the package, its lock and the README go into the image; never data or secrets.
+*
+!pyproject.toml
+!uv.lock
+!README.md
+!finmesh/
+finmesh/**/__pycache__

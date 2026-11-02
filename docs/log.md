@@ -14,6 +14,16 @@ Next week: <first two tasks>
 On track for next gate? yes / at risk / no
 ```
 
+## Week 17 · 15 – 21 Feb 2027
+
+Planned: X7 (latency, fault and chaos tests, resource benchmark) and the container packaging.
+Done: real service processes (start, SIGKILL, restart, /proc resources); a node process loading its member's records; nonces kept across node restarts; X7 in five phases (baseline, node killed, token service killed, slow node, recovered), replay, 10 security probes over HTTP, four-eyes check, per-process resources and the acceptance table; a smoke world that exercises every fault; Dockerfile, compose profiles (smoke, console), and a CI job that builds the image and runs X7 smoke inside it. Details in `docs/runlog/week-17.md`.
+Not done: X7 on HI-Medium (owner's machine).
+Numbers this week: smoke world, every acceptance criterion passes; PT6 p95 0.05 s on normal phases; 24 of 24 sessions closed under faults; replay 144 → 144 requests; 10 of 10 probes refused; nodes about 207 MB each.
+Risks or blockers: image registries are blocked here, so the image is built and tested in GitHub CI only.
+Next week: open the sealed test once with the frozen configurations (Gate G4).
+On track for next gate? yes (G4, week 18).
+
 ## Week 16 · 8 – 14 Feb 2027
 
 Planned: the analyst console and the privacy ledger.

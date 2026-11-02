@@ -1206,8 +1206,47 @@ def cmd_console(args: argparse.Namespace) -> int:
         SessionStore(folder / "sessions.db"), BudgetLedger(folder / "budget.db"), world.meta
     )
     print(f"  console on http://127.0.0.1:{args.port}  (Ctrl+C to stop)")
-    uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="warning")
+    uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
     return 0
+
+
+def cmd_x7(args: argparse.Namespace) -> int:
+    """Week 17 (X7): the demo path as real processes, under load and faults."""
+    from finmesh.services.x7 import build_smoke_world, render_x7, run_x7
+
+    if args.smoke:
+        name = "SMOKE"
+        world = data_root() / "demo" / name
+        build_smoke_world(world)
+        out_dir = data_root() / "artifacts" / "week17"
+    else:
+        if not args.dataset:
+            print("  give --dataset (after `finmesh demo-build`) or --smoke")
+            return 2
+        name = dataset_paths(args.dataset).name
+        world = demo_folder(name)
+        if not (world / "meta.json").exists():
+            print(f"  no demo world in {world}; run `finmesh demo-build --dataset {name}` first")
+            return 1
+        out_dir = REPO_ROOT / "docs" / "eval"
+    result = run_x7(
+        world,
+        data_root() / "demo" / f"{name}_x7",
+        node_timeout=args.node_timeout,
+        progress=lambda m: print(f"  {m}"),
+    )
+    artifacts = data_root() / "artifacts" / "week17"
+    artifacts.mkdir(parents=True, exist_ok=True)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (artifacts / f"x7_{name}.json").write_text(json.dumps(result, indent=2, default=str))
+    report = out_dir / f"x7_{name}.md"
+    report.write_text(render_x7(result))
+    for c in result["checks"]:
+        print(f"  {'pass' if c['passed'] else 'FAIL'}  {c['criterion']}")
+    ln = result["latency_normal_s"]
+    print(f"  latency (normal phases) p50 {ln['p50']} s, p95 {ln['p95']} s; {result['seconds']} s")
+    print(f"  report   {report}")
+    return 0 if all(c["passed"] for c in result["checks"]) else 1
 
 
 def fmt_float(v: float | None) -> str:
@@ -1508,9 +1547,21 @@ def build_parser() -> argparse.ArgumentParser:
     dr.add_argument("--limit", type=int, default=None, help="only the first N alerts")
     dr.set_defaults(func=cmd_demo_run)
 
+    x7 = sub.add_parser("x7", help="week 17: X7 latency, faults, probes and resources")
+    x7.add_argument("--dataset", help="a dataset with a demo world (finmesh demo-build)")
+    x7.add_argument("--smoke", action="store_true", help="a small synthetic world instead")
+    x7.add_argument("--node-timeout", type=float, default=2.0, help="client timeout, seconds")
+    x7.set_defaults(func=cmd_x7)
+
     co = sub.add_parser("console", help="week 16: the analyst console and privacy ledger")
     co.add_argument("--dataset", required=True)
     co.add_argument("--port", type=int, default=8050)
+    co.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="bind address; keep 127.0.0.1 except inside a container (compose maps it to "
+        "the host's 127.0.0.1 only)",
+    )
     co.set_defaults(func=cmd_console)
 
     rv = sub.add_parser("narrative-review", help="A23: score the owner's blind A/B review")
