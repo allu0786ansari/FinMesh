@@ -48,6 +48,10 @@ class Service:
         self.last: dict[str, float | None] = {"peak_rss_mb": None, "cpu_s": None}
 
     @property
+    def running(self) -> bool:
+        return self.proc is not None and self.proc.poll() is None
+
+    @property
     def url(self) -> str:
         return f"http://127.0.0.1:{self.port}"
 

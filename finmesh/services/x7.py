@@ -22,6 +22,7 @@ pass or fail for each.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import resource
@@ -97,7 +98,9 @@ def build_smoke_world(folder: Path, members: int = 4, alerts_per_member: int = 6
                 {
                     "member": m,
                     "account": m * 100 + 50 + i,
-                    "window": 6 + i // 2,
+                    # one window per round, so the clock advances inside every phase, including
+                    # while a node is down (the HI-Medium run found that case)
+                    "window": 6 + i,
                     "probability": float(rng.uniform(0.05, 0.95)),
                     "counterparties": cps,
                     "features": {"fan_in": 1.0, "fan_out": float(len(cps)), "pass_through": 0.2},
@@ -234,8 +237,13 @@ def run_x7(
     }
 
     def set_clocks(window: int) -> None:
-        for c in clients.values():
-            c.set_clock(admin, window)
+        """Advance every running node's clock. A node that is down (killed in a fault
+        phase) is skipped: it gets the current window when it restarts."""
+        for m, c in clients.items():
+            if not nodes[m].running:
+                continue
+            with contextlib.suppress(httpx2.TransportError):  # went down after the check
+                c.set_clock(admin, window)
 
     def restart_node(m: int, **env: str) -> None:
         nodes[m].restart(FINMESH_NODE_CLOCK=str(clock), **env)
