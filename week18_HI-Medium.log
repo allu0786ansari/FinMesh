@@ -1,7 +1,7 @@
 
-==> 22:36 preflight HI-Medium
-  [ok  ] working tree clean (no uncommitted change to tracked files)
-  [ok  ] code identical to the signed frozen commit 05d1714 (changed: none)
+==> 23:41 preflight HI-Medium
+  [FAIL] working tree clean (no uncommitted change to tracked files)
+  [ok  ] code identical to the signed frozen commit d488f9f (changed: none)
   [ok  ] sealed test universe present (not read)
   [ok  ] test features, member view: 16 slices
   [ok  ] test features, pooled view: 16 slices
@@ -9,36 +9,4 @@
   [ok  ] X5 run 20261030T134944Z: 3 saved model files
   [ok  ] access log: 0 opening(s) so far on HI-Medium
   [ok  ] free disk 851 GB (10 GB or more advised)
-
-==> 22:36 uv run finmesh test-x1 --dataset HI-Medium
-Traceback (most recent call last):
-  File "/home/allu786ansari/FinMesh/.venv/bin/finmesh", line 10, in <module>
-    sys.exit(main())
-             ^^^^^^
-  File "/home/allu786ansari/FinMesh/finmesh/cli.py", line 2014, in main
-    return int(args.func(args))
-               ^^^^^^^^^^^^^^^
-  File "/home/allu786ansari/FinMesh/finmesh/cli.py", line 1492, in cmd_test_x1
-    result = run_x1_test(
-             ^^^^^^^^^^^^
-  File "/home/allu786ansari/FinMesh/finmesh/training/sealed_runs.py", line 347, in run_x1_test
-    r = run_x1_test_seed(
-        ^^^^^^^^^^^^^^^^^
-  File "/home/allu786ansari/FinMesh/finmesh/training/sealed_runs.py", line 237, in run_x1_test_seed
-    test = _phase(paths, option, seed, t, "test", seconds, lap, sweeps, audit, only, fusion=fusion)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/allu786ansari/FinMesh/finmesh/training/x1.py", line 503, in _phase
-    run = simulate(
-          ^^^^^^^^^
-  File "/home/allu786ansari/FinMesh/finmesh/sharing/simulate.py", line 223, in simulate
-    nodes[m].tokens.tokens(epoch, [identifier(c) for c in ordered]),
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/allu786ansari/FinMesh/finmesh/matching/tokens.py", line 131, in tokens
-    evaluated = self.transport(self.bank, epoch, [b for _, b in blinds])
-                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/allu786ansari/FinMesh/finmesh/sharing/simulate.py", line 79, in transport
-    answer = self.service.evaluate(b, epoch, points)
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/allu786ansari/FinMesh/finmesh/matching/tokens.py", line 101, in evaluate
-    raise BudgetExceeded(
-finmesh.matching.tokens.BudgetExceeded: bank 7 would exceed 74510 evaluations in epoch 1
+Preflight failed for HI-Medium: fix the FAIL lines above before opening the test.
