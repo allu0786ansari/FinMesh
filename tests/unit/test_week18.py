@@ -158,6 +158,8 @@ def test_x1_and_x6_on_test_with_the_seal(
     assert "met" in r["x6"]["summary"]["H3a"]
     assert r["audit"] is not None and r["audit"]["A6"]["rows"] > 0  # A6 after the opening
     assert r["random"] is not None
+    use = r["token_use"]
+    assert use["frozen_budget"] > 0 and use["peak"]["used"] > 0 and use["bank_epochs"] > 0
     log = read_access_log(fixture_paths)[before:]
     assert [(e["seed"], e["repeat"]) for e in log] == [(0, False), (1, False)]
     assert all(len(e["extra"]["scores_sha256"]) == 64 for e in log)
@@ -420,6 +422,15 @@ def test_results_page_and_test_relabelling(tmp_path: Path) -> None:
     text = out.read_text()
     assert "## HI-Medium" in text and "H1a" in text and "H1b" in text and "H3a" in text
     assert "## LI-Medium" in text and "Not run yet." in text
+
+
+def test_token_shortfall() -> None:
+    from finmesh.training.sealed_runs import token_shortfall
+
+    out = token_shortfall({(7, 1): 150, (7, 2): 50, (3, 1): 100}, 100)
+    assert out["peak"] == {"bank": 7, "epoch": 1, "used": 150}
+    assert out["bank_epochs_over"] == 1 and out["bank_epochs"] == 3
+    assert out["share_beyond_budget"] == pytest.approx(50 / 300)
 
 
 def test_frozen_commit_is_read_from_the_plan(tmp_path: Path) -> None:

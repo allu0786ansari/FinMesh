@@ -18,7 +18,29 @@
 
 **Likely cause:** the token budget (A16: twice the largest validation use, 74,510) was sized with validation's candidates, which come from calibration fitted on the end of training. A24 calibrates test with isotonic fitted on validation. If validation has more laundering than the end of training, every probability rises, many more account-windows pass the 0.01 evidence floor, and each asks about its counterparties. On the fixture, this calibration change alone nearly doubles the candidates (570 → 1,008). The same mismatch also feeds the stackers inputs they were not fitted on: the records' probability buckets come from a different calibration.
 
-**Before changing anything,** `finmesh test-traffic --dataset HI-Medium` measures this on your data. It runs about 20–30 min, reads no test label and opens nothing. It reports candidates and the peak token demand per bank and epoch for validation and test, under both calibrations, against the budget. Push `data/artifacts/week18/traffic_HI-Medium.json`'s printout (or the file) and we decide the fix together. It needs a short A24 correction and a new signature, because it changes code after the freeze.
+**Before changing anything,** `finmesh test-traffic --dataset HI-Medium` measures this on your data. It runs about 20–30 min, reads no test label and opens nothing. It reports candidates and the peak token demand per bank and epoch for validation and test, under both calibrations, against the budget. **Your measurement (3 Nov, seed 0):**
+
+| Partition | Calibration | Candidates | Peak tokens | Budget |
+| --- | --- | --- | --- | --- |
+| validation | end of training (as validated) | 74,784 | 28,244 | 74,510 |
+| validation | fitted on validation | 123,995 | 45,179 | 74,510 |
+| test | end of training | 119,880 | 162,800 | 74,510 |
+| test | fitted on validation | 215,176 | 181,112 | 74,510 |
+
+Two things went wrong in my plan. The validation-fitted calibration nearly doubles the candidates and feeds the fusion models inputs they were not fitted on. And the last three days are much busier: even with the validated calibration, bank 7 needs 5.8 times its validation peak, 2.2 times the budget.
+
+**Your decisions:**
+
+1. The test keeps the validated end-of-training calibration.
+2. Every legitimate request is served, as on validation. The A1 attack is still judged at the frozen budget, and the shortfall is reported as a finding on how A16 sized the budget.
+
+Recorded as amendment A24a (`CHANGES.md`, plan section 2a). The code changed, so the plan needs your second signature.
+
+**Pushed with the fix:**
+
+- the corrected X1 test path, with validation output still identical on the fixture;
+- per-seed token use, printed by `test-x1` and shown on the results page;
+- 12 passing week-18 tests.
 
 ## What changed in the code
 

@@ -143,6 +143,7 @@ class Auditor:
     a6: dict[str, Any] | None = None
     n_features: int = 47
     partition: str = "val"  # week 18: the test run audits the test partition's traffic
+    protocol_budget: int | None = None  # the frozen A16 budget, when the service is unmetered
     _s2: pl.DataFrame | None = None
     _s1_inbound: pl.DataFrame | None = None  # kept for A6 until labels exist (test run)
 
@@ -347,8 +348,9 @@ class Auditor:
             out["H1c"] = _h1c(attacks, self.levels)
         if tokens is not None and records is not None:
             out["A1"] = a1_reidentification(
-                self.paths, self.option, self.plan, self.v1, tokens, records
-            )
+                self.paths, self.option, self.plan, self.v1, tokens, records,
+                protocol_budget=self.protocol_budget,
+            )  # fmt: skip
         return out
 
 
@@ -458,8 +460,10 @@ def a1_reidentification(
     tokens: Any,
     records: dict[int, pl.DataFrame],
     sample: int = 200,
+    protocol_budget: int | None = None,
 ) -> dict[str, Any]:
-    """Re-identification rate of other members' record tokens, hashing vs OPRF."""
+    """Re-identification rate of other members' record tokens, hashing vs OPRF.
+    ``protocol_budget``: the frozen A16 budget (default: the service's own)."""
     targets = pl.concat(
         [r.select(pl.col("member").alias("holder"), "account").unique() for r in records.values()]
     )
@@ -468,7 +472,7 @@ def a1_reidentification(
     for (bank, _epoch), used in tokens.service.used.items():
         legit[int(bank)] = max(legit.get(int(bank), 0), int(used))
     sized = int(SIZED_BUDGET_FACTOR * max(legit.values(), default=0))
-    protocol = int(tokens.service.budget)
+    protocol = int(protocol_budget if protocol_budget is not None else tokens.service.budget)
     rows = []
     hit_frames = []
     for adv in sorted(targets["holder"].unique().to_list()):

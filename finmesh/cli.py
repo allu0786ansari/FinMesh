@@ -1568,6 +1568,12 @@ def cmd_test_x1(args: argparse.Namespace) -> int:
         print(f"  H1b: S2 recovers {h['estimate']:.2f} [{h['low']:.2f}, {h['high']:.2f}]")
     if result.get("x6"):
         print(f"  H3a met on test: {result['x6']['summary']['H3a']['met']}")
+    use = result.get("token_use") or {}
+    if use.get("peak"):
+        print(
+            f"  token use: peak {use['peak']['used']:,} vs frozen budget "
+            f"{use['frozen_budget']:,}; {use['share_beyond_budget']:.1%} beyond it (served)"
+        )
     print(f"  {result['seconds']:.0f} s, peak memory {result['peak_anon_mb']} MB")
     print(f"  artifact {artifact}")
     print(f"  reports  {out}")

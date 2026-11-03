@@ -221,7 +221,8 @@ Fixed after the A22 validation run (format solved; 92% copied the worked example
 
 Fixed before any opening; full plan, rules and run order in `docs/protocol/test_plan.md`.
 
-- **Carried from validation, frozen:** isotonic calibration per member (all of validation); every stacker refitted per member on all validation candidates (inputs: the frozen validation run's evidence features); noisy-OR flag precision; FPR thresholds; the X6 attributor and baselines (all detected validation schemes); the narrative's τ and frequency baseline.
+- **Calibration (A24a):** the protocol keeps the validated end-of-training calibration at test; isotonic fitted on validation is reported as calibration quality. **Token service (A24a):** every legitimate request served at test; A1 judged at the frozen budget; the budget's shortfall reported.
+- **Carried from validation, frozen:** every stacker refitted per member on all validation candidates (inputs: the frozen validation run's evidence features); noisy-OR flag precision; FPR thresholds; the X6 attributor and baselines (all detected validation schemes); the narrative's τ and frequency baseline.
 - **Not refitted:** every model is trained on the training partition with the validation seeds; X5 test scores the saved week-12 weights (no new privacy spend); the membership audit is not rerun.
 - **Seeds:** X1 headline configurations (S0, oracle, relational oracle, S2, PD) 0–4, every other configuration 0–2; comparisons over the seeds both sides ran.
 - **Holm:** every sharing configuration's stacker vs S0 (11 comparisons), within linked and within any-alert detection.

@@ -110,6 +110,20 @@ def x1_rows(r: dict[str, Any]) -> list[tuple[str, str, str, str]]:
                 f"{_yn(bool(met_at))}" + (f" ({', '.join(met_at)})" if met_at else ""),
             )
         )
+    use = r.get("token_use")
+    if use and use.get("peak"):
+        pk = use["peak"]
+        rows.append(
+            (
+                "Token budget (A16, reported)",
+                f"peak legitimate use {pk['used']:,} (bank {pk['bank']}, epoch {pk['epoch']}) "
+                f"vs frozen {use['frozen_budget']:,}; {use['bank_epochs_over']} of "
+                f"{use['bank_epochs']} bank-epochs over; {use['share_beyond_budget']:.1%} of "
+                "token requests beyond it (served at test)",
+                "the A16 sizing holds if no legitimate use exceeds the frozen budget",
+                _yn(use["bank_epochs_over"] == 0),
+            )
+        )
     x6 = (r.get("x6") or {}).get("summary")
     if x6:
         h = x6["H3a"]

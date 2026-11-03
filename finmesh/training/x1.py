@@ -180,14 +180,16 @@ def _flag_precision(
 
 @dataclass
 class Fusion:
-    """Every fusion and calibration parameter fitted on validation, frozen for the test
-    (preregistration sections 3 and 6: calibration, fusion and disclosure parameters come
-    from validation only). Stackers are fitted on all validation candidates."""
+    """Every fusion parameter fitted on validation, frozen for the test (A24, as corrected
+    on 3 Nov): stackers fitted on all validation candidates and each member's flag
+    precision. Probabilities keep the validated calibration from the end of training, so
+    the stackers see at test the inputs they were fitted on."""
 
-    s0_cal: dict[int, Isotonic]
-    oracle_cal: dict[int, Isotonic]
-    flag_q: dict[int, float]  # each member's alert precision on all validation candidates
+    flag_q: dict[int, float] = field(default_factory=dict)
     stackers: dict[str, dict[int, Stacker]] = field(default_factory=dict)
+
+
+UNMETERED = 2**62  # test: the token service serves every legitimate request (A24 correction)
 
 
 @dataclass
@@ -350,38 +352,31 @@ def _phase(
     # S0: calibrated probability and primary-budget alerts.
     t0 = time.perf_counter()
     if is_test:
-        assert fusion is not None
         scored = score_keys(feats, partition, t.fn)
         label = usable = None
-        cal = fusion.s0_cal
     else:
         scored = score_rows(store, feats, partition, t.fn)
         label = scored["label"].to_numpy().astype(np.int8)
         usable = ~scored["masked"].to_numpy()
-        cal = t.s0_cal
     member_arr = scored["member"].to_numpy()
-    prob = _calibrate(scored["score"].to_numpy(), member_arr, cal)
+    # The validated calibration (end of training) on both partitions: A13 candidates and
+    # record buckets, and the stackers' inputs, mean the same thing at test.
+    prob = _calibrate(scored["score"].to_numpy(), member_arr, t.s0_cal)
     keys = scored.select(*KEY_COLUMNS)
     alerted = _alerts(keys, prob, apm, plan.window_hours)
     fitted: Fusion | None = None
     if fit_fusion:
-        fitted = Fusion(_calibrators(scored), {}, {})
+        fitted = Fusion()
     del scored
     seconds[p("s0_score")] = round(time.perf_counter() - t0, 1)
 
     # Oracle: pooled rows and graph.
     t0 = time.perf_counter()
     if is_test:
-        assert fusion is not None
         oracle_score = score_keys(t.pooled_f, partition, t.oracle.score)["score"].to_numpy()
-        oracle_prob = _calibrate(oracle_score, member_arr, fusion.oracle_cal)
     else:
-        o = score_rows(store, t.pooled_f, partition, t.oracle.score)
-        oracle_score = o["score"].to_numpy()
-        if fitted is not None:
-            fitted.oracle_cal = _calibrators(o)
-        del o
-        oracle_prob = _calibrate(oracle_score, member_arr, t.oracle_cal)
+        oracle_score = score_rows(store, t.pooled_f, partition, t.oracle.score)["score"].to_numpy()
+    oracle_prob = _calibrate(oracle_score, member_arr, t.oracle_cal)
     oracle_alerted = _alerts(keys, oracle_score, apm, plan.window_hours)
     seconds[p("oracle_score")] = round(time.perf_counter() - t0, 1)
     lap(p("oracle"))
@@ -486,12 +481,14 @@ def _phase(
                 alerted[rows], cand_label, cand_usable, cand_members, np.zeros_like(fold)
             )
             fitted.flag_q = {m: q for (m, _), q in whole.items()}
-    # One token service per seed and partition (levels reuse the OPRF work), at the
-    # dataset's sized budget.
-    tokens = TokenEnv.new(token_budget(paths.name))
+    # One token service per seed and partition (levels reuse the OPRF work). Validation:
+    # the dataset's sized budget (A16), which never bound there. Test: every legitimate
+    # request is served, and the frozen budget's shortfall is reported (A24 correction).
+    tokens = TokenEnv.new(UNMETERED if is_test else token_budget(paths.name))
     auditor = Auditor(paths, option, plan, keys, lookback, v0, v1, seed) if audit else None
     if auditor is not None:
         auditor.partition = partition
+        auditor.protocol_budget = token_budget(paths.name)
         if not is_test:
             auditor.own = (candidates, cand_label, cand_usable)  # type: ignore[assignment]
         auditor.n_features = len(t.cols)

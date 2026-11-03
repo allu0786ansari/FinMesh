@@ -123,6 +123,24 @@ def openings(paths: DatasetPaths) -> list[dict[str, Any]]:
     return read_access_log(paths)
 
 
+def token_shortfall(used: dict[tuple[int, int], int], budget: int) -> dict[str, Any]:
+    """What the frozen A16 budget would have refused of the legitimate test traffic."""
+    rows = sorted(
+        ({"bank": int(b), "epoch": int(e), "used": int(u)} for (b, e), u in used.items()),
+        key=lambda r: -r["used"],
+    )
+    total = sum(r["used"] for r in rows)
+    over = sum(max(0, r["used"] - budget) for r in rows)
+    return {
+        "frozen_budget": budget,
+        "peak": rows[0] if rows else None,
+        "bank_epochs_over": sum(r["used"] > budget for r in rows),
+        "bank_epochs": len(rows),
+        "share_beyond_budget": (over / total) if total else 0.0,
+        "per_bank_epoch": rows,
+    }
+
+
 def refuse_if_opened(
     paths: DatasetPaths, config: dict[str, Any], seed: int, allow_repeat: bool
 ) -> None:
@@ -322,6 +340,9 @@ def run_x1_test_seed(
     # Test: label-free scores, fixed before the opening.
     test = _phase(paths, option, seed, t, "test", seconds, lap, sweeps, audit, only, fusion=fusion)
     names = test.names(only)
+    from finmesh.matching.tokens import token_budget
+
+    tokens_used = token_shortfall(dict(test.tokens.service.used), token_budget(paths.name))
     scores = {n: test.score_of(n) for n in names}
     digest = scores_digest(test.keys, scores)
     config = x1_config(paths, option, x6)
@@ -386,6 +407,7 @@ def run_x1_test_seed(
         "audit": audit_result,
         "auprc": auprc,
         "scores_sha256": digest,
+        "token_use": tokens_used,
         "x6": x6_out,
         "narrative": narrative,
         "random": random_ref,
@@ -474,6 +496,7 @@ def run_x1_test(
         "taus": [2, 3, 4] if sweeps else [],
         "summary": summary,
         "random": base["random"],
+        "token_use": base.get("token_use"),
         "x6": (
             {"seeds": [s["seed"] for s in x6_seeds], "summary": x6_summary, "per_seed": x6_seeds}
             if x6_summary
@@ -489,6 +512,9 @@ def run_x1_test(
                 "alerts": r["alerts"],
                 "auprc": r["auprc"],
                 "scores_sha256": r["scores_sha256"],
+                "token_use": {
+                    k: v for k, v in (r.get("token_use") or {}).items() if k != "per_bank_epoch"
+                },
                 "linked": {n: float(o["linked"].mean()) for n, o in r["outcomes"].items()},
             }
             for r in per_seed

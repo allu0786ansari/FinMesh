@@ -1,8 +1,9 @@
 # Sealed-test execution plan (week 18)
 
-**Status: draft for the owner's sign-off. The seal is closed: no test label has been read.**
-**Frozen commit:** 05d1714
-**Signed off by:** — Allaudin Ansari · **Date:** — 03 November 2026
+**Status: corrected after a stop before the first opening (3 Nov); needs the owner's second signature. The seal is closed: no test label has been read.**
+**Frozen commit:** pending second signature
+**Signed off by:** — · **Date:** —
+**First signature:** Allaudin Ansari, 3 Nov 2026, frozen commit 05d1714 (superseded by the A24 correction in section 2a; no opening was made under it).
 
 This page lists every opening of the sealed test, in order, with its seeds, metrics and decision rules, so the test is run exactly once and nothing is chosen after a result is seen. The rules come from `docs/protocol/preregistration.md` (sections 3–8) and amendments A9–A23 in `docs/proposal/CHANGES.md`. Amendment **A24** (below and in `CHANGES.md`) fixes how each validation-fitted parameter is carried to the test; it changes no model, feature, fusion rule, threshold, prompt or hypothesis.
 
@@ -19,17 +20,33 @@ This page lists every opening of the sealed test, in order, with its seeds, metr
 | Item | On validation (reported) | On test |
 | --- | --- | --- |
 | Models (S0 LightGBM per member, oracle, autoencoders, unsupervised floor) | Trained on the training partition | **The same training**, same seeds; nothing is refitted on validation |
-| S0 and oracle calibration (isotonic per member) | Held-out end of training | **Fitted on all of validation, applied at test** (section 6) |
-| Fusion stacker (A13), every sharing configuration; relational oracle (A14) | Cross-fitted on the two validation halves | **Refitted per member on all validation candidates, frozen.** Its training inputs are the frozen validation run's evidence features (calibration from the end of training, as reported). Within a member and window a shift of the own-logit feature changes only the stacker's intercept, so the alert ranking is unaffected |
+| S0 and oracle calibration (isotonic per member) | Held-out end of training | **The same validated calibration (end of training)** for the protocol, its candidates and records, and the stackers' inputs (A13, A14; corrected 3 Nov, section 2a). Isotonic fitted on validation and applied at test is reported as calibration quality (`test-baselines`, section 6) |
+| Fusion stacker (A13), every sharing configuration; relational oracle (A14) | Cross-fitted on the two validation halves | **Refitted per member on all validation candidates, frozen.** Its training inputs are the frozen validation run's evidence features, and its test inputs use the same calibration |
 | Noisy-OR flag precision (secondary rule) | Member's precision on the other half | Member's precision on all validation candidates |
 | FPR thresholds (0.1%, 0.01%) | Held-out end of training | **From validation** (section 3) |
-| Token budgets (A16) | Twice the largest legitimate validation use | Unchanged |
+| Token budgets (A16) | Twice the largest legitimate validation use (never bound) | **Every legitimate request is served**, as on validation (corrected 3 Nov, section 2a). The A1 attack is judged at the frozen 74,510 / 87,580, and the frozen budget's shortfall on test traffic is reported |
 | X6 attributor, majority class, catalogue matching | Cross-fitted on the validation halves | **Fitted on all detected validation schemes**, per level and seed, applied to test schemes; the rule baseline needs no fit |
 | Narrative τ (A21 rule) | Smallest τ with selective accuracy ≥ 0.5 and coverage ≥ 10% | **The validation value, frozen**; test cases use the X6 test attributor's probabilities (seed 0) |
 | Narrative frequency top-3 baseline | Other validation half | All detected validation schemes |
 | X5 neural scorers (H2a, H2b) | Trained once (week 12), weights saved | **The saved week-12 weights, scored on test.** No DP model is retrained, so no privacy budget is spent again. The non-private local-only MLPs were not saved; they are retrained identically (same seed, data and steps) |
 | Ensemble stackers (G3 rule) | Cross-fitted on the validation halves | Refitted per member on all of validation, frozen |
 | Membership audit (A19) | Training accounts only | **Not rerun**: it has no validation or test component |
+
+### 2a. Correction of 3 Nov, before any opening
+
+The first HI-Medium run stopped while scoring the test partition, before its opening, with `BudgetExceeded: bank 7 would exceed 74510 evaluations in epoch 1`. The access log was empty; no test label had been read. `finmesh test-traffic` (label-free) then measured, for seed 0:
+
+| Partition | Calibration | Candidates | Peak tokens (bank 7, epoch 1) | Budget |
+| --- | --- | --- | --- | --- |
+| validation 39–50 | end of training (as validated) | 74,784 | 28,244 | 74,510 |
+| validation 39–50 | fitted on validation | 123,995 | 45,179 | 74,510 |
+| test 52–63 | end of training | 119,880 | 162,800 | 74,510 |
+| test 52–63 | fitted on validation | 215,176 | 181,112 | 74,510 |
+
+Two findings, two corrections (owner decision, 3 Nov):
+
+1. **Calibration.** Calibration fitted on validation nearly doubles the candidates above the 0.01 evidence floor and changes the probability buckets the stackers were fitted on. The protocol therefore keeps the validated end-of-training calibration at test, as A13 and A14 state for the fusion layer. Isotonic fitted on validation and applied at test is still reported as calibration quality (section 6).
+2. **Token budget.** The last three days are far busier: test traffic needs 5.8 times validation's peak, 2.2 times the frozen budget, even with the validated calibration. On validation the budget never bound, so H1a–H1d and H3a measured sharing with every legitimate request served. At test this stays true: the service is unmetered for legitimate requests. The A1 attack's spare capacity is still judged at the frozen budget, and how much legitimate test traffic the frozen budget would have refused is reported as a finding on A16's sizing rule.
 
 **The seal.** Each run scores the test partition from features only, computes a SHA-256 digest of every score, and only then opens the seal once per experiment, dataset and seed through `finmesh.eval.sealed.open_sealed_test`; the access log records the time, configuration, seed, git commit and the digest before any label is returned. A second opening of the same experiment and seed is refused before any work starts. Each seed's result is saved as soon as it exists; a rerun continues from the next seed. Only a run that crashed after its opening and before saving may be rerun, with `--allow-repeat`, and the log marks it as a repeat. Every repeat is reported.
 
@@ -103,4 +120,4 @@ Neither opens `..._KEY_do_not_open.csv` or the other's copy. `finmesh narrative-
 
 ## 7. Sign-off
 
-By signing, the owner confirms: the configurations, rules and order above; amendment A24; the seed and Holm choices of section 3; and that nothing here changes after the first opening. Fill in the three fields at the top (frozen commit = `git rev-parse --short HEAD` right after pulling this plan, before editing it), commit and push. Any later code change fails the preflight, so a fix found during the test needs a new amendment and a new signature, recorded here.
+A second signature is needed because the code changed after the first one (section 2a). By signing, the owner confirms: the configurations, rules and order above; amendment A24; the seed and Holm choices of section 3; and that nothing here changes after the first opening. Fill in the three fields at the top (frozen commit = `git rev-parse --short HEAD` right after pulling this plan, before editing it), commit and push. Any later code change fails the preflight, so a fix found during the test needs a new amendment and a new signature, recorded here.
