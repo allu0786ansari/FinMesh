@@ -455,3 +455,30 @@ def test_preflight_on_the_fixture(
     monkeypatch.setattr(test_plan, "code_changes_since", lambda c: ["finmesh/cli.py"])
     bad = test_plan.preflight(fixture_paths, "B8", "x1")
     assert not bad["ok"] and any("FAIL" in line and "cli.py" in line for line in bad["lines"])
+
+
+def test_token_traffic_reads_no_test_label(
+    fixture_paths: Any, ingested: object, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from finmesh.eval import sealed
+    from finmesh.eval.g0 import run_g0
+    from finmesh.eval.universe import build_universe
+    from finmesh.features.build import build_features
+    from finmesh.training.sealed_runs import token_traffic
+
+    run_g0(fixture_paths)
+    build_universe(fixture_paths, "B8")
+    build_features(fixture_paths, "B8")
+
+    def no(*a: Any, **k: Any) -> None:
+        raise AssertionError("the traffic check must not open the test")
+
+    monkeypatch.setattr(sealed, "open_sealed_test", no)
+    rows = token_traffic(fixture_paths)
+    assert [(r["partition"], r["calibration"]) for r in rows] == [
+        ("val", "end of training"),
+        ("val", "fitted on validation"),
+        ("test", "end of training"),
+        ("test", "fitted on validation"),
+    ]
+    assert all(r["candidates"] > 0 and r["peak_tokens"] > 0 for r in rows)

@@ -12,6 +12,14 @@
    - **X5 is not retrained.** The test scores the DP models saved in week 12, so no privacy budget is spent twice. Only the non-private local-only MLPs, which were not saved, are retrained, with the same seed, data and steps.
 2. **The blind review, both of us, after the test** (about 45 min each; your choice, 3 Nov). Rate before either of you reads the narrative test results (`docs/eval/test/narrative_*`, `RESULTS.md`, the night-3 log); X1, X5 and baseline results are fine to read. Your copy is `docs/eval/narrative_HI-Medium_A23_review_allaudin.csv`; Ravi's is `..._ravi.csv`. The instructions are in section 3 below.
 
+## 3 Nov: the first HI-Medium run stopped before opening the test
+
+`test-x1` stopped on seed 0 while scoring the test partition: `BudgetExceeded: bank 7 would exceed 74510 evaluations in epoch 1`. That is **before** the opening step, so no test label was read and the access log is empty (`finmesh sealed-log --dataset HI-Medium`).
+
+**Likely cause:** the token budget (A16: twice the largest validation use, 74,510) was sized with validation's candidates, which come from calibration fitted on the end of training. A24 calibrates test with isotonic fitted on validation. If validation has more laundering than the end of training, every probability rises, many more account-windows pass the 0.01 evidence floor, and each asks about its counterparties. On the fixture, this calibration change alone nearly doubles the candidates (570 → 1,008). The same mismatch also feeds the stackers inputs they were not fitted on: the records' probability buckets come from a different calibration.
+
+**Before changing anything,** `finmesh test-traffic --dataset HI-Medium` measures this on your data. It runs about 20–30 min, reads no test label and opens nothing. It reports candidates and the peak token demand per bank and epoch for validation and test, under both calibrations, against the budget. Push `data/artifacts/week18/traffic_HI-Medium.json`'s printout (or the file) and we decide the fix together. It needs a short A24 correction and a new signature, because it changes code after the freeze.
+
 ## What changed in the code
 
 | Change | Why | Effect on validation results |

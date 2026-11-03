@@ -1464,6 +1464,26 @@ def cmd_test_preflight(args: argparse.Namespace) -> int:
     return 0 if report["ok"] else 1
 
 
+def cmd_test_traffic(args: argparse.Namespace) -> int:
+    from finmesh.training.sealed_runs import token_traffic
+
+    paths = dataset_paths(args.dataset)
+    rows = token_traffic(paths, args.option)
+    out = data_root() / "artifacts" / "week18" / f"traffic_{paths.name}.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(rows, indent=1))
+    print(f"  {'partition':<9} {'calibration':<22} {'candidates':>10} {'alerts':>7} "
+          f"{'mean p':>8} {'peak tokens':>11} {'member/epoch':>12} {'budget':>7}")  # fmt: skip
+    for r in rows:
+        print(
+            f"  {r['partition'] + ' ' + r['windows']:<9} {r['calibration']:<22} "
+            f"{r['candidates']:>10,} {r['alerts']:>7,} {r['mean_prob']:>8.4f} "
+            f"{r['peak_tokens']:>11,} {r['peak_member_epoch']:>12} {r['budget']:>7,}"
+        )
+    print(f"  details  {out}")
+    return 0
+
+
 def cmd_test_x1(args: argparse.Namespace) -> int:
     from finmesh.eval.provenance import write_artifact
     from finmesh.training.sealed_runs import run_x1_test
@@ -1960,6 +1980,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="comma-separated runs to check",
     )
     tp.set_defaults(func=cmd_test_preflight)
+
+    tt = sub.add_parser(
+        "test-traffic", help="week 18: label-free token demand on validation and test"
+    )
+    tt.add_argument("--dataset", required=True)
+    tt.add_argument("--option", default="B8")
+    tt.set_defaults(func=cmd_test_traffic)
 
     tx = sub.add_parser("test-x1", help="week 18: X1-X3 (+ X6) on the sealed test")
     tx.add_argument("--dataset", required=True)

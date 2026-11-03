@@ -136,6 +136,92 @@ def refuse_if_opened(
         )
 
 
+# --------------------------------------------------------------------------- traffic
+def token_traffic(paths: DatasetPaths, option: str = "B8", seed: int = 0) -> list[dict[str, Any]]:
+    """Label-free on test: candidates and OPRF token demand per bank and epoch, for
+    validation and test under each calibration (end of training, as on validation; or
+    fitted on validation). Reads validation labels only (for the second calibration)."""
+    from finmesh.eval.split_io import load_plan
+    from finmesh.features.build import FeatureStore
+    from finmesh.fusion.local import link_edges
+    from finmesh.matching.tokens import EPOCH_WINDOWS, token_budget
+    from finmesh.sharing.evidence import load_evidence_schema
+    from finmesh.sharing.simulate import counterparty_requests
+    from finmesh.training.baselines import (
+        _per_member,
+        feature_sets,
+        fit_local_models,
+        score_keys,
+        score_rows,
+    )
+    from finmesh.training.data import training_windows
+    from finmesh.training.sharing_run import _calibrators, store_membership
+    from finmesh.training.x1 import _alerts, _calibrate
+
+    plan = load_plan(paths)
+    store = EvalStore(paths, option)
+    feats = FeatureStore(paths, option, "member")
+    windows = training_windows(store, feats)
+    cols = feature_sets()["all"]
+    members = sorted(store.accounts_per_member()["member"].to_list())
+    apm = store.accounts_per_member()
+    lookback = int(feats.meta["neighbourhood"]["lookback_windows"])
+    schema = load_evidence_schema()
+    budget = token_budget(paths.name)
+    fn = _per_member(fit_local_models(store, feats, cols, windows, seed, members))
+    cal_train = _calibrators(score_rows(store, feats, "train", fn, windows.stop_from))
+    val = score_rows(store, feats, "val", fn)
+    cals = {"end of training": cal_train, "fitted on validation": _calibrators(val)}
+    frames = {"val": val.select(*KEY_COLUMNS, "score"), "test": score_keys(feats, "test", fn)}
+    del val
+    membership = store_membership(paths, option)
+    rows: list[dict[str, Any]] = []
+    for part, frame in frames.items():
+        v0, v1 = (int(x) for x in store.meta["partition_windows"][part])
+        keys = frame.select(*KEY_COLUMNS)
+        member = frame["member"].to_numpy()
+        for cal_name, cal in cals.items():
+            t0 = time.perf_counter()
+            prob = _calibrate(frame["score"].to_numpy(), member, cal)
+            alerted = _alerts(keys, prob, apm, plan.window_hours)
+            keep = (prob >= schema.floor) | alerted
+            cand = keys.filter(pl.Series(keep)).with_columns(pl.lit(0).alias("prob_bucket"))
+            edges = link_edges(
+                paths.transactions, plan, v0, v1, lookback, membership,
+                touching=cand.select("account"),
+            )  # fmt: skip
+            req = counterparty_requests(cand, edges, lookback).select("member", "window", "cp")
+            lo = pl.max_horizontal(pl.lit(v0), pl.col("window") - lookback + 1)
+            demand = (
+                req.with_columns(
+                    pl.int_ranges(lo // EPOCH_WINDOWS, pl.col("window") // EPOCH_WINDOWS + 1).alias(
+                        "epoch"
+                    )
+                )
+                .explode("epoch", empty_as_null=False)
+                .group_by("member", "epoch")
+                .agg(pl.col("cp").n_unique().alias("tokens"))
+                .sort("tokens", descending=True)
+            )
+            top = demand.row(0, named=True) if demand.height else {}
+            rows.append(
+                {
+                    "partition": part,
+                    "windows": f"{v0}-{v1}",
+                    "calibration": cal_name,
+                    "candidates": int(keep.sum()),
+                    "alerts": int(alerted.sum()),
+                    "mean_prob": float(prob.mean()),
+                    "peak_tokens": int(top.get("tokens", 0)),
+                    "peak_member_epoch": f"{top.get('member')}/{top.get('epoch')}",
+                    "budget": budget,
+                    "per_member_epoch": demand.to_dicts(),
+                    "seconds": round(time.perf_counter() - t0, 1),
+                }
+            )
+    return rows
+
+
 # --------------------------------------------------------------------------- baselines
 def run_baselines_test(
     paths: DatasetPaths,
