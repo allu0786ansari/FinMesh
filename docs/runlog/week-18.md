@@ -10,7 +10,7 @@
    - **Seeds.** At test, the headline configurations of X1 run seeds 0–4 and the others seeds 0–2 (preregistration section 7). I count the **relational oracle** as headline, because A14 made it H1b's ceiling. Each comparison averages both sides over the seeds both ran.
    - **The Holm family** is every sharing configuration's stacker compared with S0: S1, S2 and S4, S3 at five ε, and PD at three τ. That is 11 comparisons, the most conservative reading of "across the sharing levels". H1a's S2 gain was +0.56 on validation, so this choice cannot decide it.
    - **X5 is not retrained.** The test scores the DP models saved in week 12, so no privacy budget is spent twice. Only the non-private local-only MLPs, which were not saved, are retrained, with the same seed, data and steps.
-2. **The blind review, both of us, before the test** (about 45 min each). Your copy is `docs/eval/narrative_HI-Medium_A23_review_allaudin.csv`; Ravi's is `..._ravi.csv`. The instructions are in section 3 below.
+2. **The blind review, both of us, after the test** (about 45 min each; your choice, 3 Nov). Rate before either of you reads the narrative test results (`docs/eval/test/narrative_*`, `RESULTS.md`, the night-3 log); X1, X5 and baseline results are fine to read. Your copy is `docs/eval/narrative_HI-Medium_A23_review_allaudin.csv`; Ravi's is `..._ravi.csv`. The instructions are in section 3 below.
 
 ## What changed in the code
 
@@ -72,7 +72,7 @@ Read `docs/protocol/test_plan.md`. If you agree, fill in its three header fields
 
 Then commit and push (`git commit -am "Week 18: test plan signed" && git push`). From then on, the preflight fails if any code file differs from that commit. Documents and results can still be committed.
 
-### 3. Blind review, both raters (about 45 min each, before step 4)
+### 3. Blind review, both raters (about 45 min each, after step 4; before reading the narrative results)
 
 Each of you opens **only your own copy** in a spreadsheet:
 

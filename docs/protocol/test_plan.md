@@ -90,12 +90,14 @@ Every line must read `ok` except the Ollama line on a night without the narrativ
 
 Total about 27–30 h of machine time over three or four nights; about 18 openings per Medium dataset including the narrative's, 5 per Small dataset. `finmesh sealed-log --dataset <ds>` lists them.
 
-## 6. The blind review (before the test)
+## 6. The blind review (after the test, before the narrative results are read)
 
 Both of us rate the A23 validation review independently, each on our own copy:
 
 - `docs/eval/narrative_HI-Medium_A23_review_allaudin.csv` (Allaudin)
 - `docs/eval/narrative_HI-Medium_A23_review_ravi.csv` (Ravi)
+
+**Order (owner decision, 3 Nov 2026):** the review is done after the test runs, not before. It decides no hypothesis and A23 is frozen whatever it shows, so its timing changes no test result. To keep the ratings blind to the test, neither rater reads the narrative test outputs (`docs/eval/test/narrative_*`, `docs/eval/test/RESULTS.md`, the narrative lines of the night-3 log) until both sheets are pushed; the X1, X5 and baseline results say nothing about the narratives and may be read. The commit times of the two sheets and of the test results record the order.
 
 Neither opens `..._KEY_do_not_open.csv` or the other's copy. `finmesh narrative-review --dataset HI-Medium` then scores each rater, their agreement (linear-weighted Cohen's kappa for faithfulness and usefulness, kappa for preference), and the claim check against the cases both call faithful. The test run writes a fresh 30-case sheet of test narratives; rating it is optional and, if done, follows the same steps.
 
