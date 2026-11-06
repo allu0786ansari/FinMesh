@@ -1,6 +1,6 @@
-# Amendment A25 (draft): improvements, confirmed on fresh data
+# Amendment A25: improvements, confirmed on fresh data
 
-**Status: draft for the owner's sign-off. Nothing below has been built or run.**
+**Status: signed 6 Nov 2026; being built. No Large data opened.**
 **Signed off by:** Allaudin Ansari· **Date:** 6 Nov 2026 · **Frozen commit (before any Large opening):** —
 
 ## Why this amendment exists
@@ -153,6 +153,14 @@ No hypothesis is attached; it is a design result.
 - **Option A:** raise WSL's memory in `%UserProfile%\.wslconfig` (`memory=12GB`), if the laptop has 16 GB or more.
 - **Option B:** run Ollama on a free GPU notebook (for example Colab, T4 16 GB) for the narrative step only, with the same prompts and checks.
 - Latency is reported, not judged, so either option keeps the comparison valid.
+
+**Decision (owner, 6 Nov):** the laptop has 8 GB of RAM, so **Option B**.
+
+1. The narrative cases (prompts, evidence, candidates, τ) are exported from the owner's machine to one file.
+2. On a Colab GPU, `finmesh` runs only the model calls and the A23 + scope checks on that file. Colab needs no dataset.
+3. The replies are imported and scored on the owner's machine.
+
+Same prompts, checks, retry and fallback as a local run.
 
 ## P6. Benchmark anchor on the standard AMLworld split
 
