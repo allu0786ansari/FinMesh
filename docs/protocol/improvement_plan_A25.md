@@ -1,7 +1,7 @@
 # Amendment A25 (draft): improvements, confirmed on fresh data
 
 **Status: draft for the owner's sign-off. Nothing below has been built or run.**
-**Signed off by:** — · **Date:** — · **Frozen commit (before any Large opening):** —
+**Signed off by:** Allaudin Ansari· **Date:** 6 Nov 2026 · **Frozen commit (before any Large opening):** —
 
 ## Why this amendment exists
 
