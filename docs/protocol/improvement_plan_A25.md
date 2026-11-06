@@ -170,6 +170,18 @@ This is a separate evaluation from the sealed tests. The task is transaction-lev
 
 **Rule (reported, no hypothesis):** where our detector stands among published models. Its purpose is to show the sharing gain sits on a competitive base detector, not a weak one.
 
+**What the table compares.** The published models see every bank's transactions, so they correspond to our pooled oracle, not to one bank (S0). Our claim is the sharing gain over S0 with the same detector on both sides, so the base detector must be competitive, not best.
+
+**Adequacy rule (fixed now):**
+
+1. Measure our pooled detector on the benchmark's **validation** split.
+2. If it is more than 5 F1 points below LightGBM + graph features on HI-Medium or LI-Medium, develop a stronger detector on validation only: XGBoost, the transaction's own features, and cycle and fan features in the style of the Graph Feature Preprocessor (Blanuša et al., 2024).
+3. Run that detector as an extra track in the P1 Large confirmation (S0+, S2+, oracle+), with the same rules as H1a-L and H1b-L.
+4. The week-18 results are never recomputed with it.
+5. If the detector is within 5 points, nothing changes and its standing is reported.
+
+GNNs such as Multi-PNA need a GPU and are out of scope; they are cited as published results.
+
 ## P7. Related-work positioning (writing only)
 
 A table comparing what is shared, the privacy mechanism, the data and the evaluation discipline:
