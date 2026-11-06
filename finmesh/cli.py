@@ -1058,6 +1058,15 @@ def cmd_narrative(args: argparse.Namespace) -> int:
     from finmesh.eval.provenance import Stamp, read_artifact, write_artifact
 
     paths = dataset_paths(args.dataset)
+    if args.pages_only:  # week 18: rebuild the test pages from the saved result, no opening
+        from finmesh.eval.provenance import read_artifact
+
+        saved = data_root() / "artifacts" / "week18"
+        saved = saved / f"narrative_test_{option_tag(paths.name, args.option)}_A23.json"
+        if not args.test or not saved.exists():
+            print(f"  --pages-only needs --test and a saved result ({saved})")
+            return 1
+        return _narrative_test_outputs(paths, args, read_artifact(saved)[1])
     result = run_narrative(
         paths,
         option=args.option,
@@ -1141,9 +1150,9 @@ def _narrative_test_outputs(
     art, out = _test_out(paths)
     name = f"{option_tag(paths.name, args.option)}_A23"
     params = {"option": args.option, "n": args.n, "model": args.model, "protocol": "A23"}
-    artifact = write_artifact(
-        art / f"narrative_test_{name}.json", _stamp(paths, "narrative-test", params), result
-    )
+    artifact = art / f"narrative_test_{name}.json"
+    if not getattr(args, "pages_only", False):
+        write_artifact(artifact, _stamp(paths, "narrative-test", params), result)
     (out / f"narrative_{name}.md").write_text(as_test_page(render_narrative(result)))
     write_cases(result, out / f"narrative_{name}_cases.jsonl")
     write_review_ab(
@@ -1423,6 +1432,12 @@ def as_test_page(text: str) -> str:
         ("met on validation", "met on test"),
         ("Judged on test; validation shown here.", "Decided here, on test."),
         ("Judged on test.", "Decided here, on test."),
+        ("pattern-labelled validation schemes", "pattern-labelled test schemes"),
+        (
+            "cross-fitted on the two time halves of validation",
+            "fitted on all detected validation schemes and applied to the test schemes",
+        ),
+        ("detected validation schemes sampled", "detected test schemes sampled"),
     ):
         text = text.replace(a, b)
     lines = text.split("\n", 1)
@@ -1904,6 +1919,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--test", action="store_true", help="week 18: A23 on test (after `finmesh test-x1`)"
     )
     nr.add_argument("--allow-repeat", action="store_true")
+    nr.add_argument(
+        "--pages-only",
+        action="store_true",
+        help="with --test: rewrite the pages from the saved result (no model, no opening)",
+    )
     nr.set_defaults(func=cmd_narrative)
 
     db = sub.add_parser("demo-build", help="week 16: demo world from real validation data")

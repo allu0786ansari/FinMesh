@@ -783,6 +783,13 @@ def test_narrative_on_test_end_to_end_writes_every_page(
     assert "Sealed test" in page and "detected test schemes" in page and "test-x1" in page
     assert (out / "narrative_test_FIXTURE-Small_A23.json").exists()
     assert (out / "narrative_FIXTURE-Small_A23_review.csv").exists()
+    # Pages rebuilt from the saved result alone: no model call, no opening.
+    (out / "narrative_FIXTURE-Small_A23.md").unlink()
+    rebuild = Namespace(
+        dataset="FIXTURE-Small", option="B8", n=40, model="m", test=True, pages_only=True
+    )
+    assert cli.cmd_narrative(rebuild) == 0 and len(opened) == 1
+    assert "Sealed test" in (out / "narrative_FIXTURE-Small_A23.md").read_text()
     from finmesh.eval.test_report import narrative_rows
 
     assert narrative_rows(r)[0][0] == "H3b"

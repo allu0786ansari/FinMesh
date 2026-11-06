@@ -59,7 +59,7 @@ def x1_rows(r: dict[str, Any]) -> list[tuple[str, str, str, str]]:
         rand_txt = "—" if rand is None else f"{rand:.3f}"
         rows.append(
             (
-                "H1a (primary on HI-Medium)",
+                "H1a" + (" (primary)" if r.get("dataset") == "HI-Medium" else ""),
                 f"S2 {_ci(s2['linked'])} vs S0 {_ci(s0['linked'])}; gain "
                 f"{_ci(g['difference'])}, Holm p {p:.4g}; random-alert linked {rand_txt}",
                 "gain CI excludes 0 (Holm across sharing configurations) and S2 above random",
@@ -95,6 +95,7 @@ def x1_rows(r: dict[str, Any]) -> list[tuple[str, str, str, str]]:
         )
     h1d = s.get("H1d") or {}
     pds = {k: v for k, v in h1d.items() if k.startswith("PD[")}
+    s1 = (h1d.get("S1") or {}).get("gain_share_of_S2")
     if pds:
         parts, met_at = [], []
         for k, v in pds.items():
@@ -107,7 +108,14 @@ def x1_rows(r: dict[str, Any]) -> list[tuple[str, str, str, str]]:
                 "H1d",
                 "; ".join(parts),
                 f"gain share ≥ {H1D_GAIN:.2f} with disclosure < {H1D_DISCLOSURE} of S2's",
-                f"{_yn(bool(met_at))}" + (f" ({', '.join(met_at)})" if met_at else ""),
+                f"{_yn(bool(met_at))}"
+                + (f" ({', '.join(met_at)})" if met_at else "")
+                + (
+                    f"; uninformative: S1, with no record disclosed, already reaches "
+                    f"{s1['estimate']:.2f} of S2's gain (section 6b)"
+                    if s1 and s1.get("estimate") is not None and s1["estimate"] >= H1D_GAIN
+                    else ""
+                ),
             )
         )
     use = r.get("token_use")

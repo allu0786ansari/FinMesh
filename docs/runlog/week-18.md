@@ -2,7 +2,9 @@
 
 **Goal (proposal: week 18):** open the sealed test once, for the frozen configurations, and decide every pre-registered hypothesis on it.
 
-**State (2 Nov, evening):** **ready for your sign-off; the seal is still closed.** As agreed (freeze, build, dry-run, sign-off), validation work is closed and every runner now has a test path. The whole test plan has been dry-run on the fixture, including the access log and the refusal of a second opening. **Nothing opens the test until you sign `docs/protocol/test_plan.md`.**
+**State (6 Nov):** **the test is done.** Every hypothesis is decided on the sealed test (results just below). Still to do: the two-rater blind review, and rebuilding the HI-Medium narrative pages (step below). 
+
+**Earlier state (2 Nov, evening):** **ready for your sign-off; the seal is still closed.** As agreed (freeze, build, dry-run, sign-off), validation work is closed and every runner now has a test path. The whole test plan has been dry-run on the fixture, including the access log and the refusal of a second opening. **Nothing opens the test until you sign `docs/protocol/test_plan.md`.**
 
 ## What you decide now
 
@@ -11,6 +13,40 @@
    - **The Holm family** is every sharing configuration's stacker compared with S0: S1, S2 and S4, S3 at five ε, and PD at three τ. That is 11 comparisons, the most conservative reading of "across the sharing levels". H1a's S2 gain was +0.56 on validation, so this choice cannot decide it.
    - **X5 is not retrained.** The test scores the DP models saved in week 12, so no privacy budget is spent twice. Only the non-private local-only MLPs, which were not saved, are retrained, with the same seed, data and steps.
 2. **The blind review, both of us, after the test** (about 45 min each; your choice, 3 Nov). Rate before either of you reads the narrative test results (`docs/eval/test/narrative_*`, `RESULTS.md`, the night-3 log); X1, X5 and baseline results are fine to read. Your copy is `docs/eval/narrative_HI-Medium_A23_review_allaudin.csv`; Ravi's is `..._ravi.csv`. The instructions are in section 3 below.
+
+## Results on the sealed test (6 Nov)
+
+Every hypothesis was decided by its frozen rule (`docs/eval/test/RESULTS.md`; full pages beside it). Openings: 14 on HI-Medium and 14 on LI-Medium (each including its narrative), 5 on each Small set, and no repeats.
+
+| Hypothesis | HI-Medium (primary) | LI-Medium | Small sets (replication) |
+| --- | --- | --- | --- |
+| **H1a** S2 raises linked detection over S0 | **Holds:** 0.136 → 0.702, gain +0.566 [0.529, 0.606], Holm p < 0.001; random 0.000 | **Holds:** 0.109 → 0.657, +0.549 [0.449, 0.634] | **Holds:** HI-Small +0.532, LI-Small +0.256 [0.111, 0.400] |
+| **H1b** S2 ≥ 0.60 of the relational oracle's gain | **Holds:** 0.98 [0.94, 1.03] | **Holds:** 0.79 [0.69, 0.88] | HI-Small 0.84 holds; **LI-Small 0.47 [0.24, 0.70] misses** |
+| **H1c** S1 and S3 (ε ≤ 2) attacks within 0.05 of the prior | **Holds** | **Misses:** A3 fan-in top decile, S1 +0.092, S3 ε = 2 +0.085; the leak is the alert flag, which S3 does not noise. Validation showed the same | — (no audit) |
+| **H1d** PD ≥ 0.80 of S2's gain with < half the disclosure | Holds for every τ (τ = 3: 1.00 of the gain, 0.11 of the disclosure), but **uninformative**: S1 alone reaches 0.98 | Holds for every τ; also uninformative (S1 alone reaches 0.99) | Holds |
+| **H2a** DP scorer ≥ 0.70 of centralised and above local-only | **Misses:** share 0.70 at ε = 3, 0.73 at ε = 10, but 0.008–0.016 below local-only | **Holds** at ε = 3 and 10 (0.77, 0.86; above local-only) | — |
+| **H2b** account unit costs more than window unit | **Misses:** account above window at every ε | **Holds** at every ε (+0.004 to +0.008) | — |
+| **PT4b** graph features help S0 (AUPRC) | **Holds:** +0.015 [0.009, 0.021] | **Holds:** +0.010 [0.006, 0.016] | — |
+| **H3a** attribution S2 > S0 and above baselines | **Holds:** +0.044 [0.021, 0.067]; above majority and rules | **Misses:** +0.028 [−0.046, 0.089], CI includes 0 (94 schemes); above majority and rules | — |
+| **H3b** ≥ 95% grounded raw replies | **Misses:** 0.86 [0.81, 0.90], 200 cases; strict (A23) 0.15 | **Misses:** 0.92 [0.84, 0.96], 76 cases; strict 0.12 | — |
+
+**Secondary results (reported):**
+
+| Item | HI-Medium | LI-Medium |
+| --- | --- | --- |
+| Artefact ablation: oracle − S0 linked, with / without the 8 artefact features (seed 0) | 0.458 / 0.372 | 0.500 / 0.319 |
+| Ensemble: DP scorer added to the local detectors (G3 rule) | +0.004 at ε = 1 (CI above 0); validation showed none | +0.002 at ε = 1 |
+| Token budget (A16): peak legitimate use vs frozen budget | 168,913 vs 74,510; 18.8% of token requests beyond it (served at test) | 46,634 vs 87,580; never exceeded |
+| PT2: hashing ÷ OPRF re-identification at the protocol budget (≥ 10) | 19.9 | 8.7 |
+| Machine time (X1 + baselines + X5 + ensemble) | 13.4 h; X1 peak memory 3.6 GB | 9.3 h; 3.2 GB |
+
+**What the test says, in short:**
+
+- **RQ1 is confirmed on unseen data.** Sharing tokens and alert flags lifts linked scheme detection about fivefold on both Medium sets, matching validation (+0.56 then, +0.57 now). It recovers essentially all of the pooled relational ceiling on HI and 79% on LI.
+- **Most of the value is in the alert flag.** S1 already holds 0.95–1.00 of S2’s gain. That makes H1d uninformative, and it is also the channel behind LI's H1c failure. Richer records add little to detection; this is a finding about what to share.
+- **The privacy story is mixed and needs careful wording.** S3 adds no protection for the flag's leakage. The OPRF clears PT2 on HI only.
+- **The federated DP track splits by regime, as on validation:** the HI misses and LI holds for H2a and H2b are the same as at G3.
+- **The narrative does not reach 95% grounding** with a 3B local model. Delivered text, after the strict check, retry and template, is 100% claim-consistent.
 
 ## 3 Nov: the first HI-Medium run stopped before opening the test
 
@@ -48,7 +84,7 @@ Your nights 1 and 2 finished: 13 openings on HI-Medium (X1 seeds 0–4, baseline
 
 Fixed in `narrative_report.py` (writing only; amendment A24b). A new test runs the real test-mode narrative and every page the command writes. Rerunning resumes from the 200 saved cases and does **not** open the test again. The LI-Medium narrative has not run yet.
 
-
+## What changed in the code
 
 | Change | Why | Effect on validation results |
 | --- | --- | --- |
