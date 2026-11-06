@@ -27,9 +27,9 @@ The A23 claim check accepted all 30 delivered texts as consistent. The judge rat
 **Why they disagree:**
 
 - **Own bank vs whole case (12 of the 20 failures):** the model gives counts of the linked case as if they were at the analyst's own bank ("two case accounts at the bank" when one is).
-- **Flows the evidence denies (5):** the account "received" money when it has no payers.
+- **Flows the evidence denies (4):** the account "received" money when it has no payers, or a second payer appears.
 - **Other banks' figures attributed to the case (2).**
-- **An invented relay chain (1).**
+- **Invented structure (2):** intermediates or a relay chain that the fan sizes and pass-through deny.
 
 The A23 rules cover typology-style claims (pass-through, many payers or payees, cycles, gathering, splitting, layering). They do not check counts attributed to the wrong scope, so "delivered text 100% claim-consistent" measures the rules, not faithfulness.
 
