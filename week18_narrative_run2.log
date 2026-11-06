@@ -1,0 +1,64 @@
+
+==> 17:54 preflight HI-Medium
+  [ok  ] working tree clean (no uncommitted change to tracked files)
+  [ok  ] code identical to the signed frozen commit c5fba52 (changed: none)
+  [ok  ] sealed test universe present (not read)
+  [ok  ] test features, member view: 16 slices
+  [ok  ] test features, pooled view: 16 slices
+  [ok  ] access log: 14 opening(s) so far on HI-Medium
+         2026-11-03T19:30:41+00:00 seed 0 week 18: X1 sharing ladder and X6 attribution
+         2026-11-03T21:22:58+00:00 seed 1 week 18: X1 sharing ladder and X6 attribution
+         2026-11-03T23:17:33+00:00 seed 2 week 18: X1 sharing ladder and X6 attribution
+         2026-11-04T00:24:47+00:00 seed 3 week 18: X1 sharing ladder
+         2026-11-04T02:18:05+00:00 seed 4 week 18: X1 sharing ladder
+         2026-11-04T02:38:14+00:00 seed 0 week 18: baselines, FPR points, artefact ablation, decomposition
+         2026-11-04T02:38:14+00:00 seed 0 week 18: baselines, FPR points, artefact ablation, decomposition (touch label)
+         2026-11-04T03:29:12+00:00 seed 0 week 18: X5 (H2a, H2b) on the saved validation models
+         2026-11-04T04:16:26+00:00 seed 1 week 18: X5 (H2a, H2b) on the saved validation models
+         2026-11-04T05:03:57+00:00 seed 2 week 18: X5 (H2a, H2b) on the saved validation models
+         2026-11-04T05:51:57+00:00 seed 0 week 18: stacked ensemble (G3 rule, reported)
+         2026-11-04T06:29:47+00:00 seed 1 week 18: stacked ensemble (G3 rule, reported)
+         2026-11-04T07:25:48+00:00 seed 2 week 18: stacked ensemble (G3 rule, reported)
+         2026-11-04T17:24:36+00:00 seed 0 week 18: A23 narratives (H3b) and top-k attribution on test
+         saved X1 seeds (a rerun continues after them): x1_seed0.pkl, x1_seed1.pkl, x1_seed2.pkl, x1_seed3.pkl, x1_seed4.pkl
+  [ok  ] Ollama answers on localhost:11434 (needed for the narrative)
+  [ok  ] free disk 851 GB (10 GB or more advised)
+
+==> skip (narrative_test_HI-Medium_A23.json exists): uv run finmesh narrative --test --dataset HI-Medium --model llama3.2:3b --url http://localhost:11434
+
+==> 17:54 preflight LI-Medium
+  [ok  ] working tree clean (no uncommitted change to tracked files)
+  [ok  ] code identical to the signed frozen commit c5fba52 (changed: none)
+  [ok  ] sealed test universe present (not read)
+  [ok  ] test features, member view: 16 slices
+  [ok  ] test features, pooled view: 16 slices
+  [ok  ] access log: 13 opening(s) so far on LI-Medium
+         2026-11-04T08:19:19+00:00 seed 0 week 18: X1 sharing ladder and X6 attribution
+         2026-11-04T09:32:08+00:00 seed 1 week 18: X1 sharing ladder and X6 attribution
+         2026-11-04T10:38:18+00:00 seed 2 week 18: X1 sharing ladder and X6 attribution
+         2026-11-04T11:30:21+00:00 seed 3 week 18: X1 sharing ladder
+         2026-11-04T11:54:41+00:00 seed 4 week 18: X1 sharing ladder
+         2026-11-04T12:11:19+00:00 seed 0 week 18: baselines, FPR points, artefact ablation, decomposition
+         2026-11-04T12:11:19+00:00 seed 0 week 18: baselines, FPR points, artefact ablation, decomposition (touch label)
+         2026-11-04T12:56:40+00:00 seed 0 week 18: X5 (H2a, H2b) on the saved validation models
+         2026-11-04T13:45:49+00:00 seed 1 week 18: X5 (H2a, H2b) on the saved validation models
+         2026-11-04T14:36:44+00:00 seed 2 week 18: X5 (H2a, H2b) on the saved validation models
+         2026-11-04T15:23:26+00:00 seed 0 week 18: stacked ensemble (G3 rule, reported)
+         2026-11-04T16:20:30+00:00 seed 1 week 18: stacked ensemble (G3 rule, reported)
+         2026-11-04T16:50:15+00:00 seed 2 week 18: stacked ensemble (G3 rule, reported)
+         saved X1 seeds (a rerun continues after them): x1_seed0.pkl, x1_seed1.pkl, x1_seed2.pkl, x1_seed3.pkl, x1_seed4.pkl
+  [ok  ] Ollama answers on localhost:11434 (needed for the narrative)
+  [ok  ] free disk 851 GB (10 GB or more advised)
+
+==> 17:54 uv run finmesh narrative --test --dataset LI-Medium --model llama3.2:3b --url http://localhost:11434
+  narratives 25/76
+  narratives 50/76
+  narratives 75/76
+  H3b grounding 0.921 [0.838, 0.963]
+  strict grounding 0.118 [0.064, 0.210]
+  S0 top-3 end to end 0.426
+  S2 top-3 end to end 0.330
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week18/narrative_test_LI-Medium_A23.json
+    done in 126 min
+
+week 18 (narrative): all steps done

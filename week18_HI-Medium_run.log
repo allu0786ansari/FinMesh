@@ -1,0 +1,77 @@
+
+==> 23:47 preflight HI-Medium
+  [ok  ] working tree clean (no uncommitted change to tracked files)
+  [ok  ] code identical to the signed frozen commit d488f9f (changed: none)
+  [ok  ] sealed test universe present (not read)
+  [ok  ] test features, member view: 16 slices
+  [ok  ] test features, pooled view: 16 slices
+  [ok  ] test features, cap16 view: 16 slices
+  [ok  ] X5 run 20261030T134944Z: 3 saved model files
+  [ok  ] access log: 0 opening(s) so far on HI-Medium
+  [ok  ] free disk 851 GB (10 GB or more advised)
+
+==> 23:47 uv run finmesh test-x1 --dataset HI-Medium
+  seed 0: 6860 s
+  seed 1: 6580 s
+  seed 2: 6887 s
+  seed 3: 2491 s
+  seed 4: 2034 s
+  S0                 linked 0.136
+  S2/stacker         linked 0.702  p (Holm) 0.0000
+  oracle             linked 0.590  p 0.0000
+  oracle-relational  linked 0.714  p 0.0000
+  H1b: S2 recovers 0.98 [0.94, 1.03]
+  H3a met on test: True
+  token use: peak 168,913 vs frozen budget 74,510; 18.8% beyond it (served)
+  24856 s, peak memory 3565.1 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week18/x1_test_HI-Medium.json
+  reports  /home/allu786ansari/FinMesh/docs/eval/test
+    done in 493 min
+
+==> 08:00 uv run finmesh test-baselines --dataset HI-Medium
+  oracle - S0-BG               linked +0.458 [+0.410, +0.508]
+  oracle-noart - S0-BG-noart   linked +0.372 [+0.332, +0.416]
+  S0-BG - S0-B                 linked +0.028 [+0.008, +0.046]
+  PT4b AUPRC S0-BG - S0-B +0.0149 [+0.0085, +0.0213]
+  2757 s, peak memory 2486.1 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week18/baselines_test_HI-Medium.json
+    done in 46 min
+
+==> 08:46 uv run finmesh test-x5 --dataset HI-Medium
+  seed 0: 2958 s
+  seed 1: 2836 s
+  seed 2: 2832 s
+  eps 1: H2a share 0.55, minus local -0.0418; H2b window - account -0.0281
+  eps 3: H2a share 0.70, minus local -0.0156; H2b window - account -0.0068
+  eps 10: H2a share 0.73, minus local -0.0083; H2b window - account -0.0076
+  8626 s, peak memory 2184.0 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week18/x5_test_HI-Medium.json
+    done in 143 min
+
+==> 11:10 uv run finmesh test-ensemble --dataset HI-Medium
+  seed 0: 2084 s
+  seed 1: 2018 s
+  seed 2: 3357 s
+  + dp1: +0.0039 [+0.0029, +0.0048]
+  + dp3: +0.0041 [+0.0031, +0.0050]
+  + dp10: +0.0049 [+0.0037, +0.0059]
+  + fedavg: +0.0161 [+0.0142, +0.0179]
+  + centralised: +0.0232 [+0.0206, +0.0256]
+  7459 s, peak memory 4179.3 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week18/ensemble_test_HI-Medium.json
+    done in 124 min
+  2026-11-03T19:30:41+00:00  config 7fc45166ba70  seed 0  week 18: X1 sharing ladder and X6 attribution
+  2026-11-03T21:22:58+00:00  config 7fc45166ba70  seed 1  week 18: X1 sharing ladder and X6 attribution
+  2026-11-03T23:17:33+00:00  config 7fc45166ba70  seed 2  week 18: X1 sharing ladder and X6 attribution
+  2026-11-04T00:24:47+00:00  config 70182944fa37  seed 3  week 18: X1 sharing ladder
+  2026-11-04T02:18:05+00:00  config 70182944fa37  seed 4  week 18: X1 sharing ladder
+  2026-11-04T02:38:14+00:00  config bea8cd64acbc  seed 0  week 18: baselines, FPR points, artefact ablation, decomposition
+  2026-11-04T02:38:14+00:00  config 9acaa1ab6990  seed 0  week 18: baselines, FPR points, artefact ablation, decomposition (touch label)
+  2026-11-04T03:29:12+00:00  config d51fee63beaa  seed 0  week 18: X5 (H2a, H2b) on the saved validation models
+  2026-11-04T04:16:26+00:00  config d51fee63beaa  seed 1  week 18: X5 (H2a, H2b) on the saved validation models
+  2026-11-04T05:03:57+00:00  config d51fee63beaa  seed 2  week 18: X5 (H2a, H2b) on the saved validation models
+  2026-11-04T05:51:57+00:00  config 67e9731ae251  seed 0  week 18: stacked ensemble (G3 rule, reported)
+  2026-11-04T06:29:47+00:00  config 67e9731ae251  seed 1  week 18: stacked ensemble (G3 rule, reported)
+  2026-11-04T07:25:48+00:00  config 67e9731ae251  seed 2  week 18: stacked ensemble (G3 rule, reported)
+
+week 18 (HI-Medium): all steps done
