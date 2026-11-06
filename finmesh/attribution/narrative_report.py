@@ -253,6 +253,20 @@ def _a22_sections(r: dict[str, Any], previous: dict[str, Any] | None) -> list[st
     return lines
 
 
+def _run_cost(r: dict[str, Any]) -> str:
+    """Time and memory, for a validation run (the attributor runs here) or a test run (its
+    tables come from `finmesh test-x1`, attributor fitted on validation)."""
+    sec = r.get("seconds") or {}
+    out = f"{sec.get('total', 0):,.0f} s in total"
+    if sec.get("x6_s2") is not None:
+        out += f" ({sec['x6_s2']:,.0f} s for the attributor)"
+    elif r.get("split") == "test":
+        out += " (attribution tables from `finmesh test-x1`, attributor fitted on validation)"
+    if r.get("peak_anon_mb") is not None:
+        out += f", peak memory {r['peak_anon_mb']:,.0f} MB"
+    return out + "."
+
+
 def render_narrative(r: dict[str, Any], previous: dict[str, Any] | None = None) -> str:
     s = r["summary"]
     sel = r["selective"]
@@ -289,14 +303,13 @@ def render_narrative(r: dict[str, Any], previous: dict[str, Any] | None = None) 
             f"# Constrained case narrative (H3b) · {r['dataset']}"
             + (f" · protocol {r.get('protocol')}" if r.get("protocol") in ("A22", "A23") else ""),
             "",
-            f"Level S2, seed {r['seed']}; {s['cases']} detected validation schemes sampled by "
+            f"Level S2, seed {r['seed']}; {s['cases']} detected "
+            f"{'test' if r.get('split') == 'test' else 'validation'} schemes sampled by "
             f"pattern (up to 25 each). Model `{r['model']}` on this machine, temperature 0; "
             f"{r['decoding']} ({r.get('protocol', 'A21')}). The model writes the text only: "
             "the typology comes from the "
             "X6 attributor (shown only above τ), the evidence from a fixed template of what S2 "
-            "reveals to the owner, and the review actions from the catalogue. "
-            f"{r['seconds']['total']:,.0f} s in total ({r['seconds']['x6_s2']:,.0f} s for the "
-            f"attributor), peak memory {r['peak_anon_mb']:,.0f} MB.",
+            "reveals to the owner, and the review actions from the catalogue. " + _run_cost(r),
             "",
             "## H3b on validation",
             "",

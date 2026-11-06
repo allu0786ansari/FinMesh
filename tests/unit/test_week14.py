@@ -725,3 +725,67 @@ def test_blind_ab_review_round_trip(tmp_path: Path) -> None:
     assert s["sources"]["template"]["faithful_yes"] == 1.0
     assert s["checker"]["agreement"] == 1.0 and s["checker"]["kappa"] == pytest.approx(1.0)
     assert "Cohen's kappa" in render_review(s, "DS")
+
+
+def test_narrative_on_test_end_to_end_writes_every_page(
+    monkeypatch: pytest.MonkeyPatch, fixture_paths: object, ingested: object, tmp_path: Path
+) -> None:
+    """Week 18: the real test path (saved tables, logged opening, resume) and every page
+    the CLI writes from its result (the report once failed on a validation-only key)."""
+    from argparse import Namespace
+
+    from finmesh import cli
+    from finmesh.eval import sealed
+    from finmesh.eval.g0 import run_g0
+    from finmesh.training import sealed_runs
+
+    run_g0(fixture_paths)  # type: ignore[arg-type]
+    t = _table()
+    proba: dict[str, Any] = {}
+    attribute(t, "S2", 0, load_catalogue(), proba)
+    proba0: dict[str, Any] = {}
+    attribute(t, "S0", 0, load_catalogue(), proba0)
+    tables = {"S0": {"table": t, **proba0}, "S2": {"table": t, **proba}}
+    folder = sealed_runs.test_dir(fixture_paths, "B8")  # type: ignore[arg-type]
+    sealed_runs._save(folder / "narrative_inputs.pkl", {"val": tables, "test": tables, "seed": 0})
+    opened: list[int] = []
+
+    class Part:
+        schemes = t.select("scheme_id", "pattern")
+
+    def fake_open(*_: Any, **__: Any) -> Any:
+        opened.append(1)
+        return Part()
+
+    monkeypatch.setattr(sealed, "open_sealed_test", fake_open)
+    monkeypatch.setattr(sealed, "EvalStore", lambda *a, **k: None)
+    monkeypatch.setattr(sealed, "opened_before", lambda *a, **k: {"time": "t"} if opened else None)
+
+    def model(prompt: str, fmt: Any) -> str:
+        import re
+
+        m = re.search(r'"typology_id" to "([^"]+)"', prompt) or re.search(
+            r'"typology_id": "([^"<]+)"\}', prompt
+        )
+        tid = m.group(1) if m else "UNATTRIBUTED"
+        return json.dumps(
+            {"narrative": "Linked.", "cited_fields": ["case_members"], "typology_id": tid}
+        )
+
+    r = nar.run_narrative(fixture_paths, n=40, call=model, split="test")
+    assert "error" not in r, r
+    assert r["split"] == "test" and len(r["cases"]) == 40 and len(opened) == 1
+    monkeypatch.setattr(cli, "data_root", lambda: tmp_path)
+    args = Namespace(option="B8", n=40, model="m")
+    assert cli._narrative_test_outputs(fixture_paths, args, r) == 0  # type: ignore[arg-type]
+    out = tmp_path / "artifacts" / "week18"
+    page = (out / "narrative_FIXTURE-Small_A23.md").read_text()
+    assert "Sealed test" in page and "detected test schemes" in page and "test-x1" in page
+    assert (out / "narrative_test_FIXTURE-Small_A23.json").exists()
+    assert (out / "narrative_FIXTURE-Small_A23_review.csv").exists()
+    from finmesh.eval.test_report import narrative_rows
+
+    assert narrative_rows(r)[0][0] == "H3b"
+    # The same command again: resumes from the saved cases, no second opening.
+    again = nar.run_narrative(fixture_paths, n=40, call=model, split="test")
+    assert len(opened) == 1 and len(again["cases"]) == 40

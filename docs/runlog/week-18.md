@@ -42,7 +42,13 @@ Recorded as amendment A24a (`CHANGES.md`, plan section 2a). The code changed, so
 - per-seed token use, printed by `test-x1` and shown on the results page;
 - 12 passing week-18 tests.
 
-## What changed in the code
+## 6 Nov: HI-Medium and LI-Medium done; the narrative's page failed after its 200 cases
+
+Your nights 1 and 2 finished: 13 openings on HI-Medium (X1 seeds 0–4, baselines with both label variants, X5 and the ensemble at seeds 0–2), the same on LI-Medium. The HI-Medium narrative then narrated and **saved all 200 cases**, and stopped while writing its report: `KeyError: 'x6_s2'`. The page writer read a timing field that only a validation run has (on test the attribution tables come from `test-x1`).
+
+Fixed in `narrative_report.py` (writing only; amendment A24b). A new test runs the real test-mode narrative and every page the command writes. Rerunning resumes from the 200 saved cases and does **not** open the test again. The LI-Medium narrative has not run yet.
+
+
 
 | Change | Why | Effect on validation results |
 | --- | --- | --- |
