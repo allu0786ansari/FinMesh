@@ -40,6 +40,8 @@ Every hypothesis was decided by its frozen rule (`docs/eval/test/RESULTS.md`; fu
 | PT2: hashing ÷ OPRF re-identification at the protocol budget (≥ 10) | 19.9 | 8.7 |
 | Machine time (X1 + baselines + X5 + ensemble) | 13.4 h; X1 peak memory 3.6 GB | 9.3 h; 3.2 GB |
 
+**The narrative review (6 Nov, LLM judge; see `docs/eval/narrative_HI-Medium_A23_review_result_llm.md`).** You decided the review is done by Claude instead of human raters (amendment A23r), and it is reported as an automated judgement. Of the 27 texts the model wrote, **7 are faithful (26%)**; the template is faithful in 30 of 30 and preferred in 26. The A23 claim check accepted all 30 (kappa 0.00 with the judge). Its rules miss the model's most common error: giving the linked case's counts as the analyst's own bank's.
+
 **What the test says, in short:**
 
 - **RQ1 is confirmed on unseen data.** Sharing tokens and alert flags lifts linked scheme detection about fivefold on both Medium sets, matching validation (+0.56 then, +0.57 now). It recovers essentially all of the pooled relational ceiling on HI and 79% on LI.
