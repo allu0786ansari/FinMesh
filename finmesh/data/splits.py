@@ -79,16 +79,18 @@ def daily_rows(transactions: Path) -> pl.DataFrame:
     )
 
 
-def detect_observation_window(transactions: Path) -> ObservationWindow:
-    daily = daily_rows(transactions)
-    if daily.is_empty():
-        raise ValueError("no transactions")
-    median_value = daily["rows"].median()
-    median = float(median_value) if isinstance(median_value, int | float) else 0.0
-    dense = (daily["rows"] >= DENSE_DAY_MIN_SHARE * median).to_list()
-    days = daily["day"].to_list()
-
-    best: tuple[int, int] = (0, -1)  # (start index, end index inclusive)
+def longest_dense_run(days: list[Any], rows: list[int]) -> tuple[int, int]:
+    """(start, end) indices, inclusive, of the A1 dense period: the longest run of
+    consecutive days with rows >= DENSE_DAY_MIN_SHARE of the median daily count."""
+    ordered = sorted(rows)
+    n = len(ordered)
+    median = (
+        0.0
+        if not n
+        else float(ordered[n // 2] if n % 2 else (ordered[n // 2 - 1] + ordered[n // 2]) / 2)
+    )
+    dense = [r >= DENSE_DAY_MIN_SHARE * median for r in rows]
+    best: tuple[int, int] = (0, -1)
     i = 0
     while i < len(days):
         if not dense[i]:
@@ -100,6 +102,17 @@ def detect_observation_window(transactions: Path) -> ObservationWindow:
         if j - i > best[1] - best[0]:
             best = (i, j)
         i = j + 1
+    return best
+
+
+def detect_observation_window(transactions: Path) -> ObservationWindow:
+    daily = daily_rows(transactions)
+    if daily.is_empty():
+        raise ValueError("no transactions")
+    days = daily["day"].to_list()
+    median_value = daily["rows"].median()
+    median = float(median_value) if isinstance(median_value, int | float) else 0.0
+    best = longest_dense_run(days, daily["rows"].to_list())
     start = datetime.combine(days[best[0]], datetime.min.time())
     end = datetime.combine(days[best[1]], datetime.min.time()) + timedelta(days=1)
 

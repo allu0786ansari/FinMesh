@@ -1479,6 +1479,19 @@ def cmd_test_preflight(args: argparse.Namespace) -> int:
     return 0 if report["ok"] else 1
 
 
+def cmd_large_window(args: argparse.Namespace) -> int:
+    """A25 P1: cut the dense-period window of a Large set into a dataset of its own."""
+    from finmesh.data.window import cut_window
+
+    r = cut_window(data_root() / "raw", args.source, args.days)
+    print(f"  {r['dataset']}: days {r['window'][0]} to {r['window'][1]} "
+          f"(dense period {r['dense_period'][0]} to {r['dense_period'][1]})")  # fmt: skip
+    print(f"  transactions {r['transactions']:,}; pattern blocks kept "
+          f"{r['pattern_blocks']['kept']:,} of {r['pattern_blocks']['source']:,}")  # fmt: skip
+    print(f"  next: uv run finmesh week1 --dataset {r['dataset']}")
+    return 0
+
+
 def cmd_test_traffic(args: argparse.Namespace) -> int:
     from finmesh.training.sealed_runs import token_traffic
 
@@ -2006,6 +2019,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="comma-separated runs to check",
     )
     tp.set_defaults(func=cmd_test_preflight)
+
+    lw = sub.add_parser("large-window", help="A25 P1: dense-period window of HI/LI-Large")
+    lw.add_argument("--source", required=True, choices=["HI-Large", "LI-Large", "FIXTURE-Small"])
+    lw.add_argument("--days", type=int, default=16)
+    lw.set_defaults(func=cmd_large_window)
 
     tt = sub.add_parser(
         "test-traffic", help="week 18: label-free token demand on validation and test"

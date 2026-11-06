@@ -57,17 +57,34 @@ def scheme_outcomes(
         )
     else:
         joined = hit.filter(pl.col("alert")).join(incidents.select(*KEYS, "incident"), on=KEYS)
-        per_incident = joined.group_by("scheme_id", "incident").agg(
-            pl.col("account").n_unique().alias("accounts"),
-            pl.col("member").n_unique().alias("members"),
+        # A25 P2: the window in which an incident first holds two of the scheme's accounts
+        # (the second-earliest first alert among its accounts).
+        first_seen = joined.group_by("scheme_id", "incident", "account").agg(
+            pl.col("window").min().alias("w")
+        )
+        per_incident = (
+            first_seen.group_by("scheme_id", "incident")
+            .agg(
+                pl.len().alias("accounts"),
+                pl.col("w").sort().get(1, null_on_oob=True).alias("second_w"),
+            )
+            .join(
+                joined.group_by("scheme_id", "incident").agg(
+                    pl.col("member").n_unique().alias("members")
+                ),
+                on=["scheme_id", "incident"],
+            )
         )
         linked = per_incident.group_by("scheme_id").agg(
             (pl.col("accounts") >= 2).any().alias("linked"),
             ((pl.col("accounts") >= 2) & (pl.col("members") >= 2))
             .any()
             .alias("linked_cross_member"),
+            pl.col("accounts").max().alias("largest_incident_accounts"),
+            pl.col("incident").n_unique().alias("incidents"),
+            pl.col("second_w").min().alias("first_link_window"),
         )
-    return (
+    out = (
         schemes.select("scheme_id", "pattern", "members", "first_window")
         .join(detected, on="scheme_id", how="left")
         .join(linked, on="scheme_id", how="left")
@@ -78,8 +95,32 @@ def scheme_outcomes(
             .alias("time_to_detect_h"),
         )
         .drop("first_alert_window")
-        .sort("scheme_id")
     )
+    if incidents is not None:  # A25 P2: case-quality columns (null where not defined)
+        size = sw.group_by("scheme_id").agg(pl.col("account").n_unique().alias("scheme_accounts"))
+        out = (
+            out.join(size, on="scheme_id", how="left")
+            .with_columns(
+                (pl.col("largest_incident_accounts") / pl.col("scheme_accounts"))
+                .cast(pl.Float64)
+                .alias("completeness"),
+                pl.col("incidents").cast(pl.Float64).alias("fragmentation"),
+                ((pl.col("first_link_window") - pl.col("first_window")) * window_hours)
+                .cast(pl.Float64)
+                .alias("time_to_link_h"),
+            )
+            .with_columns(
+                pl.when(pl.col("linked")).then(pl.col("time_to_link_h")).alias("time_to_link_h")
+            )
+            .drop("largest_incident_accounts", "incidents", "first_link_window", "scheme_accounts")
+        )
+    else:
+        out = out.with_columns(
+            pl.lit(None, pl.Float64).alias("completeness"),
+            pl.lit(None, pl.Float64).alias("fragmentation"),
+            pl.lit(None, pl.Float64).alias("time_to_link_h"),
+        )
+    return out.sort("scheme_id")
 
 
 def alert_rates(alerts: pl.DataFrame) -> pl.DataFrame:
