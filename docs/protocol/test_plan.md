@@ -1,8 +1,8 @@
 # Sealed-test execution plan (week 18)
 
 **Status: corrected after a stop before the first opening (3 Nov); needs the owner's second signature. The seal is closed: no test label has been read.**
-**Frozen commit:** d488f9f
-**Signed off by:** — Allaudin Ansari· **Date:** — 4 Nov 2026
+**Frozen commit:** c5fba52
+**Signed off by:** — Allaudin Ansari· **Date:** — 6 Nov 2026
 **First signature:** Allaudin Ansari, 3 Nov 2026, frozen commit 05d1714 (superseded by the A24 correction in section 2a; no opening was made under it).
 
 This page lists every opening of the sealed test, in order, with its seeds, metrics and decision rules, so the test is run exactly once and nothing is chosen after a result is seen. The rules come from `docs/protocol/preregistration.md` (sections 3–8) and amendments A9–A23 in `docs/proposal/CHANGES.md`. Amendment **A24** (below and in `CHANGES.md`) fixes how each validation-fitted parameter is carried to the test; it changes no model, feature, fusion rule, threshold, prompt or hypothesis.
