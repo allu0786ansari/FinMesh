@@ -79,12 +79,31 @@ AE_SAMPLE = 200_000
 DEFAULT_SEEDS: tuple[int, ...] = (0, 1, 2)
 
 
-def level_runs(sweeps: bool = True) -> list[tuple[str, str, dict[str, Any]]]:
+# A25 P3: protected S1 flags (randomised response, gating, both), fixed before any result.
+FLAG_RR_EPSILONS: tuple[float, ...] = (0.5, 1.0, 2.0, 4.0)
+FLAG_GATES: tuple[int, ...] = (2, 3)
+FLAG_GATED_RR: tuple[tuple[int, float], ...] = ((2, 1.0), (2, 2.0))
+
+
+def flag_runs() -> list[tuple[str, str, dict[str, Any]]]:
+    runs: list[tuple[str, str, dict[str, Any]]] = [
+        (f"S1F[eps={e:g}]", "S1", {"flag_eps": e}) for e in FLAG_RR_EPSILONS
+    ]
+    runs += [(f"S1F[gate={t}]", "S1", {"flag_tau": t}) for t in FLAG_GATES]
+    runs += [
+        (f"S1F[gate={t},eps={e:g}]", "S1", {"flag_tau": t, "flag_eps": e}) for t, e in FLAG_GATED_RR
+    ]
+    return runs
+
+
+def level_runs(sweeps: bool = True, flags: bool = False) -> list[tuple[str, str, dict[str, Any]]]:
     """(configuration name, protocol level, parameters) for every protocol run of a seed."""
     runs: list[tuple[str, str, dict[str, Any]]] = [(lv, lv, {}) for lv in SHARING_LEVELS]
     if sweeps:
         runs += [(f"S3[eps={e:g}]", "S3", {"epsilon": e}) for e in EPSILONS]
         runs += [(f"PD[tau={t}]", "PD", {"tau": t}) for t in PD_TAUS]
+    if flags:
+        runs += flag_runs()
     return runs
 
 
@@ -335,6 +354,7 @@ def _phase(
     only: frozenset[str] | None = None,
     fusion: Fusion | None = None,
     fit_fusion: bool = False,
+    flags: bool = False,
 ) -> _Phase:
     """Score ``partition`` with every configuration.
 
@@ -493,7 +513,7 @@ def _phase(
             auditor.own = (candidates, cand_label, cand_usable)  # type: ignore[assignment]
         auditor.n_features = len(t.cols)
         auditor.a5 = t.a5
-    for name, level, params in level_runs(sweeps):
+    for name, level, params in level_runs(sweeps, flags):
         if only is not None and not any(o.split("/")[0] == name for o in only):
             continue
         t0 = time.perf_counter()
@@ -659,6 +679,7 @@ def run_seed(
     only: frozenset[str] | None = None,
     return_scores: bool = False,
     evaluate_configs: bool = True,
+    flags: bool = False,
 ) -> dict[str, Any]:
     """Every configuration for one seed on validation: scores and per-scheme outcomes.
 
@@ -675,7 +696,7 @@ def run_seed(
             memory[phase] = meter.lap()
 
     t, seconds = _train(paths, option, seed, audit, lap)
-    ph = _phase(paths, option, seed, t, "val", seconds, lap, sweeps, audit, only)
+    ph = _phase(paths, option, seed, t, "val", seconds, lap, sweeps, audit, only, flags=flags)
     audit_result = None
     if ph.auditor is not None:
         t0 = time.perf_counter()

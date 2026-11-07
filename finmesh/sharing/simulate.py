@@ -151,6 +151,8 @@ def simulate(
     n_features: int | None = None,
     ldp_seed: int = 0,
     tokens: TokenEnv | None = None,
+    flag_eps: float | None = None,
+    flag_tau: int | None = None,
 ) -> ShareRun:
     """Run one sharing level.
 
@@ -188,6 +190,9 @@ def simulate(
             recs,
             ldp=ldp,
             tau=tau,
+            flag_eps=flag_eps,
+            flag_tau=flag_tau,
+            flag_seed=ldp_seed * 1013 + m,
         )
 
     nodes = {m: make_node(m, recs) for m, recs in records.items()}

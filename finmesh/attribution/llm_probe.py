@@ -137,6 +137,8 @@ def call_ollama(
     }
     if keep_alive is not None:  # 0 unloads the model after the reply, freeing its prompt cache
         payload["keep_alive"] = keep_alive
+    if model.startswith("qwen3"):  # A25 P5 (N3): thinking disabled, so the reply is the JSON only
+        payload["think"] = False
     body = json.dumps(payload).encode()
     request = urllib.request.Request(
         url.rstrip("/") + "/api/generate", data=body, headers={"Content-Type": "application/json"}

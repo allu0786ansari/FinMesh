@@ -48,6 +48,14 @@ The A25 results are then reported as a pre-registered confirmatory extension, ne
 - Window length 6 h; splits 60/20/20 by window with one-window gaps, as in G0; federation B8 built by the same rule; features v3 unchanged.
 - If a window lacks at least 8 test windows or 100 pattern-labelled test schemes, G0's fallback order applies. That is recorded before any model is trained.
 
+**Windows found (7 Nov, label-free):** both Large sets give **21 Oct to 5 Nov 2022** (16 dense days, 12 test windows).
+- **HI-Large-W16:** 559 multi-member test schemes, band **proceed**.
+- **LI-Large-W16:** 78 multi-member (92 visible) test schemes, **case-study band**. That is the same band as LI-Medium (91) in G0, so by G0's order it proceeds as the second regime with wide intervals, exactly as LI-Medium did.
+
+Recorded before any model is trained on either window.
+
+**Token budget, sized before any test:** `finmesh size-budget --dataset <window>` measures the largest legitimate per-bank, per-epoch use on the window's **validation** traffic (seed 0, validated calibration, every candidate asking). It writes twice that into `finmesh/schemas/token_budgets.json`, which is committed before the frozen commit.
+
 **Configurations:**
 
 - S0, S1, S2, PD at τ ∈ {2, 3, 4}, the oracle and the relational oracle, with the frozen fusion of A13–A14 and A24a.
@@ -88,7 +96,8 @@ They are computed for every configuration of P1 on the Large tests, at the prima
 
 - **Flag-RR(ε):** the responder's alert bit goes through binary randomised response with ε ∈ {0.5, 1, 2, 4}, memoised per account and epoch, giving an ε-local-DP guarantee for the bit. The requester's fusion features use the noisy flag, and the stacker is refitted on validation as in A13.
 - **Gated flag (τ):** the flag is answered only if the requester's own score bucket is ≥ τ ∈ {2, 3}; otherwise "no answer". Same logic as PD.
-- **Gated flag-RR:** the gate and RR(ε) combined.
+- **Gated flag-RR:** the gate at τ = 2 combined with RR at ε ∈ {1, 2}. This grid was fixed on 7 Nov, before any frontier was run.
+- RR applies to the flag of **every** queried account, with or without a record, so that a record's existence does not show through. It is drawn once per account (or token) and epoch.
 
 **Measured for each candidate on HI- and LI-Medium validation:** linked detection, its share of unprotected S1's gain, and the A2/A3 attacks with the H1c margin.
 

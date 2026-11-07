@@ -42,7 +42,7 @@ from typing import Any
 import numpy as np
 import polars as pl
 
-from finmesh.attribution.claims import claim_check, number_words, reading
+from finmesh.attribution.claims import claim_check, number_words, reading, scope_check
 from finmesh.attribution.llm_probe import DEFAULT_MODEL, assert_local, call_ollama
 from finmesh.sharing.evidence import load_evidence_schema
 
@@ -56,10 +56,11 @@ SAMPLE_SEED = 0
 LATENCY_TARGET_S = 30.0
 GROUNDING_TARGET = 0.95
 NARRATIVE_MAX_CHARS = 900
-PROTOCOLS: tuple[str, ...] = ("A21", "A22", "A23")
+PROTOCOLS: tuple[str, ...] = ("A21", "A22", "A23", "A25N")  # A25N = A23 + scope (A25 P5)
 # Bounds a runaway reply; a cut-off reply fails the check and is retried.
-MAX_TOKENS = {"A21": 320, "A22": 400, "A23": 400}
-TIMEOUT_S = {"A21": 120.0, "A22": 600.0, "A23": 600.0}
+MAX_TOKENS = {"A21": 320, "A22": 400, "A23": 400, "A25N": 400}
+TIMEOUT_S = {"A21": 120.0, "A22": 600.0, "A23": 600.0, "A25N": 600.0}
+A23_FAMILY = ("A23", "A25N")
 MAX_CITED = 4
 
 
@@ -294,7 +295,7 @@ def shown(case: dict[str, Any]) -> list[dict[str, str]]:
 def build_prompt(case: dict[str, Any], catalogue: dict[str, Any], protocol: str = "A22") -> str:
     if protocol == "A21":
         return build_prompt_a21(case, catalogue)
-    if protocol == "A23":
+    if protocol in A23_FAMILY:
         return build_prompt_a23(case, catalogue)
     return build_prompt_a22(case, catalogue)
 
@@ -500,7 +501,7 @@ def build_prompt_a21(case: dict[str, Any], catalogue: dict[str, Any]) -> str:
 
 def reply_schema(expected: str, fields: list[str], protocol: str = "A22") -> dict[str, Any]:
     """The schema for the constrained retry: only the assigned typology, only real fields."""
-    if protocol in ("A22", "A23"):
+    if protocol in ("A22", *A23_FAMILY):
         return {
             "type": "object",
             "properties": {
@@ -629,7 +630,7 @@ def template_narrative(case: dict[str, Any], protocol: str = "A22") -> str:
     """Deterministic fallback, built only from the evidence values (grounded by construction)."""
     if protocol == "A21":
         return template_narrative_a21(case)
-    if protocol == "A23":
+    if protocol in A23_FAMILY:
         return template_narrative_a23(case)
     ev = {e["field"]: e["value"] for e in case["evidence"]}
     if case["assigned"] == UNATTRIBUTED:
@@ -760,8 +761,12 @@ def narrate(
             errors.append(f"{type(exc).__name__}: {exc}"[:200])
             raw = ""
         res = {"raw": raw, **check_reply(raw, expected, fields, known, allowed, catalogue)}
-        if protocol == "A23":
+        if protocol in A23_FAMILY:
             res.update(_a23_checks(res, ev_map, known))
+        if protocol == "A25N":
+            sc = scope_check(res.get("narrative") or "", ev_map)
+            res.update(sc)
+            res["strict"] = bool(res["strict"] and sc["scope_ok"])
         return res
 
     first = attempt("json", prompt)
@@ -794,6 +799,7 @@ def narrate(
         "final_mentions_ok": final_named <= allowed,
         "final_consistent": final_claims["consistent"],
         "final_unsupported": final_claims["unsupported"],
+        "final_scope_ok": scope_check(narrative, ev_map)["scope_ok"],
         "protocol": protocol,
         "latency_first_s": round(first_s, 3),
         "latency_total_s": round(time.perf_counter() - t0, 3),
@@ -879,6 +885,8 @@ def summarise(results: list[dict[str, Any]]) -> dict[str, Any]:
         },
         "final_mentions_ok": _rate([bool(r.get("final_mentions_ok", True)) for r in results]),
         "final_consistent": _rate([bool(r.get("final_consistent")) for r in results]),
+        "first_scope_ok": _rate([bool(r["first"].get("scope_ok", True)) for r in results]),
+        "final_scope_ok": _rate([bool(r.get("final_scope_ok", True)) for r in results]),
         "first_consistent": _rate(
             [bool(r["first"].get("consistent")) for r in results if "consistent" in r["first"]]
         ),

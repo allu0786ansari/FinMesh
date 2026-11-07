@@ -253,7 +253,100 @@ __all__ = [
     "evidence_facts",
     "number_words",
     "reading",
+    "scope_check",
     "sentences",
     "share_word",
     "value_range",
 ]
+
+
+# --------------------------------------------------------------------------- scope (A25 P5)
+_OWN = re.compile(r"\b(?:your|this|the) bank\b|\bat the bank\b|\bown\b|\bown_", re.IGNORECASE)
+_CASE = re.compile(
+    r"\blinked case\b|\bthe case\b|\bcase (?:accounts?|members?|account[- ]windows?)\b|"
+    r"\bfederation members?\b|\bcase_",
+    re.IGNORECASE,
+)
+_SMALL = {"a single": 1, "single": 1, "one": 1, **{k: v for k, v in _UNITS.items()}}
+_QTY = re.compile(
+    r"\b(\d[\d,]*|a single|single|one|" + "|".join(_UNITS) + r")\s+"
+    r"(?:(?:alerted|case|linked|own|federation)[ _]?)*"
+    r"(account[-_ ]windows?|accounts?|windows?|members?|hours?)\b",
+    re.IGNORECASE,
+)
+_OWN_AFTER = re.compile(r"^\s+(?:at|in|of) (?:your|the|this) bank\b", re.IGNORECASE)
+_NOT_COUNT_BEFORE = re.compile(r"\b(?:of|from|to|each|per)\s+$", re.IGNORECASE)
+_SCOPE_FIELDS = {
+    "accounts": ("own_accounts", "case_accounts"),
+    "windows": ("own_account_windows", "case_account_windows"),
+    "members": (None, "case_members"),
+    "hours": ("own_span_hours", "case_span_hours"),
+}
+
+
+def _unit(word: str) -> str:
+    w = word.lower().replace("_", " ").replace("-", " ")
+    if w.startswith("account w") or w.startswith("window"):
+        return "windows"
+    if w.startswith("account"):
+        return "accounts"
+    if w.startswith("member"):
+        return "members"
+    return "hours"
+
+
+def _num(token: str) -> float | None:
+    t = token.lower()
+    if t in _SMALL:
+        return float(_SMALL[t])
+    try:
+        return float(t.replace(",", ""))
+    except ValueError:
+        return None
+
+
+def scope_check(text: str, ev: dict[str, str]) -> dict[str, Any]:
+    """A25 P5 scope rule: in a sentence about the analyst's own bank, a count of accounts,
+    account-windows or hours must be the bank's own value; in a sentence about the linked
+    case or federation members, the case's value. A sentence naming both scopes may use
+    either; a sentence naming neither is not judged. Returns the failing statements."""
+
+    def value(field: str | None) -> float | None:
+        if field is None or field not in ev:
+            return None
+        r = value_range(ev[field])
+        return None if r is None or r[0] != r[1] else r[0]
+
+    errors: list[str] = []
+    for s in sentences(text):
+        own, case = bool(_OWN.search(s)), bool(_CASE.search(s))
+        if not (own or case):
+            continue
+        for m in _QTY.finditer(s):
+            n, unit = _num(m.group(1)), _unit(m.group(2))
+            if n is None:
+                continue
+            word = m.group(2).lower()
+            plural = word.endswith("s")
+            single = m.group(1).lower() in ("single", "a single")
+            if not (plural or single):
+                continue  # "one account" usually points at an account, it does not count them
+            if _NOT_COUNT_BEFORE.search(s[: m.start()]) or s[m.end() :].lstrip().startswith("each"):
+                continue  # "payees of one account", "one window each": not a scope count
+            phrase = m.group(0).lower()
+            if _OWN_AFTER.search(s[m.end() :]) or " own" in f" {phrase}" or "own_" in phrase:
+                scopes = {"own"}  # "two accounts at the bank", "5 own accounts"
+            elif any(w in phrase for w in ("case", "linked", "federation")):
+                scopes = {"case"}
+            else:
+                scopes = ({"own"} if own else set()) | ({"case"} if case else set())
+            own_f, case_f = _SCOPE_FIELDS[unit]
+            allowed = set()
+            if "own" in scopes:
+                allowed.add(value(own_f))
+            if "case" in scopes:
+                allowed.add(value(case_f))
+            allowed.discard(None)
+            if allowed and n not in allowed:
+                errors.append(m.group(0))
+    return {"scope_ok": not errors, "scope_errors": errors}

@@ -155,7 +155,13 @@ def refuse_if_opened(
 
 
 # --------------------------------------------------------------------------- traffic
-def token_traffic(paths: DatasetPaths, option: str = "B8", seed: int = 0) -> list[dict[str, Any]]:
+def token_traffic(
+    paths: DatasetPaths,
+    option: str = "B8",
+    seed: int = 0,
+    partitions: tuple[str, ...] = ("val", "test"),
+    calibrations: tuple[str, ...] = ("end of training", "fitted on validation"),
+) -> list[dict[str, Any]]:
     """Label-free on test: candidates and OPRF token demand per bank and epoch, for
     validation and test under each calibration (end of training, as on validation; or
     fitted on validation). Reads validation labels only (for the second calibration)."""
@@ -190,7 +196,10 @@ def token_traffic(paths: DatasetPaths, option: str = "B8", seed: int = 0) -> lis
     cal_train = _calibrators(score_rows(store, feats, "train", fn, windows.stop_from))
     val = score_rows(store, feats, "val", fn)
     cals = {"end of training": cal_train, "fitted on validation": _calibrators(val)}
-    frames = {"val": val.select(*KEY_COLUMNS, "score"), "test": score_keys(feats, "test", fn)}
+    cals = {k: v for k, v in cals.items() if k in calibrations}
+    frames = {"val": val.select(*KEY_COLUMNS, "score")}
+    if "test" in partitions:
+        frames["test"] = score_keys(feats, "test", fn)
     del val
     membership = store_membership(paths, option)
     rows: list[dict[str, Any]] = []

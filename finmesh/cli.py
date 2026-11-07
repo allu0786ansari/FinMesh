@@ -1479,6 +1479,185 @@ def cmd_test_preflight(args: argparse.Namespace) -> int:
     return 0 if report["ok"] else 1
 
 
+def _a25_out(paths_name: str) -> tuple[Path, Path]:
+    art = data_root() / "artifacts" / "a25"
+    out = art if paths_name.startswith("FIXTURE") else REPO_ROOT / "docs" / "eval" / "a25"
+    art.mkdir(parents=True, exist_ok=True)
+    out.mkdir(parents=True, exist_ok=True)
+    return art, out
+
+
+def _ci3(d: dict[str, Any] | None) -> str:
+    if not d or d.get("estimate") is None:
+        return "—"
+    if d.get("low") is None:
+        return f"{d['estimate']:.3f}"
+    return f"{d['estimate']:.3f} [{d['low']:.3f}, {d['high']:.3f}]"
+
+
+def cmd_flag_frontier(args: argparse.Namespace) -> int:
+    """A25 P3: protected S1 flags on validation (utility seeds 0-2, attacks seed 0)."""
+    from finmesh.eval.provenance import write_artifact
+    from finmesh.training.flags import run_flag_frontier
+
+    paths = dataset_paths(args.dataset)
+    r = run_flag_frontier(
+        paths, args.option, _ints(args.seeds), args.reps, progress=lambda m: print(f"  {m}")
+    )
+    art, out = _a25_out(paths.name)
+    stamp = _stamp(paths, "flag-frontier", {"option": args.option, "seeds": r["seeds"]})
+    stamp.split = "val"
+    write_artifact(art / f"flag_frontier_{paths.name}.json", stamp, r)
+    lines = [
+        f"# Protected S1 flags on validation (A25 P3) · {paths.name}",
+        "",
+        f"Seeds {r['seeds']} for linked detection; attacks on seed 0. Share = (candidate − S0) "
+        "/ (plain S1 − S0) in linked detection. Within margin = upper 95% bound of (attack − "
+        "prior) TPR at 1% FPR ≤ 0.05 on every assessable A2/A3 target.",
+        "",
+        "| Candidate | Linked | Share of S1's gain | Within margin | Per target |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    for n, v in r["candidates"].items():
+        per = ", ".join(f"{t}: {'yes' if w else ('no' if w is False else '—')}"
+                        for t, w in v["within_by_target"].items())  # fmt: skip
+        lines.append(
+            f"| {n} | {_ci3(v['linked'])} | {_ci3(v['share_of_S1_gain'])} | "
+            f"{'yes' if v['within_margin'] else 'no'} | {per} |"
+        )
+        print(f"  {n:<20} share {_ci3(v['share_of_S1_gain'])}  within {v['within_margin']}")
+    (out / f"flag_frontier_{paths.name}.md").write_text("\n".join(lines) + "\n")
+    print(f"  report   {out / f'flag_frontier_{paths.name}.md'}")
+    return 0
+
+
+def cmd_flag_select(args: argparse.Namespace) -> int:
+    """A25 P3: the frozen selection rule over the Medium validation frontiers."""
+    from finmesh.eval.provenance import read_artifact
+    from finmesh.training.flags import select_flag
+
+    names = [d.strip() for d in args.datasets.split(",") if d.strip()]
+    art, out = _a25_out(names[0])
+    frontiers = []
+    for n in names:
+        path = art / f"flag_frontier_{n}.json"
+        if not path.exists():
+            print(f"  {path} missing; run `finmesh flag-frontier --dataset {n}` first")
+            return 1
+        frontiers.append(read_artifact(path)[1])
+    sel = select_flag(frontiers)
+    (art / "flag_selection.json").write_text(json.dumps(sel, indent=1))
+    lines = [
+        "# Protected S1 flag: selection by the frozen A25 P3 rule",
+        "",
+        f"Datasets: {', '.join(names)} (validation). Rule: among candidates within the H1c "
+        "margin on every assessable target of every dataset, the largest mean share of plain "
+        "S1's gain; ties to the smaller ε, then ungated; none if none qualifies.",
+        "",
+        f"**Chosen: {sel['chosen'] or 'none'}**"
+        + (f" ({sel['reason']})" if not sel["chosen"] else ""),
+        "",
+        "| Candidate | Within margin on all | Mean share of S1's gain |",
+        "| --- | --- | --- |",
+    ]
+    for n, v in sel["table"].items():
+        lines.append(
+            f"| {n} | {'yes' if v['within_margin_all'] else 'no'} | "
+            f"{v['mean_share_of_S1_gain']:.3f} |"
+        )
+    (out / "flag_selection.md").write_text("\n".join(lines) + "\n")
+    print(f"  chosen: {sel['chosen'] or 'none'}")
+    print(f"  report   {out / 'flag_selection.md'}")
+    return 0
+
+
+def cmd_size_budget(args: argparse.Namespace) -> int:
+    """A25 P1: the A16 token budget of a new dataset, from its validation traffic only."""
+    from finmesh.matching.tokens import BUDGETS_PATH
+    from finmesh.training.sealed_runs import token_traffic
+
+    paths = dataset_paths(args.dataset)
+    rows = token_traffic(paths, args.option, partitions=("val",), calibrations=("end of training",))
+    peak = rows[0]["peak_tokens"]
+    doc = json.loads(BUDGETS_PATH.read_text())
+    doc.setdefault("measured_peak", {})[paths.name] = peak
+    doc["budgets"][paths.name] = 2 * peak
+    BUDGETS_PATH.write_text(json.dumps(doc, indent=2) + "\n")
+    where = rows[0]["peak_member_epoch"]
+    print(f"  {paths.name}: validation peak {peak:,} tokens (bank/epoch {where})")
+    print(f"  budget {2 * peak:,} written to {BUDGETS_PATH.name}")
+    return 0
+
+
+def cmd_narrative_export(args: argparse.Namespace) -> int:
+    """A25 P5: write the narrative cases to one file for a remote (GPU) model run."""
+    from finmesh.attribution.narrative_cases import export_cases
+
+    paths = dataset_paths(args.dataset)
+    bundle = export_cases(
+        paths, args.option, args.n, args.protocol, "test" if args.test else "val", args.allow_repeat
+    )
+    if "error" in bundle:
+        print(f"  {bundle['error']}")
+        return 1
+    out = Path(args.out)
+    out.write_text(json.dumps(bundle, default=str))
+    print(f"  {len(bundle['cases'])} cases ({bundle['split']}, {bundle['protocol']}) -> {out}")
+    print(
+        "  run them on the GPU notebook with `finmesh narrative-cases`, then bring back the result"
+    )
+    return 0
+
+
+def cmd_narrative_cases(args: argparse.Namespace) -> int:
+    """A25 P5: narrate an exported case file with a local Ollama model (no dataset needed)."""
+    from finmesh.attribution.narrative import MAX_TOKENS, TIMEOUT_S, ollama_call
+    from finmesh.attribution.narrative_cases import run_cases
+
+    bundle = json.loads(Path(args.cases).read_text())
+    proto = bundle["protocol"]
+    call = ollama_call(args.url, args.model, TIMEOUT_S[proto], max_tokens=MAX_TOKENS[proto])
+    out = Path(args.out)
+    ckpt = out.with_suffix(".partial.json")
+    result = run_cases(bundle, call, args.model, ckpt, progress=lambda m: print(f"  {m}"))
+    if "error" in result:
+        print(f"  {result['error']}")
+        return 1
+    out.write_text(json.dumps(result, default=str))
+    s = result["summary"]
+    print(f"  H3b grounding {s['H3b']['grounding']['estimate']}; strict "
+          f"{s['strict_grounding']['estimate']}; result -> {out}")  # fmt: skip
+    return 0
+
+
+def cmd_narrative_render(args: argparse.Namespace) -> int:
+    """A25 P5: the pages of a narrative result file (and N4, select-then-template)."""
+    from finmesh.attribution.narrative_cases import select_then_template
+    from finmesh.attribution.narrative_report import render_narrative, write_cases, write_review_ab
+    from finmesh.training.x6 import load_catalogue
+
+    result = json.loads(Path(args.result).read_text())
+    if args.select:
+        result = select_then_template(result, load_catalogue())
+    art, out = _a25_out(result["dataset"])
+    tag = args.model_tag or result["model"].replace(":", "-").replace("/", "-")
+    tag += "_N4" if args.select else ""
+    name = f"narrative_{result['dataset']}_{result['split']}_{tag}"
+    (art / f"{name}.json").write_text(json.dumps(result, default=str))
+    page = render_narrative(result)
+    (out / f"{name}.md").write_text(as_test_page(page) if result["split"] == "test" else page)
+    write_cases(result, out / f"{name}_cases.jsonl")
+    if args.review:
+        write_review_ab(
+            result, out / f"{name}_review.csv", out / f"{name}_review_KEY_do_not_open.csv"
+        )
+    s = result["summary"]
+    h3b, strict = s["H3b"]["grounding"]["estimate"], s["strict_grounding"]["estimate"]
+    print(f"  {name}: H3b {h3b}; strict {strict}; scope ok (first) {s.get('first_scope_ok')}")
+    print(f"  report   {out / (name + '.md')}")
+    return 0
+
+
 def cmd_large_window(args: argparse.Namespace) -> int:
     """A25 P1: cut the dense-period window of a Large set into a dataset of its own."""
     from finmesh.data.window import cut_window
@@ -2019,6 +2198,46 @@ def build_parser() -> argparse.ArgumentParser:
         help="comma-separated runs to check",
     )
     tp.set_defaults(func=cmd_test_preflight)
+
+    ff = sub.add_parser("flag-frontier", help="A25 P3: protected S1 flags on validation")
+    ff.add_argument("--dataset", required=True)
+    ff.add_argument("--option", default="B8")
+    ff.add_argument("--seeds", default="0,1,2")
+    ff.add_argument("--reps", type=int, default=1000)
+    ff.set_defaults(func=cmd_flag_frontier)
+
+    fs = sub.add_parser("flag-select", help="A25 P3: apply the frozen flag selection rule")
+    fs.add_argument("--datasets", default="HI-Medium,LI-Medium")
+    fs.set_defaults(func=cmd_flag_select)
+
+    sb = sub.add_parser("size-budget", help="A25 P1: A16 token budget from validation traffic")
+    sb.add_argument("--dataset", required=True)
+    sb.add_argument("--option", default="B8")
+    sb.set_defaults(func=cmd_size_budget)
+
+    ne = sub.add_parser("narrative-export", help="A25 P5: narrative cases to one file")
+    ne.add_argument("--dataset", required=True)
+    ne.add_argument("--option", default="B8")
+    ne.add_argument("--n", type=int, default=200)
+    ne.add_argument("--protocol", default="A25N", choices=["A23", "A25N"])
+    ne.add_argument("--test", action="store_true", help="the sealed test (logs the opening)")
+    ne.add_argument("--allow-repeat", action="store_true")
+    ne.add_argument("--out", required=True)
+    ne.set_defaults(func=cmd_narrative_export)
+
+    nc = sub.add_parser("narrative-cases", help="A25 P5: narrate an exported case file")
+    nc.add_argument("--cases", required=True)
+    nc.add_argument("--model", required=True)
+    nc.add_argument("--url", default="http://localhost:11434")
+    nc.add_argument("--out", required=True)
+    nc.set_defaults(func=cmd_narrative_cases)
+
+    nn = sub.add_parser("narrative-render", help="A25 P5: pages of a narrative result file")
+    nn.add_argument("--result", required=True)
+    nn.add_argument("--select", action="store_true", help="N4: select-then-template")
+    nn.add_argument("--model-tag", default=None)
+    nn.add_argument("--review", action="store_true", help="also write a blind A/B sheet")
+    nn.set_defaults(func=cmd_narrative_render)
 
     lw = sub.add_parser("large-window", help="A25 P1: dense-period window of HI/LI-Large")
     lw.add_argument("--source", required=True, choices=["HI-Large", "LI-Large", "FIXTURE-Small"])

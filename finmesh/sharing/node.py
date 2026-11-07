@@ -29,10 +29,12 @@ never appears in a message.
 
 from __future__ import annotations
 
+import math
 from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any
 
+import numpy as np
 import polars as pl
 
 from finmesh.matching.tokens import EPOCH_WINDOWS, TokenClient, epoch_of, identifier
@@ -56,7 +58,13 @@ class BankNode:
     inbound: list[tuple[int, int]] = field(default_factory=list)
     ldp: LdpReleaser | None = None  # S3 only
     tau: int | None = None  # PD only: lowest requester bucket that gets a record
+    # A25 P3, S1 only: the alert flag answered only to requesters with bucket >= flag_tau,
+    # and/or through binary randomised response at flag_eps (memoised per account and epoch).
+    flag_eps: float | None = None
+    flag_tau: int | None = None
+    flag_seed: int = 0
     disclosed: set[int] = field(default_factory=set)  # record rows released at S2+ (any form)
+    _flag_memo: dict[tuple[Any, int], bool] = field(default_factory=dict)
     _win: Any = None
     _alert_arr: Any = None
     _acct: Any = None
@@ -100,6 +108,8 @@ class BankNode:
             self.inbound.append((max(rows, key=self._window), request.requester_bucket))
         if self.level == "S3":
             return self._respond_s3(request, rows, alerted, alert_window)
+        if self.level == "S1" and (self.flag_eps is not None or self.flag_tau is not None):
+            return self._protected_flag(request, rows, bool(alerted), alert_window)
         if not rows:
             return EvidenceResponse(request.request_id, self.member, self.level, "no_record")
         latest = max(rows, key=self._window)
@@ -121,6 +131,33 @@ class BankNode:
             alert_window,
             EvidenceRecordWire(request.token, values),
         )
+
+    def _protected_flag(
+        self, request: EvidenceRequest, rows: list[int], alerted: bool, alert_window: int
+    ) -> EvidenceResponse:
+        """A25 P3: the gated and/or randomised S1 flag. A gated-out requester gets the
+        plain negative answer. Randomised response applies to **every** queried account,
+        with or without a record (a record's existence would otherwise show through): the
+        true bit is kept with probability e^eps / (1 + e^eps), drawn once per account (or
+        token, without a record) and epoch, so the bit is eps-locally private. A reported
+        flag without a true alert carries the request's own time bucket."""
+        if self.flag_tau is not None and request.requester_bucket < self.flag_tau:
+            return EvidenceResponse(request.request_id, self.member, self.level, "no_record")
+        bit = alerted
+        if self.flag_eps is not None:
+            subject: Any = int(self._acct[rows[0]]) if rows else request.token
+            key = (subject, int(request.epoch))
+            if key not in self._flag_memo:
+                sid = subject if isinstance(subject, int) else int.from_bytes(subject[:8], "big")
+                seq = [self.flag_seed, self.member, sid, key[1]]
+                rng = np.random.default_rng(seq)
+                keep = math.exp(self.flag_eps) / (1.0 + math.exp(self.flag_eps))
+                self._flag_memo[key] = bool(rng.random() < keep)
+            bit = alerted if self._flag_memo[key] else not alerted
+        if not bit:
+            return EvidenceResponse(request.request_id, self.member, self.level, "no_record")
+        when = alert_window if alerted else int(request.window_hi)
+        return EvidenceResponse(request.request_id, self.member, self.level, "ok", True, when)
 
     def _respond_s3(
         self, request: EvidenceRequest, rows: list[int], alerted: list[int], alert_window: int

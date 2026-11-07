@@ -21,9 +21,9 @@ def _pct(v: float | None) -> str:
 def _example(title: str, r: dict[str, Any]) -> list[str]:
     checks = r["first"]
     keys = ["json", "typology", "cited", "numeric"]
-    if "strict" in checks and r.get("protocol") in ("A22", "A23"):
+    if "strict" in checks and r.get("protocol") in ("A22", "A23", "A25N"):
         keys += ["cites_ok", "mentions_ok"]
-        if r.get("protocol") == "A23":
+        if r.get("protocol") in ("A23", "A25N"):
             keys += ["consistent"]
         keys += ["strict"]
     flags = ", ".join(f"{k} {'yes' if checks.get(k) else 'no'}" for k in keys)
@@ -130,7 +130,7 @@ def _a22_sections(r: dict[str, Any], previous: dict[str, Any] | None) -> list[st
         "evidence or confidence lines, and no typology named outside the candidates"
         + (
             "; A23 adds claim consistency, number words and no copied placeholders"
-            if r.get("protocol") == "A23"
+            if r.get("protocol") in ("A23", "A25N")
             else ""
         )
         + ". The retry and the template are triggered by strict failure, so the analyst only "
@@ -162,7 +162,7 @@ def _a22_sections(r: dict[str, Any], previous: dict[str, Any] | None) -> list[st
         ),
         "",
     ]
-    if r.get("protocol") == "A23":
+    if r.get("protocol") in ("A23", "A25N"):
         lines += _claim_section(r)
     if previous:
         ps = previous["summary"]
@@ -301,7 +301,11 @@ def render_narrative(r: dict[str, Any], previous: dict[str, Any] | None = None) 
     return "\n".join(
         [
             f"# Constrained case narrative (H3b) · {r['dataset']}"
-            + (f" · protocol {r.get('protocol')}" if r.get("protocol") in ("A22", "A23") else ""),
+            + (
+                f" · protocol {r.get('protocol')}"
+                if r.get("protocol") in ("A22", "A23", "A25N")
+                else ""
+            ),
             "",
             f"Level S2, seed {r['seed']}; {s['cases']} detected "
             f"{'test' if r.get('split') == 'test' else 'validation'} schemes sampled by "
@@ -330,7 +334,7 @@ def render_narrative(r: dict[str, Any], previous: dict[str, Any] | None = None) 
             "Grounded = valid JSON, typology equal to the one shown (or UNATTRIBUTED), and every "
             "cited field present in the evidence. Judged on test.",
             "",
-            *(_a22_sections(r, previous) if r.get("protocol") in ("A22", "A23") else []),
+            *(_a22_sections(r, previous) if r.get("protocol") in ("A22", "A23", "A25N") else []),
             "## Reply quality and latency",
             "",
             table(
