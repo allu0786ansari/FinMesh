@@ -238,6 +238,7 @@ class _Trained:
     oracle_cal: dict[int, Isotonic]
     encoders: dict[int, Autoencoder]
     a5: dict[str, Any] | None
+    detector: str = "gbdt"  # "tx": the A25 stronger-detector track
 
 
 @dataclass
@@ -361,6 +362,7 @@ def _train(
         oracle_cal,
         encoders,
         a5,
+        detector,
     )
     return trained, seconds
 
@@ -536,7 +538,11 @@ def _phase(
     # One token service per seed and partition (levels reuse the OPRF work). Validation:
     # the dataset's sized budget (A16), which never bound there. Test: every legitimate
     # request is served, and the frozen budget's shortfall is reported (A24 correction).
-    tokens = TokenEnv.new(UNMETERED if is_test else token_budget(paths.name))
+    # The stronger-detector track (A25) has its own candidate traffic, which the A16 budget
+    # (sized on the account-window detector's) was not sized for: served in full on
+    # validation too, with the frozen budget's shortfall reported, as at test (A24a).
+    metered = not is_test and t.detector == "gbdt"
+    tokens = TokenEnv.new(token_budget(paths.name) if metered else UNMETERED)
     auditor = Auditor(paths, option, plan, keys, lookback, v0, v1, seed) if audit else None
     if auditor is not None:
         auditor.partition = partition
@@ -764,6 +770,7 @@ def run_seed(
         "memory_mb": memory,
         "audit": audit_result,
         "auprc": auprc,
+        "token_peak": max(ph.tokens.service.used.values(), default=0),
         **extra,
     }
 

@@ -1628,7 +1628,8 @@ def cmd_plus_validation(args: argparse.Namespace) -> int:
                     detector=det,
                 )
                 per_seed.append(r)
-                print(f"  {det} seed {seed}: {r['seconds']['total']:.0f} s")
+                print(f"  {det} seed {seed}: {r['seconds']['total']:.0f} s, "
+                      f"peak token use {r['token_peak']:,} per bank and epoch")  # fmt: skip
         summary = combine(per_seed, args.reps)
         stack = _Stack(per_seed)
         out_rows[det] = {
@@ -1636,6 +1637,8 @@ def cmd_plus_validation(args: argparse.Namespace) -> int:
             "gain_S2": summary["S2/stacker"].get("linked_gain", {}).get("difference"),
             "recovery": _recovery(stack, "S2/stacker", args.reps, "oracle-relational"),
             "peak_anon_mb": anon.mb,
+            "token_peak": max(r["token_peak"] for r in per_seed),
+            "candidates": [r["candidates"] for r in per_seed],
         }
     art, out = _a25_out(paths.name)
     stamp = _stamp(paths, "plus-validation", {"option": args.option, "seeds": args.seeds},
@@ -1646,17 +1649,21 @@ def cmd_plus_validation(args: argparse.Namespace) -> int:
         f"# Stronger-detector track on validation (A25 P6 adequacy) · {paths.name}",
         "",
         f"Seeds {args.seeds}. Linked scheme detection; gain = S2 − S0 (paired, scheme "
-        "bootstrap); recovery = (S2 − S0) / (relational oracle − S0), as H1b.",
+        "bootstrap); recovery = (S2 − S0) / (relational oracle − S0), as H1b. Token "
+        "requests: the current detector is metered at the frozen A16 budget; the + track "
+        "is served in full and its peak is shown against that budget.",
         "",
-        "| Detector | S0 | S2 | Oracle | Relational oracle | S2 − S0 | Recovery |",
-        "| --- | --- | --- | --- | --- | --- | --- |",
+        "| Detector | S0 | S2 | Oracle | Relational oracle | S2 − S0 | Recovery | Candidates "
+        "(mean) | Peak tokens per bank-epoch |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
     for det, v in out_rows.items():
         lk = v["linked"]
         lines.append(
             f"| {label[det]} | {_ci3(lk.get('S0'))} | {_ci3(lk.get('S2/stacker'))} | "
             f"{_ci3(lk.get('oracle'))} | {_ci3(lk.get('oracle-relational'))} | "
-            f"{_ci3(v['gain_S2'])} | {_ci3(v['recovery'])} |"
+            f"{_ci3(v['gain_S2'])} | {_ci3(v['recovery'])} | "
+            f"{sum(v['candidates']) / len(v['candidates']):,.0f} | {v['token_peak']:,} |"
         )
     report = out / f"plus_validation_{paths.name}.md"
     report.write_text("\n".join(lines) + "\n")

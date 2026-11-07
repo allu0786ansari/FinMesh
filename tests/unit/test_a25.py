@@ -432,6 +432,18 @@ def test_plus_track_validation_and_test(
                  "--reps", "50", "--window-reps", "20"]) == 0  # fmt: skip
     out = capsys.readouterr().out
     assert "+ (transaction detector)" in out and "current (account-window LightGBM)" in out
+    assert "peak token use" in out
+
+    # The A16 budget was sized on the current detector's traffic: the + track is served in
+    # full on validation (as at test), so a budget it exceeds does not stop it.
+    monkeypatch.setattr(x1, "token_budget", lambda _name: 1)
+    assert main(["plus-validation", "--dataset", fixture_paths.name, "--seeds", "0",
+                 "--reps", "50", "--window-reps", "20", "--no-compare"]) == 0  # fmt: skip
+    monkeypatch.undo()
+    monkeypatch.setattr(x1, "PRIMARY", Budget("per_1000_per_day", 300.0))
+    monkeypatch.setattr(x1, "AE_SAMPLE", 3000)
+    monkeypatch.setattr(txdetector, "NEGATIVE_RATE", 0.5)
+    monkeypatch.setenv("FINMESH_DATA", str(data_env))
 
     # The scorer covers every account-window it is asked about (no missing rows).
     t, _ = x1._train(fixture_paths, "B8", 0, False, lambda _p: None, detector="tx")
