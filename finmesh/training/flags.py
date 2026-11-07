@@ -43,14 +43,22 @@ def run_flag_frontier(
     window_reps: int = 200,
     progress: Callable[[str], None] | None = None,
 ) -> dict[str, Any]:
+    from finmesh.training.sealed_runs import _load, _save
     from finmesh.training.x1 import _recovery, _Stack, combine, run_seed
 
+    ckpt_dir = paths.root / "artifacts" / "a25"
     names = candidates()
     only = frozenset({"S0", PLAIN, *(f"{n}/stacker" for n in names)})
     t0 = time.perf_counter()
     per_seed = []
     with AnonPeak() as anon:
         for seed in seeds:
+            ckpt = ckpt_dir / f"flag_frontier_{paths.name}_seed{seed}.pkl"
+            if ckpt.exists():  # a rerun reuses finished seeds (validation only)
+                per_seed.append(_load(ckpt))
+                if progress:
+                    progress(f"seed {seed}: kept from {ckpt.name}")
+                continue
             r = run_seed(
                 paths,
                 option,
@@ -63,6 +71,7 @@ def run_flag_frontier(
                 only=only,
                 flags=True,
             )
+            _save(ckpt, r)
             per_seed.append(r)
             if progress:
                 progress(f"seed {seed}: {r['seconds']['total']:.0f} s")

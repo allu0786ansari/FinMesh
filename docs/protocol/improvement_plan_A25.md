@@ -130,6 +130,10 @@ Both are reported per dataset.
 
 No hypothesis is attached; it is a design result.
 
+**Implementation note (7 Nov, no rule change).** `finmesh budget-replay` reads the saved X1 test runs (token counts and the A1 audit rows; nothing is opened). An epoch that straddles validation and test counts both partitions' use. A1 at a budget uses the audit's own formula, with the adversary using its best epoch.
+
+**Open point for both owners, before the frozen commit.** The rule has no ceiling, and the token service cannot tell legitimate queries from an attack: a bank spending its whole budget every epoch doubles it every epoch (A16 × 2^k after k epochs), and soon tokenises every candidate, which defeats the OPRF (PT2 → 1). The replay reports this as the "ratchet". Proposed: cap at **4 × A16**, with PT2 at the cap reported as the worst case. Decided from the replay's numbers and recorded here before the freeze.
+
 ## P5. Narrative: larger local models, and select-then-template
 
 **Candidates.** Tags are checked with `ollama pull` before freezing; a missing tag is replaced by the next listed.
@@ -199,6 +203,8 @@ This is a separate evaluation from the sealed tests. The task is transaction-lev
 
 GNNs such as Multi-PNA need a GPU and are out of scope; they are cited as published results.
 
+**Implementation note (7 Nov, no rule change).** The benchmark split follows the benchmark code: whole days, the two boundaries whose shares are closest to 60/20/20 (smallest largest relative error), every transaction including the sparse tail our G0 window drops. It is built as a dataset of its own, `<source>-FULL`, whose G0 uses that split with 6 h windows and no gaps; labels and features come from the unchanged pipeline. Model A is trained, as the oracle is, on the train days' account-window labels; model B on the train days' transaction labels (negatives subsampled at 10% and weighted). Because the adequacy rule can add a track to the Large confirmation, **the Medium sets run before the frozen commit**; the Small sets are reported only.
+
 ## P7. Related-work positioning (writing only)
 
 A table comparing what is shared, the privacy mechanism, the data and the evaluation discipline:
@@ -216,5 +222,5 @@ None of these evaluates on a sealed, pre-registered test, which is this project'
 
 1. **Owner signs this plan.** Then the code for P1 (Large window cut and runs), P2, P3, P4, P5 (scope rule and model switch) and P6.
 2. **Validation development:** P3 frontier, P4 replay, P5 candidates. Each selection is made by its rule above and written into this file **before** step 3. The owner signs a second time: the frozen commit for the Large openings.
-3. **Fresh confirmation:** HI-Large and LI-Large windows (P1, P2, P3, P4, P5), one opening per experiment, dataset and seed. Then P6, which uses its own benchmark split.
+3. **Fresh confirmation:** HI-Large and LI-Large windows (P1, P2, P3, P4, P5), one opening per experiment, dataset and seed. P6 uses its own benchmark split: its Medium sets run in step 2 (the adequacy rule can add a track here), its Small sets at any time.
 4. **Results page and the paper's tables.** Every rule here is applied mechanically; a missed rule is reported as a finding.

@@ -209,6 +209,7 @@ def run_budget_replay(
     seeds: tuple[int, ...] | None = None,
     cap: int | None = None,
     recompute_validation: bool = True,
+    cap_factor: float | None = None,
     progress: Callable[[str], None] = lambda _m: None,
 ) -> dict[str, Any]:
     """Replay over the saved X1 test checkpoints (read only; nothing opens the test)."""
@@ -216,6 +217,8 @@ def run_budget_replay(
     from finmesh.training.sealed_runs import _load
 
     floor = token_budget(paths.name)
+    if cap_factor is not None:
+        cap = int(cap_factor * floor)
     found = checkpoints(paths, option)
     if not found:
         raise FileNotFoundError(

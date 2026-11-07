@@ -133,7 +133,11 @@ def test_protected_flag_randomised_response_and_gate() -> None:
 
 
 def test_flag_frontier_and_selection_on_the_fixture(
-    fixture_paths: Any, ingested: object, monkeypatch: pytest.MonkeyPatch
+    fixture_paths: Any,
+    ingested: object,
+    monkeypatch: pytest.MonkeyPatch,
+    data_env: Path,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     from finmesh.eval.budgets import Budget
     from finmesh.eval.g0 import run_g0
@@ -149,6 +153,13 @@ def test_flag_frontier_and_selection_on_the_fixture(
     monkeypatch.setattr(x1, "PRIMARY", Budget("per_1000_per_day", 300.0))
     monkeypatch.setattr(x1, "AE_SAMPLE", 3000)
     r = run_flag_frontier(fixture_paths, seeds=(0,), reps=50, window_reps=20)
+    # The command saves its result (the stamp is frozen) and reuses the finished seed.
+    from finmesh.cli import main
+
+    assert main(["flag-frontier", "--dataset", fixture_paths.name, "--seeds", "0",
+                 "--reps", "50"]) == 0  # fmt: skip
+    assert "kept from flag_frontier_FIXTURE-Small_seed0.pkl" in capsys.readouterr().out
+    assert (data_env / "artifacts" / "a25" / "flag_frontier_FIXTURE-Small.json").exists()
     assert set(r["candidates"]) == {"S1", *candidates()}
     assert r["candidates"]["S1"]["share_of_S1_gain"]["estimate"] == 1.0
     for n in candidates():
@@ -214,8 +225,26 @@ def test_narrative_export_run_and_select_then_template(
     assert nar.PROTOCOLS[-1] == "A25N"
 
 
+@pytest.fixture()
+def keep_access_log(fixture_paths: Any) -> Any:
+    """This module sorts before the tests that expect a fresh sealed-test log."""
+    from finmesh.eval.sealed import access_log_path
+
+    path = access_log_path(fixture_paths)
+    saved = path.read_bytes() if path.exists() else None
+    yield
+    if saved is None:
+        path.unlink(missing_ok=True)
+    else:
+        path.write_bytes(saved)
+
+
 def test_large_runner_extras_flag_noart_and_case_quality(
-    fixture_paths: Any, ingested: object, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    fixture_paths: Any,
+    ingested: object,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    keep_access_log: None,
 ) -> None:
     from finmesh.eval.budgets import Budget
     from finmesh.eval.g0 import run_g0
@@ -310,3 +339,56 @@ def test_adaptive_budget_rule_refusals_and_ratchet() -> None:
     assert rt["epochs_to_every_candidate"] == 4  # 100 x 2^4 = 1,600 >= 1,060
     assert rt["steps"][4]["ratio"] == 1.0  # hashing level: PT2 gone
     assert ratchet(rows, floor=100, cap=400)["epochs_to_every_candidate"] is None
+
+
+def test_benchmark_day_split_rule() -> None:
+    from finmesh.data.benchmark_split import day_split
+
+    assert day_split([10] * 10) == (6, 8)  # 60/20/20 exactly
+    i, j = day_split([100] * 15 + [5] * 3)  # a sparse tail stays in test
+    assert (i, j) == (9, 12)
+
+
+def test_benchmark_dataset_and_runner(
+    fixture_paths: Any, ingested: object, fixture_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from finmesh.data.benchmark_split import link_benchmark
+    from finmesh.data.pipeline import ingest_dataset
+    from finmesh.eval.g0 import run_g0
+    from finmesh.eval.split_io import load_plan
+    from finmesh.eval.universe import build_universe
+    from finmesh.features.build import build_features
+    from finmesh.paths import dataset_paths
+    from finmesh.training import benchmark
+
+    link_benchmark(fixture_root / "raw", fixture_paths.name)
+    full = dataset_paths(fixture_paths.name + "-FULL", root=fixture_root)
+    ingest_dataset(full)
+    g0 = run_g0(full)
+    plan = load_plan(full)
+    assert [p.name for p in plan.periods] == ["train", "gap", "val", "gap", "test"]
+    assert plan.period("gap").start == plan.period("gap").end  # no gaps
+    assert g0["observation_window"]["rows_after"] == 0  # every transaction is in
+    build_universe(full, "B8")
+    build_features(full, "B8")
+    build_features(full, "B8", view="pooled")
+    r = benchmark.run_benchmark(full, seeds=(0, 1), negative_rate=0.5)
+    assert r["rows"]["test"]["rows"] > 0 and r["rows"]["test"]["missing_account_windows"] == 0
+    for m in ("A", "B"):
+        x = r["models"][m]
+        assert 0 <= x["test_f1_mean"] <= 100 and len(x["per_seed"]) == 2
+    assert r["adequacy"]["reference_f1"] is None  # the fixture has no published numbers
+    assert "pooled detector" in benchmark.render(r)
+    assert "published" in benchmark.render_table([r])
+
+
+def test_best_f1_threshold() -> None:
+    import numpy as np
+
+    from finmesh.training.benchmark import best_f1, f1_at
+
+    y = np.array([1, 0, 1, 0, 0, 1])
+    s = np.array([0.9, 0.8, 0.7, 0.3, 0.3, 0.1])
+    f1, thr = best_f1(y, s)
+    assert abs(f1 - 2 / 3) < 1e-12 and thr == 0.7  # top 3: tp 2 of 3 flagged, 2 of 3 positives
+    assert abs(f1_at(y, s, thr) - f1) < 1e-12

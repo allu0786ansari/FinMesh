@@ -39,6 +39,7 @@ from typing import Any
 
 import polars as pl
 
+from finmesh.data.benchmark_split import benchmark_plan, is_benchmark
 from finmesh.data.consortium import (
     CANDIDATES,
     DEFAULT_GROUPED,
@@ -228,9 +229,13 @@ def run_g0(paths: DatasetPaths, write_split: bool = True) -> dict[str, Any]:
     timings: dict[str, float] = {}
     with AnonPeak() as anon:
         with timed(timings, "window_and_split_s"):
-            observation = detect_observation_window(paths.transactions)
-            window_hours, window_table = choose_window_hours(observation)
-            plan = plan_split(observation, window_hours)
+            if is_benchmark(paths.name):  # A25 P6: the published benchmark split
+                observation, plan, bench = benchmark_plan(paths.transactions)
+                window_hours, window_table = plan.window_hours, [bench]
+            else:
+                observation = detect_observation_window(paths.transactions)
+                window_hours, window_table = choose_window_hours(observation)
+                plan = plan_split(observation, window_hours)
             plan.write(paths.parquet / "split_plan.json")
             activity = window_activity(paths.transactions, observation)
             schemes = pl.read_parquet(paths.schemes)

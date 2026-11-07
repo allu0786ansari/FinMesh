@@ -1451,7 +1451,7 @@ def _test_out(paths: DatasetPaths) -> tuple[Path, Path]:
     return art, out
 
 
-def _stamp(paths: DatasetPaths, kind: str, params: dict[str, Any]) -> Any:
+def _stamp(paths: DatasetPaths, kind: str, params: dict[str, Any], split: str = "test") -> Any:
     from finmesh.data.manifest import load_manifest
     from finmesh.eval.provenance import Stamp
 
@@ -1461,7 +1461,7 @@ def _stamp(paths: DatasetPaths, kind: str, params: dict[str, Any]) -> Any:
         dataset=paths.name,
         manifest_hash=manifest.manifest_hash,
         fixture=manifest.fixture,
-        split="test",
+        split=split,
         params=params,
     )
 
@@ -1505,8 +1505,9 @@ def cmd_flag_frontier(args: argparse.Namespace) -> int:
         paths, args.option, _ints(args.seeds), args.reps, progress=lambda m: print(f"  {m}")
     )
     art, out = _a25_out(paths.name)
-    stamp = _stamp(paths, "flag-frontier", {"option": args.option, "seeds": r["seeds"]})
-    stamp.split = "val"
+    stamp = _stamp(
+        paths, "flag-frontier", {"option": args.option, "seeds": r["seeds"]}, split="val"
+    )
     write_artifact(art / f"flag_frontier_{paths.name}.json", stamp, r)
     lines = [
         f"# Protected S1 flags on validation (A25 P3) · {paths.name}",
@@ -1541,17 +1542,81 @@ def cmd_budget_replay(args: argparse.Namespace) -> int:
         paths,
         args.option,
         _ints(args.seeds) if args.seeds else None,
-        cap=args.cap,
         recompute_validation=not args.no_validation,
+        cap_factor=args.cap_factor,
         progress=lambda m: print(f"  {m}"),
     )
     art, out = _a25_out(paths.name)
-    tag = paths.name + (f"_cap{args.cap}" if args.cap else "")
-    stamp = _stamp(paths, "budget-replay", {"option": args.option, "cap": args.cap})
-    stamp.split = "test (saved X1 runs: token counts and audit rows; no new opening)"
+    tag = paths.name + (f"_cap{args.cap_factor:g}x" if args.cap_factor else "")
+    stamp = _stamp(
+        paths,
+        "budget-replay",
+        {"option": args.option, "cap": r["cap"]},
+        split="test (saved X1 runs: token counts and audit rows; no new opening)",
+    )
     write_artifact(art / f"budget_replay_{tag}.json", stamp, r)
     (out / f"budget_replay_{tag}.md").write_text(render(r) + "\n")
     print(f"  report   {out / f'budget_replay_{tag}.md'}")
+    return 0
+
+
+def cmd_benchmark_dataset(args: argparse.Namespace) -> int:
+    """A25 P6: the benchmark dataset <source>-FULL (links to the source's raw files)."""
+    from finmesh.data.benchmark_split import link_benchmark
+
+    r = link_benchmark(data_root() / "raw", args.source)
+    print(f"  {r['dataset']}: {r['how']} of {r['source']}'s raw files")
+    print(f"  next: uv run finmesh week1 --dataset {r['dataset']}")
+    return 0
+
+
+def cmd_benchmark(args: argparse.Namespace) -> int:
+    """A25 P6: our detector on AMLworld's published split (transaction-level F1)."""
+    from finmesh.eval.provenance import write_artifact
+    from finmesh.training.benchmark import render, run_benchmark
+
+    paths = dataset_paths(args.dataset)
+    r = run_benchmark(
+        paths,
+        args.option,
+        _ints(args.seeds),
+        args.negative_rate,
+        progress=lambda m: print(f"  {m}"),
+    )
+    art, out = _a25_out(paths.name)
+    stamp = _stamp(
+        paths,
+        "benchmark",
+        {"option": args.option, "seeds": r["seeds"]},
+        split="AMLworld benchmark split (train/val/test by day 60/20/20)",
+    )
+    write_artifact(art / f"benchmark_{r['source']}.json", stamp, r)
+    report = out / f"benchmark_{r['source']}.md"
+    report.write_text(render(r) + "\n")
+    for m in ("A", "B"):
+        x = r["models"][m]
+        print(f"  model {m}: test F1 {x['test_f1_mean']:.2f} ± {x['test_f1_sd']:.2f}  "
+              f"val F1 {x['val_f1_mean']:.2f}")  # fmt: skip
+    print(f"  report   {report}")
+    return 0
+
+
+def cmd_benchmark_table(args: argparse.Namespace) -> int:
+    """A25 P6: one table over every benchmark run so far."""
+    from finmesh.training.benchmark import render_table
+
+    art = data_root() / "artifacts" / "a25"
+    results = []
+    for f in sorted(art.glob("benchmark_*.json")):
+        doc = json.loads(f.read_text())
+        results.append(doc.get("result", doc))
+    if not results:
+        print("  no benchmark runs yet; run `finmesh benchmark --dataset <source>-FULL`")
+        return 1
+    out = REPO_ROOT / "docs" / "eval" / "a25" / "benchmark_table.md"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(render_table(results))
+    print(out.read_text())
     return 0
 
 
@@ -2236,11 +2301,27 @@ def build_parser() -> argparse.ArgumentParser:
     fs.add_argument("--datasets", default="HI-Medium,LI-Medium")
     fs.set_defaults(func=cmd_flag_select)
 
+    bd = sub.add_parser("benchmark-dataset", help="A25 P6: make <source>-FULL")
+    bd.add_argument("--source", required=True)
+    bd.set_defaults(func=cmd_benchmark_dataset)
+
+    bm = sub.add_parser("benchmark", help="A25 P6: transaction F1 on the published split")
+    bm.add_argument("--dataset", required=True, help="a <source>-FULL dataset")
+    bm.add_argument("--option", default="B8")
+    bm.add_argument("--seeds", default="0,1,2,3,4")
+    bm.add_argument("--negative-rate", type=float, default=0.1)
+    bm.set_defaults(func=cmd_benchmark)
+
+    bt = sub.add_parser("benchmark-table", help="A25 P6: table over the benchmark runs")
+    bt.set_defaults(func=cmd_benchmark_table)
+
     br = sub.add_parser("budget-replay", help="A25 P4: adaptive token budget replay")
     br.add_argument("--dataset", required=True)
     br.add_argument("--option", default="B8")
     br.add_argument("--seeds", default="", help="default: every saved X1 test seed")
-    br.add_argument("--cap", type=int, default=None, help="report a ceiling as well")
+    br.add_argument(
+        "--cap-factor", type=float, default=None, help="also cap budgets at this multiple of A16"
+    )
     br.add_argument(
         "--no-validation", action="store_true", help="skip recomputing validation history"
     )
