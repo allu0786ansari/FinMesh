@@ -1,6 +1,6 @@
 # Amendment A25: improvements, confirmed on fresh data
 
-**Status: signed 6 Nov 2026; being built. No Large data opened.**
+**Status: signed 6 Nov 2026; built and developed on validation (7–8 Nov); ready for the second signature (the frozen commit). No Large data opened.**
 **Signed off by:** Allaudin Ansari· **Date:** 6 Nov 2026 · **Frozen commit (before any Large opening):** —
 
 ## Why this amendment exists
@@ -284,7 +284,21 @@ The rule fails on both counts. Busy test days needed more than twice the previou
 
 **LLM-judge ratings (reported, 7 Nov; `docs/eval/a25/narrative_judge_A25N.md`):** delivered text was faithful on the 30-case sheet in 70% (N0), 87% (N1), 97% (N2), 77% (N3) and **100% (N4, chosen)** of cases, against 33% for A23 in week 18. Of the texts the models wrote themselves, 50%, 64%, 93% and 65% were faithful.
 
-**Still to record before the frozen commit:** the `plus-validation` results (reported).
+**Stronger-detector track on validation (reported, 8 Nov; `docs/eval/a25/plus_validation_*.md`, seeds 0–2):**
+
+| Linked detection | HI-Medium, + track | HI-Medium, current | LI-Medium, + track | LI-Medium, current |
+| --- | --- | --- | --- | --- |
+| S0 | 0.179 | 0.174 | 0.168 | 0.154 |
+| S2 | 0.699 | 0.736 | 0.703 | 0.695 |
+| Oracle | 0.704 | 0.672 | 0.803 | 0.703 |
+| Relational oracle | 0.739 | 0.747 | 0.778 | 0.806 |
+| S2 − S0 [95% CI] | 0.520 [0.479, 0.561] | 0.562 [0.523, 0.603] | 0.534 [0.448, 0.627] | 0.541 [0.448, 0.638] |
+| Recovery (H1b form) | 0.93 | 0.98 | 0.88 | 0.83 |
+| Peak tokens per bank-epoch (A16: 74,510 HI, 87,580 LI) | 96,263 (seed 0; 33–36 k on seeds 1–2) | 42,052 | 30,266 | 43,790 |
+
+The track runs end to end, and the sharing gain is about the same on the stronger base. The transaction detector's advantage at transaction level (P6) carries only slightly into scheme-level linked detection at S0; the pooled oracle+ gains more (+0.03 HI, +0.10 LI).
+
+**Nothing left to record before the frozen commit.** The A25 results page (`finmesh a25-report`) is built and tested, so no code needs to change between the Large openings.
 
 ## Order of work and sign-offs
 

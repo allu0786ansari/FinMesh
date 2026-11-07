@@ -299,6 +299,12 @@ def test_large_runner_extras_flag_noart_and_case_quality(
     )
     assert n["feature_set"] == "no_artefacts" and not n["sweeps"] and n["audit"] is None
     assert set(n["per_seed"][0]["linked"]) == set(sealed_runs.NOART_CONFIGS)
+    from finmesh.eval.a25_report import main_rows, noart_rows
+
+    labels = [row[0] for row in main_rows(r)]
+    assert "H1a-L" in labels and any(x.startswith("Case quality") for x in labels)
+    assert any(x.startswith("Protected flag S1F[eps=2]") for x in labels)
+    assert [row[0] for row in noart_rows(n)] == ["H1a-L-noart"]
     log = read_access_log(fixture_paths)[before:]
     assert [e["purpose"].startswith("week 18: X1") for e in log] == [True, True]
     assert len({e["config_hash"] for e in log}) == 2  # the artefact-free track opens separately
@@ -465,6 +471,19 @@ def test_plus_track_validation_and_test(
         "X1-plus"
     )
 
+    # The A25 results page reads the track's artifact.
+    from finmesh.eval.a25_report import plus_rows, write_a25_results
+    from finmesh.eval.provenance import Stamp, write_artifact
+
+    assert plus_rows(r)[0][0] == "H1a-L+"
+    stamp = Stamp(kind="x1-test", dataset=fixture_paths.name, manifest_hash="-", fixture=True,
+                  split="test", params={})  # fmt: skip
+    write_artifact(tmp_path / "w18" / f"x1_test_{fixture_paths.name}_plus.json", stamp, r)
+    page = write_a25_results(tmp_path / "w18", tmp_path / "a25", tmp_path / "R.md",
+                             (fixture_paths.name, "HI-Large-W16"))  # fmt: skip
+    text = page.read_text()
+    assert "H1a-L+" in text and "Not run yet." in text
+
 
 def test_preflight_reads_the_a25_plan_for_large_windows(tmp_path: Path) -> None:
     from finmesh.eval.test_plan import A25_PLAN, PLAN, frozen_commit, plan_for
@@ -479,3 +498,61 @@ def test_preflight_reads_the_a25_plan_for_large_windows(tmp_path: Path) -> None:
     assert frozen_commit(doc) == "abc1234"
     doc.write_text("**Frozen commit:** 0123abcd\\n")
     assert frozen_commit(doc) == "0123abcd"
+
+
+def test_large_narrative_path_export_on_test_and_n4_render(
+    monkeypatch: pytest.MonkeyPatch,
+    fixture_paths: Any,
+    ingested: object,
+    tmp_path: Path,
+    data_env: Path,
+) -> None:
+    """The Large windows' narrative: export from the saved test tables (one logged
+    opening), the remote model run, the N4 render, and the file the results page reads."""
+    import json as _json
+
+    from finmesh.attribution import narrative_cases as nc
+    from finmesh.cli import main
+    from finmesh.eval import sealed
+    from finmesh.eval.a25_report import narrative_rows
+    from finmesh.eval.g0 import run_g0
+    from finmesh.training import sealed_runs
+    from finmesh.training.x6 import attribute, load_catalogue
+    from tests.unit.test_week14 import _table
+
+    run_g0(fixture_paths)
+    t = _table()
+    proba: dict[str, Any] = {}
+    attribute(t, "S2", 0, load_catalogue(), proba)
+    proba0: dict[str, Any] = {}
+    attribute(t, "S0", 0, load_catalogue(), proba0)
+    tables = {"S0": {"table": t, **proba0}, "S2": {"table": t, **proba}}
+    monkeypatch.setattr(sealed_runs, "test_dir", lambda p, o: tmp_path / "test")
+    sealed_runs._save(tmp_path / "test" / "narrative_inputs.pkl",
+                      {"val": tables, "test": tables, "seed": 0})  # fmt: skip
+    opened: list[int] = []
+    monkeypatch.setattr(sealed, "open_sealed_test", lambda *a, **k: opened.append(1))
+    monkeypatch.setattr(sealed, "EvalStore", lambda *a, **k: None)
+    monkeypatch.setattr(sealed, "opened_before", lambda *a, **k: None)
+
+    bundle = nc.export_cases(fixture_paths, n=20, protocol="A25N", split="test")
+    assert "error" not in bundle and bundle["split"] == "test" and len(opened) == 1
+
+    def model(prompt: str, fmt: Any) -> str:
+        import re
+
+        m = re.search(r'"typology_id" to "([^"]+)"', prompt) or re.search(
+            r'"typology_id": "([^"<]+)"\}', prompt
+        )
+        tid = m.group(1) if m else "UNATTRIBUTED"
+        return _json.dumps({"narrative": "Linked.", "cited_fields": ["case_members"],
+                            "typology_id": tid})  # fmt: skip
+
+    res = nc.run_cases(bundle, model, "qwen3:8b")
+    path = tmp_path / "result_qwen3-8b.json"
+    path.write_text(_json.dumps(res, default=str))
+    assert main(["narrative-render", "--result", str(path), "--select"]) == 0
+    art = data_env / "artifacts" / "a25" / f"narrative_{fixture_paths.name}_test_qwen3-8b_N4.json"
+    assert art.exists()
+    rows = narrative_rows(_json.loads(art.read_text()))
+    assert rows[0][0] == "H3b (N4, chosen)"

@@ -2071,6 +2071,20 @@ def cmd_test_report(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_a25_report(args: argparse.Namespace) -> int:
+    """A25: the Large confirmation's rules decided on its sealed tests, one page."""
+    from finmesh.eval.a25_report import LARGE, write_a25_results
+
+    root = data_root() / "artifacts"
+    page = write_a25_results(
+        root / "week18", root / "a25", REPO_ROOT / "docs" / "eval" / "a25" / "RESULTS_LARGE.md",
+        tuple(args.datasets.split(",")) if args.datasets else LARGE,
+    )  # fmt: skip
+    print(page.read_text())
+    print(f"  report   {page}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="finmesh", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -2394,6 +2408,10 @@ def build_parser() -> argparse.ArgumentParser:
     pv.add_argument("--compare", action=argparse.BooleanOptionalAction, default=True,
                     help="also run the current detector on the same seeds")  # fmt: skip
     pv.set_defaults(func=cmd_plus_validation)
+
+    ar = sub.add_parser("a25-report", help="A25: the Large confirmation's results page")
+    ar.add_argument("--datasets", default="", help="default: HI-Large-W16,LI-Large-W16")
+    ar.set_defaults(func=cmd_a25_report)
 
     bt = sub.add_parser("benchmark-table", help="A25 P6: table over the benchmark runs")
     bt.set_defaults(func=cmd_benchmark_table)
