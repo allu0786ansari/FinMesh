@@ -218,6 +218,32 @@ A table comparing what is shared, the privacy mechanism, the data and the evalua
 
 None of these evaluates on a sealed, pre-registered test, which is this project's clearest methodological difference.
 
+## Selections made on validation (7 Nov, by the rules above)
+
+**P3, protected flag: `S1F[gate=2]`** (`docs/eval/a25/flag_selection.md`). Every candidate was within the H1c margin on every assessable target of both Medium sets. The rule took the largest mean share of plain S1's gain: 1.010 (HI 1.007, LI 1.014). Plain S1 itself missed the margin on LI-Medium validation (A3 fan-in), as it did on the week-18 test; every protected candidate passed. Attacks are measured on seed 0 only, so the margin check carries that uncertainty. The Large runs use `test-x1 --flag "S1F[gate=2]"`.
+
+**P5, narrative: N4, select-then-template on `qwen3:8b`** (`docs/eval/a25/narrative_HI-Medium_val_*.md`).
+
+| Candidate | Strict grounding, first replies | H3b |
+| --- | --- | --- |
+| N0 `llama3.2:3b` | 0.125 | 0.955 |
+| N1 `qwen2.5:7b` | 0.100 | 0.965 |
+| N2 `llama3.1:8b` | 0.055 | 0.990 |
+| N3 `qwen3:8b` | **0.215** | 0.980 |
+| N4 on N3 (`qwen3:8b`) | **0.830** | 0.985 |
+
+1. The best free-text candidate is N3 (rule 1), so N4 is built from N3's replies.
+2. N4's strict grounding (0.830) is at least N3's (0.215), so N4 is chosen (rule 3).
+3. N4 built on N2's replies would score 0.985. It is reported as secondary and not chosen: the rule builds N4 on the best free-text model.
+
+All four free-text models fail strict grounding mainly by citing more than four fields: only 13–29% of first replies cite one to four. The larger models do not fix that.
+
+*Implementation fix before selection (7 Nov).* N4 rewrote the text from the model's first four cited fields but still checked the model's full citation list, so any reply citing more than four fields failed. N4's design is that the model selects at most four, so the check now sees the four it kept. This was found on validation, before the freeze, and fixed in code with a test.
+
+*Known limitation, reported.* The claim checker does not read negation for cycles and treats some evidence labels as claims. For example, "max short cycles through one account: 0, no cycle" counts as an unsupported cycle claim. That accounts for most of N4's remaining strict failures (31 of 34 on N3's replies). The check is unchanged, because it is frozen for every candidate. Those cases fall back to the plain template, so the analyst still sees checked text.
+
+**Still to record before the frozen commit:** the P4 budget ceiling (both owners), the P6 adequacy outcome (Medium benchmark runs), and the LLM-judge ratings of the 30-case sheet for each candidate (reported, not part of the rule).
+
 ## Order of work and sign-offs
 
 1. **Owner signs this plan.** Then the code for P1 (Large window cut and runs), P2, P3, P4, P5 (scope rule and model switch) and P6.

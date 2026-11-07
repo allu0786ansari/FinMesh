@@ -245,7 +245,9 @@ def _rebuild(
         raw = att.get("raw") or ""
     else:
         cited = [f for f in reply.get("cited_fields") or [] if isinstance(f, str)]
-        reply["narrative"] = _selected_text(case, cited[:4])
+        selected = list(dict.fromkeys(cited))[:4]  # N4: the model selects at most 4 fields
+        reply["cited_fields"] = selected
+        reply["narrative"] = _selected_text(case, selected)
         raw = json.dumps(reply)
     res: dict[str, Any] = {"raw": raw}
     res.update(nar.check_reply(raw, case["assigned"], fields, known, allowed, catalogue))

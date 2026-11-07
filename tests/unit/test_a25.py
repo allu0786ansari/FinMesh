@@ -220,6 +220,14 @@ def test_narrative_export_run_and_select_then_template(
         ev = {e["field"]: e["value"] for e in c["evidence"]}
         assert scope_check(c["narrative"], ev)["scope_ok"]
         assert c["final_consistent"]
+    # N4: the model selects at most four fields; a longer citation list is cut to four.
+    c0 = r["cases"][0]
+    shown = [e["field"] for e in nar.shown(c0)]
+    reply = _json.loads(c0["first"]["raw"])
+    reply["cited_fields"] = shown + shown
+    long = {**r, "cases": [{**c0, "first": {**c0["first"], "raw": _json.dumps(reply)}}]}
+    f0 = select_then_template(long, load_catalogue())["cases"][0]["first"]
+    assert len(shown) > 4 and f0["cited_fields"] == shown[:4] and f0["cites_ok"]
     again = run_cases(bundle, lambda *_: (_ for _ in ()).throw(AssertionError), "fake:1b", ckpt)
     assert len(again["cases"]) == 20  # resumed from the checkpoint, no new call
     assert nar.PROTOCOLS[-1] == "A25N"

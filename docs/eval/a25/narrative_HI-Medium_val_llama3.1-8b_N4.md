@@ -6,7 +6,7 @@ Level S2, seed 0; 200 detected validation schemes sampled by pattern (up to 25 e
 
 | Item | Validation |
 | --- | --- |
-| Grounded first replies [95% Wilson CI] | 0.9900 [0.9643, 0.9973] |
+| Grounded first replies [95% Wilson CI] | 1.00 [0.9812, 1.0000] |
 | Target | 0.9500 |
 | Met on validation | yes |
 
@@ -18,12 +18,12 @@ Strict = H3b, plus 1 to 4 cited fields, every number in the narrative taken from
 
 | Item | Validation |
 | --- | --- |
-| Strictly grounded first replies [95% Wilson CI] | 0.1400 [0.0987, 0.1949] |
-| First reply cites 1 to 4 fields | 14.5% |
+| Strictly grounded first replies [95% Wilson CI] | 0.9850 [0.9568, 0.9949] |
+| First reply cites 1 to 4 fields | 100.0% |
 | First reply names no outside typology | 100.0% |
 | Replies that arrived (no timeout or error) | 200 of 200 |
-| H3b among replies that arrived | 99.0% |
-| Strict among replies that arrived | 14.0% |
+| H3b among replies that arrived | 100.0% |
+| Strict among replies that arrived | 98.5% |
 | Delivered text names no outside typology | 100.0% |
 
 ## Claim consistency (A23)
@@ -64,12 +64,12 @@ Cross-fitted attributor, seed 0, all 551 pattern-labelled validation schemes; en
 | --- | --- |
 | First reply: valid JSON | 100.0% |
 | First reply: typology as shown | 100.0% |
-| First reply: cited fields all real | 99.0% |
+| First reply: cited fields all real | 100.0% |
 | First reply: cites at least one field | 100.0% |
 | First reply: every number appears in the prompt | 100.0% |
 | Retried (schema-constrained) | 94.5% |
 | Retry grounded | 100.0% |
-| Template fallback | 1.5% |
+| Template fallback | 0.5% |
 | Final text: numbers all from the prompt | 100.0% |
 | Cases with a call error | 0 |
 | Latency per case, p50 / p95 / max | 13.2 / 20.5 / 25.9 s (target p95 ≤ 30 s) |
@@ -102,36 +102,22 @@ Cross-fitted attributor, seed 0, all 551 pattern-labelled validation schemes; en
 
 | Pattern | Cases | Labelled | Labelled correctly | Grounded first replies |
 | --- | --- | --- | --- | --- |
-| BIPARTITE | 25 | 0 | 0 | 96.0% |
+| BIPARTITE | 25 | 0 | 0 | 100.0% |
 | CYCLE | 25 | 0 | 0 | 100.0% |
 | FAN-IN | 25 | 0 | 0 | 100.0% |
 | FAN-OUT | 25 | 0 | 0 | 100.0% |
 | GATHER-SCATTER | 25 | 0 | 0 | 100.0% |
 | RANDOM | 25 | 0 | 0 | 100.0% |
 | SCATTER-GATHER | 25 | 0 | 0 | 100.0% |
-| STACK | 25 | 0 | 0 | 96.0% |
+| STACK | 25 | 0 | 0 | 100.0% |
 
 ## Example cases
 
 ### An unattributed case written by the model
 
-- Scheme 1687: true pattern **BIPARTITE**; shown to the analyst: **UNATTRIBUTED** (top candidates: BIPARTITE 0.82, GATHER-SCATTER 0.10, STACK 0.07).
-- First reply: json yes, typology yes, cited yes, numeric yes; final text from **first**; 11.1 s.
-- Cited fields: `own_max_amount_in`, `case_accounts`, `others_amt_out`, `others_pass_through`.
-
-> The linked case holds 2 accounts at 2 federation members over 6 hours, of which 1 are at your bank. The pattern is unattributed; candidates to check: BIPARTITE, GATHER-SCATTER, STACK. Key evidence: max amount received by one account in a window (at your bank): 13,989; accounts in the linked case (linked case): 2; amount paid out (other members' records (highest bucket)): at least 10,000, below 100,000; share of incoming money paid out again (other members' records (highest bucket)): below 0.2, under half passed on.
-
-Review actions (from the catalogue, not the model):
-
-1. Map both groups and the links between them
-1. Treat the central account as a possible collection point
-1. Reconstruct the layers across banks
-
-### A case whose first reply failed the check
-
 - Scheme 1365: true pattern **BIPARTITE**; shown to the analyst: **UNATTRIBUTED** (top candidates: BIPARTITE 0.97, STACK 0.02, FAN-IN 0.01).
-- First reply: json yes, typology yes, cited yes, numeric yes; final text from **retry**; 21.5 s.
-- Cited fields: `own_max_amount_in`, `case_accounts`, `others_fan_out`, `others_tx_out`, `others_amt_out`.
+- First reply: json yes, typology yes, cited yes, numeric yes; final text from **first**; 21.5 s.
+- Cited fields: `own_max_amount_in`, `case_accounts`, `others_fan_out`, `others_tx_out`.
 
 > The linked case holds 2 accounts at 2 federation members over 6 hours, of which 1 are at your bank. The pattern is unattributed; candidates to check: BIPARTITE, STACK, FAN-IN. Key evidence: max amount received by one account in a window (at your bank): 15,957; accounts in the linked case (linked case): 2; distinct payees (other members' records (highest bucket)): at least 1, below 2, one payee; outgoing transfers (other members' records (highest bucket)): at least 1, below 2, one outgoing transfer.
 
@@ -140,5 +126,19 @@ Review actions (from the catalogue, not the model):
 1. Map both groups and the links between them
 1. Reconstruct the layers across banks
 1. Identify the senders and whether they share attributes
+
+### A case whose first reply failed the check
+
+- Scheme 1569: true pattern **BIPARTITE**; shown to the analyst: **UNATTRIBUTED** (top candidates: STACK 1.00, CYCLE 0.00, SCATTER-GATHER 0.00).
+- First reply: json yes, typology yes, cited yes, numeric yes; final text from **retry**; 10.5 s.
+- Cited fields: `own_accounts`, `own_max_amount_in`, `own_max_amount_out`, `own_mean_cross_bank_share`.
+
+> The linked case holds 2 accounts at 2 federation members over 48 hours, of which 1 are at your bank. The pattern is unattributed; candidates to check: STACK, CYCLE, SCATTER-GATHER. Key evidence: case accounts at your bank (at your bank): 1; max amount received by one account in a window (at your bank): 31,399; max amount paid out by one account in a window (at your bank): 15,703; accounts in the linked case (linked case): 2.
+
+Review actions (from the catalogue, not the model):
+
+1. Reconstruct the layers across banks
+1. Reconstruct the full chain across banks
+1. Link the intermediate accounts as one case
 
 Every case (prompt size, raw replies, checks, final text) is in `narrative_HI-Medium_A25N_cases.jsonl`.

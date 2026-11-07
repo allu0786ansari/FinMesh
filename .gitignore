@@ -36,3 +36,8 @@ Thumbs.db
 # Secrets
 .env
 kaggle.json
+
+# Windows download markers and Colab bundles
+*:Zone.Identifier
+finmesh_src.zip
+result_*.partial.json
