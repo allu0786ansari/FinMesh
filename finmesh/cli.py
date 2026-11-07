@@ -1531,6 +1531,30 @@ def cmd_flag_frontier(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_budget_replay(args: argparse.Namespace) -> int:
+    """A25 P4: adaptive token budget replayed on the saved X1 test runs (no new opening)."""
+    from finmesh.eval.provenance import write_artifact
+    from finmesh.training.budget_replay import render, run_budget_replay
+
+    paths = dataset_paths(args.dataset)
+    r = run_budget_replay(
+        paths,
+        args.option,
+        _ints(args.seeds) if args.seeds else None,
+        cap=args.cap,
+        recompute_validation=not args.no_validation,
+        progress=lambda m: print(f"  {m}"),
+    )
+    art, out = _a25_out(paths.name)
+    tag = paths.name + (f"_cap{args.cap}" if args.cap else "")
+    stamp = _stamp(paths, "budget-replay", {"option": args.option, "cap": args.cap})
+    stamp.split = "test (saved X1 runs: token counts and audit rows; no new opening)"
+    write_artifact(art / f"budget_replay_{tag}.json", stamp, r)
+    (out / f"budget_replay_{tag}.md").write_text(render(r) + "\n")
+    print(f"  report   {out / f'budget_replay_{tag}.md'}")
+    return 0
+
+
 def cmd_flag_select(args: argparse.Namespace) -> int:
     """A25 P3: the frozen selection rule over the Medium validation frontiers."""
     from finmesh.eval.provenance import read_artifact
@@ -1728,9 +1752,11 @@ def cmd_test_x1(args: argparse.Namespace) -> int:
         x6=not args.no_x6,
         allow_repeat=args.allow_repeat,
         progress=lambda m: print(f"  {m}"),
+        flags=tuple(args.flag or ()),
+        feature_set="no_artefacts" if args.noart else "all",
     )
     art, out = _test_out(paths)
-    name = option_tag(paths.name, args.option)
+    name = option_tag(paths.name, args.option) + ("_noart" if args.noart else "")
     artifact = write_artifact(
         art / f"x1_test_{name}.json", _stamp(paths, "x1-test", params), result
     )
@@ -2210,6 +2236,16 @@ def build_parser() -> argparse.ArgumentParser:
     fs.add_argument("--datasets", default="HI-Medium,LI-Medium")
     fs.set_defaults(func=cmd_flag_select)
 
+    br = sub.add_parser("budget-replay", help="A25 P4: adaptive token budget replay")
+    br.add_argument("--dataset", required=True)
+    br.add_argument("--option", default="B8")
+    br.add_argument("--seeds", default="", help="default: every saved X1 test seed")
+    br.add_argument("--cap", type=int, default=None, help="report a ceiling as well")
+    br.add_argument(
+        "--no-validation", action="store_true", help="skip recomputing validation history"
+    )
+    br.set_defaults(func=cmd_budget_replay)
+
     sb = sub.add_parser("size-budget", help="A25 P1: A16 token budget from validation traffic")
     sb.add_argument("--dataset", required=True)
     sb.add_argument("--option", default="B8")
@@ -2261,6 +2297,14 @@ def build_parser() -> argparse.ArgumentParser:
     tx.add_argument("--no-sweeps", action="store_true", help="skip the S3 and PD sweeps")
     tx.add_argument("--no-audit", action="store_true", help="skip the leakage audit")
     tx.add_argument("--no-x6", action="store_true", help="skip X6 attribution")
+    tx.add_argument(
+        "--flag",
+        action="append",
+        help="A25 P3: the protected-flag configuration chosen on validation",
+    )
+    tx.add_argument(
+        "--noart", action="store_true", help="A25 P1: the artefact-free track (its own opening)"
+    )
     tx.add_argument(
         "--allow-repeat",
         action="store_true",

@@ -24,7 +24,7 @@ from __future__ import annotations
 import hashlib
 import pickle
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -284,7 +284,16 @@ def run_baselines_test(
 
 
 # --------------------------------------------------------------------------- X1 (+ X6)
-def x1_config(paths: DatasetPaths, option: str, x6: bool) -> dict[str, Any]:
+NOART_CONFIGS: frozenset[str] = frozenset(
+    {"S0", "S1/stacker", "S2/stacker", "oracle", "oracle-relational"}
+)  # A25 P1: the artefact-free track
+
+
+def x1_config(
+    paths: DatasetPaths, option: str, x6: bool, feature_set: str = "all"
+) -> dict[str, Any]:
+    if feature_set != "all":
+        return {"experiment": "X1-noart", "dataset": paths.name, "option": option}
     return {"experiment": "X1+X6" if x6 else "X1", "dataset": paths.name, "option": option}
 
 
@@ -302,8 +311,12 @@ def run_x1_test_seed(
     x6: bool = False,
     keep_tables: bool = False,
     random_reference: bool = False,
+    flags: Collection[str] = (),
+    feature_set: str = "all",
 ) -> dict[str, Any]:
-    """One seed of X1 (and X6 on the same scores) on test. See the module docstring."""
+    """One seed of X1 (and X6 on the same scores) on test. See the module docstring.
+    A25: ``flags`` adds the chosen protected-flag configuration(s); ``feature_set``
+    "no_artefacts" trains every model without the artefact features."""
     from finmesh.training.x1 import _evaluate, _phase, _random_reference, _train
     from finmesh.training.x6 import (
         LEVELS,
@@ -321,11 +334,28 @@ def run_x1_test_seed(
         if meter is not None:
             memory[phase] = meter.lap()
 
-    t, seconds = _train(paths, option, seed, audit, lap)
+    t, seconds = _train(paths, option, seed, audit, lap, feature_set)
     # Validation: the frozen run, plus everything fitted on all of it for the test.
-    val = _phase(paths, option, seed, t, "val", seconds, lap, sweeps, False, only, fit_fusion=True)
+    val = _phase(
+        paths,
+        option,
+        seed,
+        t,
+        "val",
+        seconds,
+        lap,
+        sweeps,
+        False,
+        only,
+        fit_fusion=True,
+        flags=flags,
+    )
     fusion = val.fitted
     assert fusion is not None
+    tokens_val = [  # A25 P4: validation use, the history the adaptive budget replays from
+        {"bank": int(b), "epoch": int(e), "used": int(u)}
+        for (b, e), u in sorted(val.tokens.service.used.items())
+    ]
     levels6 = tuple(LEVELS) if x6 else ()
     catalogue = load_catalogue() if x6 else {}
     val_tables: dict[str, Any] = {}
@@ -347,14 +377,27 @@ def run_x1_test_seed(
     lap("val:done")
 
     # Test: label-free scores, fixed before the opening.
-    test = _phase(paths, option, seed, t, "test", seconds, lap, sweeps, audit, only, fusion=fusion)
+    test = _phase(
+        paths,
+        option,
+        seed,
+        t,
+        "test",
+        seconds,
+        lap,
+        sweeps,
+        audit,
+        only,
+        fusion=fusion,
+        flags=flags,
+    )
     names = test.names(only)
     from finmesh.matching.tokens import token_budget
 
     tokens_used = token_shortfall(dict(test.tokens.service.used), token_budget(paths.name))
     scores = {n: test.score_of(n) for n in names}
     digest = scores_digest(test.keys, scores)
-    config = x1_config(paths, option, x6)
+    config = x1_config(paths, option, x6, feature_set)
     part = opener(
         config,
         seed,
@@ -417,6 +460,7 @@ def run_x1_test_seed(
         "auprc": auprc,
         "scores_sha256": digest,
         "token_use": tokens_used,
+        "token_use_val": tokens_val,
         "x6": x6_out,
         "narrative": narrative,
         "random": random_ref,
@@ -435,12 +479,23 @@ def run_x1_test(
     x6: bool = True,
     allow_repeat: bool = False,
     progress: Callable[[str], None] | None = None,
+    flags: Collection[str] = (),
+    feature_set: str = "all",
 ) -> dict[str, Any]:
     """X1 (and X6) on test: every configuration on ``other_seeds``, the headline ones on
     ``headline_seeds`` too. The audit, the random reference and the narrative's tables
-    come from the first seed."""
+    come from the first seed.
+
+    A25: ``flags`` adds the protected-flag configuration chosen on validation (P3);
+    ``feature_set="no_artefacts"`` runs the artefact-free track (P1: S0, S1, S2 and the
+    oracles without the artefact features, seeds ``other_seeds``, no audit, no X6) as an
+    experiment and opening of its own."""
     from finmesh.training import x6 as x6mod
-    from finmesh.training.x1 import combine
+    from finmesh.training.x1 import _recovery, _Stack, case_quality, combine
+
+    noart = feature_set != "all"
+    if noart:
+        headline_seeds, audit, x6, sweeps = (), False, False, False
 
     if x6 and not sweeps:
         raise ValueError("X6 needs S3 at eps = 2 from the sweeps; drop --no-sweeps or add --no-x6")
@@ -453,14 +508,16 @@ def run_x1_test(
     per_seed: list[dict[str, Any]] = []
     with AnonPeak() as anon:
         for seed in seeds:
-            ckpt = out_dir / f"x1_seed{seed}.pkl"
+            ckpt = out_dir / f"{'x1noart' if noart else 'x1'}_seed{seed}.pkl"
             if ckpt.exists():
                 per_seed.append(_load(ckpt))
                 if progress:
                     progress(f"seed {seed}: kept from {ckpt.name}")
                 continue
             full = seed in other_seeds
-            refuse_if_opened(paths, x1_config(paths, option, x6 and full), seed, allow_repeat)
+            refuse_if_opened(
+                paths, x1_config(paths, option, x6 and full, feature_set), seed, allow_repeat
+            )
             r = run_x1_test_seed(
                 paths,
                 option,
@@ -471,10 +528,12 @@ def run_x1_test(
                 anon,
                 sweeps=sweeps,
                 audit=audit and seed == first,
-                only=None if full else X1_HEADLINE,
+                only=NOART_CONFIGS if noart else (None if full else X1_HEADLINE),
                 x6=x6 and full,
                 keep_tables=x6 and seed == first,
-                random_reference=seed == first,
+                random_reference=seed == first and not noart,
+                flags=() if noart else flags,
+                feature_set=feature_set,
             )
             if r["narrative"] is not None:
                 _save(out_dir / "narrative_inputs.pkl", r["narrative"])
@@ -484,6 +543,20 @@ def run_x1_test(
             if progress:
                 progress(f"seed {seed}: {r['seconds']['total']:.0f} s")
         summary = combine(per_seed, reps, holm_family=True)
+        summary["case_quality"] = case_quality(
+            per_seed, reps, (("S2/stacker", "S0"), ("S1/stacker", "S0"))
+        )
+        if flags and not noart:
+            stack = _Stack(per_seed)
+            margin = ((per_seed[0].get("audit") or {}).get("H1c") or {}).get("within_margin", {})
+            summary["flag_check"] = {
+                f: {
+                    "share_of_S1_gain": _recovery(stack, f"{f}/stacker", reps, "S1/stacker"),
+                    "within_margin": margin.get(f),
+                }
+                for f in flags
+                if f"{f}/stacker" in stack
+            }
         x6_seeds = [r["x6"] for r in per_seed if r.get("x6")]
         x6_summary = x6mod.combine(x6_seeds, reps) if x6_seeds else None
     base = next(r for r in per_seed if r["seed"] == first)
@@ -494,7 +567,9 @@ def run_x1_test(
         "seeds": seeds,
         "headline_seeds": list(headline_seeds),
         "other_seeds": list(other_seeds),
-        "headline_configurations": sorted(X1_HEADLINE),
+        "headline_configurations": sorted(NOART_CONFIGS if noart else X1_HEADLINE),
+        "feature_set": feature_set,
+        "flags": list(flags),
         "primary_budget": "per_1000_per_day",
         "delay_windows": 12,
         "primary_fusion": "stacker",

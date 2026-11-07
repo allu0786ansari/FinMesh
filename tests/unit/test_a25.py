@@ -212,3 +212,101 @@ def test_narrative_export_run_and_select_then_template(
     again = run_cases(bundle, lambda *_: (_ for _ in ()).throw(AssertionError), "fake:1b", ckpt)
     assert len(again["cases"]) == 20  # resumed from the checkpoint, no new call
     assert nar.PROTOCOLS[-1] == "A25N"
+
+
+def test_large_runner_extras_flag_noart_and_case_quality(
+    fixture_paths: Any, ingested: object, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from finmesh.eval.budgets import Budget
+    from finmesh.eval.g0 import run_g0
+    from finmesh.eval.sealed import read_access_log
+    from finmesh.eval.universe import build_universe
+    from finmesh.features.build import build_features
+    from finmesh.training import sealed_runs, x1
+
+    run_g0(fixture_paths)
+    build_universe(fixture_paths, "B8")
+    build_features(fixture_paths, "B8")
+    build_features(fixture_paths, "B8", view="pooled")
+    monkeypatch.setattr(x1, "PRIMARY", Budget("per_1000_per_day", 300.0))
+    monkeypatch.setattr(x1, "AE_SAMPLE", 3000)
+    monkeypatch.setattr(sealed_runs, "test_dir", lambda p, o: tmp_path / "test")
+    before = len(read_access_log(fixture_paths))
+    r = sealed_runs.run_x1_test(
+        fixture_paths,
+        headline_seeds=(0,),
+        other_seeds=(0,),
+        reps=50,
+        window_reps=20,
+        x6=False,
+        allow_repeat=True,
+        flags=("S1F[eps=2]",),
+    )
+    s = r["summary"]
+    assert "S1F[eps=2]/stacker" in s and r["flags"] == ["S1F[eps=2]"]
+    fc = s["flag_check"]["S1F[eps=2]"]
+    assert fc["within_margin"] in (True, False, None) and "estimate" in fc["share_of_S1_gain"]
+    cq = s["case_quality"]
+    assert {"S0", "S2/stacker"} <= set(cq["configurations"])
+    c0 = cq["configurations"]["S2/stacker"]  # the fixture's test holds one undetected scheme
+    assert c0["completeness"] is None or 0 < c0["completeness"] <= 1
+    assert c0["workload_alerts_per_linked_scheme"] > 0
+
+    n = sealed_runs.run_x1_test(
+        fixture_paths,
+        other_seeds=(0,),
+        reps=50,
+        window_reps=20,
+        allow_repeat=True,
+        feature_set="no_artefacts",
+    )
+    assert n["feature_set"] == "no_artefacts" and not n["sweeps"] and n["audit"] is None
+    assert set(n["per_seed"][0]["linked"]) == set(sealed_runs.NOART_CONFIGS)
+    log = read_access_log(fixture_paths)[before:]
+    assert [e["purpose"].startswith("week 18: X1") for e in log] == [True, True]
+    assert len({e["config_hash"] for e in log}) == 2  # the artefact-free track opens separately
+    assert (tmp_path / "test" / "x1noart_seed0.pkl").exists()
+
+    # P4: the adaptive budget replays the saved run (validation history recorded by it).
+    from finmesh.training import budget_replay
+
+    rp = budget_replay.run_budget_replay(fixture_paths, recompute_validation=False)
+    v = rp["seeds"][0]
+    assert v["with_validation_history"] and v["adaptive"]["bank_epochs"] > 0
+    assert v["adaptive"]["share_refused"] <= v["frozen"]["share_refused"] + 1e-12
+    assert "A1" in v and "ratchet" in v["A1"]
+    assert "Ratchet" in budget_replay.render(rp)
+    recorded = budget_replay.as_use(_ckpt(tmp_path)["token_use_val"])
+    assert budget_replay.validation_token_use(fixture_paths, "B8", 0) == recorded  # week-18 path
+    assert len(read_access_log(fixture_paths)) == before + 2  # the replay opens nothing
+
+
+def _ckpt(tmp_path: Path) -> dict[str, Any]:
+    import pickle
+
+    with (tmp_path / "test" / "x1_seed0.pkl").open("rb") as f:  # this test's own checkpoint
+        return pickle.load(f)  # type: ignore[no-any-return]
+
+
+def test_adaptive_budget_rule_refusals_and_ratchet() -> None:
+    from finmesh.training.budget_replay import adaptive_budgets, ratchet, replay
+
+    use = {(0, 1): 50, (0, 2): 180, (0, 3): 60, (1, 2): 10}
+    b = adaptive_budgets(use, floor=100)
+    assert b == {(0, 1): 100, (0, 2): 100, (0, 3): 360, (1, 2): 100}
+    assert adaptive_budgets(use, 100, cap=200)[(0, 3)] == 200
+    rows = [
+        {"adversary": 0, "targets": 10, "candidates": 1000, "hash": 0.5, "legit_queries": 60},
+        {"adversary": 1, "targets": 10, "candidates": 1000, "hash": 0.5, "legit_queries": 10},
+    ]
+    r = replay({(0, 2): 180, (0, 3): 60, (1, 2): 10}, {(0, 1): 50}, 100, rows)
+    # Frozen: bank 0 epoch 2 asks 180 of 100 -> 80 refused of 250.
+    assert abs(r["frozen"]["share_refused"] - 80 / 250) < 1e-12
+    # Adaptive: epoch 2 budget = max(100, 2 x 50) = 100 -> still 80 refused; epoch 3: 360.
+    assert r["adaptive"]["bank_epochs_over"] == 1
+    # A1: adversary 0's best epoch under adaptive has 360 - 60 = 300 spare -> 0.5 x 0.3.
+    assert abs(r["A1"]["adaptive"]["oprf"] - (0.5 * 0.3 + 0.5 * 0.09) / 2) < 1e-12
+    rt = ratchet(rows, floor=100)
+    assert rt["epochs_to_every_candidate"] == 4  # 100 x 2^4 = 1,600 >= 1,060
+    assert rt["steps"][4]["ratio"] == 1.0  # hashing level: PT2 gone
+    assert ratchet(rows, floor=100, cap=400)["epochs_to_every_candidate"] is None

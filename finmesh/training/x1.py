@@ -26,7 +26,8 @@ Per-scheme outcomes are averaged over seeds before the scheme bootstrap.
 from __future__ import annotations
 
 import time
-from collections.abc import Callable
+import warnings
+from collections.abc import Callable, Collection
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -96,14 +97,21 @@ def flag_runs() -> list[tuple[str, str, dict[str, Any]]]:
     return runs
 
 
-def level_runs(sweeps: bool = True, flags: bool = False) -> list[tuple[str, str, dict[str, Any]]]:
-    """(configuration name, protocol level, parameters) for every protocol run of a seed."""
+def level_runs(
+    sweeps: bool = True, flags: bool | Collection[str] = False
+) -> list[tuple[str, str, dict[str, Any]]]:
+    """(configuration name, protocol level, parameters) for every protocol run of a seed.
+    ``flags``: True adds every protected-flag candidate (A25 P3), a collection only those
+    named (the chosen one, on the Large tests)."""
     runs: list[tuple[str, str, dict[str, Any]]] = [(lv, lv, {}) for lv in SHARING_LEVELS]
     if sweeps:
         runs += [(f"S3[eps={e:g}]", "S3", {"epsilon": e}) for e in EPSILONS]
         runs += [(f"PD[tau={t}]", "PD", {"tau": t}) for t in PD_TAUS]
-    if flags:
+    if flags is True:
         runs += flag_runs()
+    elif flags:
+        wanted = set(flags)
+        runs += [r for r in flag_runs() if r[0] in wanted]
     return runs
 
 
@@ -274,7 +282,12 @@ class _Phase:
 
 
 def _train(
-    paths: DatasetPaths, option: str, seed: int, audit: bool, lap: Callable[[str], None]
+    paths: DatasetPaths,
+    option: str,
+    seed: int,
+    audit: bool,
+    lap: Callable[[str], None],
+    feature_set: str = "all",
 ) -> tuple[_Trained, dict[str, float]]:
     seconds: dict[str, float] = {}
     plan = load_plan(paths)
@@ -282,7 +295,7 @@ def _train(
     feats = FeatureStore(paths, option, "member")
     pooled_f = FeatureStore(paths, option, "pooled")
     windows = training_windows(store, feats)
-    cols = feature_sets()["all"]
+    cols = feature_sets()[feature_set]  # A25 P1: "no_artefacts" for the artefact-free track
     members = sorted(store.accounts_per_member()["member"].to_list())
     t0 = time.perf_counter()
     models = fit_local_models(store, feats, cols, windows, seed, members)
@@ -354,7 +367,7 @@ def _phase(
     only: frozenset[str] | None = None,
     fusion: Fusion | None = None,
     fit_fusion: bool = False,
-    flags: bool = False,
+    flags: bool | Collection[str] = False,
 ) -> _Phase:
     """Score ``partition`` with every configuration.
 
@@ -679,7 +692,7 @@ def run_seed(
     only: frozenset[str] | None = None,
     return_scores: bool = False,
     evaluate_configs: bool = True,
-    flags: bool = False,
+    flags: bool | Collection[str] = False,
 ) -> dict[str, Any]:
     """Every configuration for one seed on validation: scores and per-scheme outcomes.
 
@@ -904,6 +917,66 @@ def combine(seeds: list[dict[str, Any]], reps: int, holm_family: bool = False) -
                 ),
             }
     return summary
+
+
+CASE_METRICS: tuple[str, ...] = ("completeness", "fragmentation", "time_to_link_h")
+
+
+def _finite(v: np.ndarray, how: Callable[[np.ndarray], Any]) -> float | None:
+    v = v[np.isfinite(v)]
+    return float(how(v)) if len(v) else None
+
+
+def case_quality(
+    seeds: list[dict[str, Any]], reps: int, pairs: tuple[tuple[str, str], ...] = ()
+) -> dict[str, Any]:
+    """A25 P2: case-quality metrics per configuration (seed-averaged per scheme), and paired
+    differences with a scheme bootstrap. Completeness and fragmentation are over detected
+    schemes, time to link over linked ones; workload = alerts raised per linked scheme."""
+    names: list[str] = []
+    for r in seeds:
+        names += [n for n in r["outcomes"] if n not in names]
+    per: dict[str, dict[str, np.ndarray]] = {}
+    out: dict[str, Any] = {}
+    for name in names:
+        runs = [r for r in seeds if name in r["outcomes"]]
+        frames = [r["outcomes"][name] for r in runs]
+        if not all(m in frames[0].columns for m in CASE_METRICS):
+            continue
+        cols = {
+            m: np.column_stack([f[m].cast(pl.Float64).fill_null(np.nan).to_numpy() for f in frames])
+            for m in CASE_METRICS
+        }
+        with warnings.catch_warnings():  # a scheme with no value in any seed stays NaN
+            warnings.simplefilter("ignore", RuntimeWarning)
+            means = {m: np.nanmean(v, axis=1) for m, v in cols.items()}
+        per[name] = means
+        linked = [int(f["linked"].sum()) for f in frames]
+        out[name] = {
+            "completeness": _finite(means["completeness"], np.mean),
+            "fragmentation": _finite(means["fragmentation"], np.mean),
+            "time_to_link_h_median": _finite(means["time_to_link_h"], np.median),
+            "workload_alerts_per_linked_scheme": float(
+                np.mean([r["alerts"] / max(n, 1) for r, n in zip(runs, linked, strict=True)])
+            ),
+        }
+    comparisons: dict[str, Any] = {}
+    rng = np.random.default_rng(0)
+    for a, b in pairs:
+        if a not in per or b not in per:
+            continue
+        for m in CASE_METRICS:
+            x, y = per[a][m], per[b][m]
+            ok = np.isfinite(x) & np.isfinite(y)
+            d = x[ok] - y[ok]
+            if not len(d):
+                continue
+            draws = np.array([d[rng.integers(0, len(d), len(d))].mean() for _ in range(reps)])
+            comparisons[f"{a} - {b}: {m}"] = {
+                **interval_from(draws, float(d.mean())).to_dict(),
+                "schemes": int(ok.sum()),
+            }
+    return {"configurations": out, "comparisons": comparisons}
 
 
 def _recovery(
