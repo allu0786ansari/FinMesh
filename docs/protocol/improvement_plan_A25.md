@@ -1,7 +1,7 @@
 # Amendment A25: improvements, confirmed on fresh data
 
-**Status: signed 6 Nov 2026; built and developed on validation (7–8 Nov); ready for the second signature (the frozen commit). No Large data opened.**
-**Signed off by:** Allaudin Ansari· **Date:** 6 Nov 2026 · **Frozen commit (before any Large opening):** — 177b77d
+**Status: signed 6 Nov 2026; built and developed on validation (7–8 Nov); frozen commit signed 8 Nov 2026. No Large data opened before it.**
+**Signed off by:** Allaudin Ansari· **Date:** 6 Nov 2026 · **Frozen commit (before any Large opening):** `177b77d` (signed 8 Nov 2026)
 
 ## Why this amendment exists
 
