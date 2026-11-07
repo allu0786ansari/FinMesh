@@ -1,0 +1,13 @@
+  seed 0: 927 s
+  seed 1: 718 s
+  seed 2: 759 s
+  S1                   share 1.000  within True
+  S1F[eps=0.5]         share 0.991 [0.964, 1.020]  within True
+  S1F[eps=1]           share 0.990 [0.965, 1.017]  within True
+  S1F[eps=2]           share 0.986 [0.962, 1.010]  within True
+  S1F[eps=4]           share 0.992 [0.979, 1.005]  within True
+  S1F[gate=2]          share 1.007 [0.989, 1.025]  within True
+  S1F[gate=3]          share 1.007 [0.986, 1.030]  within True
+  S1F[gate=2,eps=1]    share 0.980 [0.955, 1.008]  within True
+  S1F[gate=2,eps=2]    share 0.985 [0.961, 1.009]  within True
+  report   /home/allu786ansari/FinMesh/docs/eval/a25/flag_frontier_HI-Medium.md
