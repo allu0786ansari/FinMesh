@@ -1,0 +1,15 @@
+  model A seed 0: 549 rounds
+  model A seed 1: 540 rounds
+  model A seed 2: 514 rounds
+  model A seed 3: 269 rounds
+  model A seed 4: 476 rounds
+  model B seed 0: 248 rounds
+  model B seed 1: 261 rounds
+  model B seed 2: 161 rounds
+  model B seed 3: 235 rounds
+  model B seed 4: 115 rounds
+  val: 5,520,883 transactions scored
+  test: 6,890,229 transactions scored
+  model A: test F1 42.67 ± 2.76  val F1 45.03
+  model B: test F1 67.01 ± 2.27  val F1 67.32
+  report   /home/allu786ansari/FinMesh/docs/eval/a25/benchmark_HI-Medium.md

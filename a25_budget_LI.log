@@ -1,0 +1,7 @@
+  seed 0: recomputing validation token use (validation phase only)
+  seed 0: refused 0.21% adaptive, 0.21% frozen
+  seed 1: recomputing validation token use (validation phase only)
+  seed 1: refused 0.00% adaptive, 0.00% frozen
+  seed 2: recomputing validation token use (validation phase only)
+  seed 2: refused 0.00% adaptive, 0.00% frozen
+  report   /home/allu786ansari/FinMesh/docs/eval/a25/budget_replay_LI-Medium_cap4x.md
