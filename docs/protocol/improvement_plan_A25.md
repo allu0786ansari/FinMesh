@@ -60,6 +60,7 @@ Recorded before any model is trained on either window.
 
 - S0, S1, S2, PD at τ ∈ {2, 3, 4}, the oracle and the relational oracle, with the frozen fusion of A13–A14 and A24a.
 - Plus the artefact-free versions **S0-noart, S1-noart, S2-noart and oracle-noart**: the same pipeline without the 7 payment-format shares and `self_tx`.
+- Plus the protected flag chosen on validation (P3, `S1F[gate=2]`), and the stronger-detector track **S0+, S2+, oracle+** (P6 adequacy; see "Selections made on validation").
 - Parameters are fitted on the Large window's own validation partition, exactly as A24/A24a did for Medium.
 
 **Seeds:** headline configurations 0–4, others 0–2. The audit runs on seed 0.
@@ -242,7 +243,47 @@ All four free-text models fail strict grounding mainly by citing more than four 
 
 *Known limitation, reported.* The claim checker does not read negation for cycles and treats some evidence labels as claims. For example, "max short cycles through one account: 0, no cycle" counts as an unsupported cycle claim. That accounts for most of N4's remaining strict failures (31 of 34 on N3's replies). The check is unchanged, because it is frozen for every candidate. Those cases fall back to the plain template, so the analyst still sees checked text.
 
-**Still to record before the frozen commit:** the P4 budget ceiling (both owners), the P6 adequacy outcome (Medium benchmark runs), and the LLM-judge ratings of the 30-case sheet for each candidate (reported, not part of the rule).
+**P4, adaptive budget: not adopted; the protocol keeps the frozen A16 budget** (both owners, 7 Nov; `docs/eval/a25/budget_replay_*_cap4x.md`). Replay of the week-18 test runs, seeds 0–2, validation history included:
+
+| | HI-Medium | LI-Medium |
+| --- | --- | --- |
+| Legitimate requests refused, frozen A16 | 20.4–21.3% | 0–0.2% |
+| Refused, adaptive (cap 4 × A16) | 12.8–13.9% (target < 1%: **missed**) | 0–0.2% (met) |
+| PT2, frozen A16 → adaptive | 19.9 → 4.2 | 8.6 → 4.7 |
+| PT2 after a bank spends its full budget for 2 epochs (capped) | 2.0 | 1.5 |
+
+The rule fails on both counts. Busy test days needed more than twice the previous epoch's use, so refusals stay high on HI-Medium. Any budget large enough for them gives an attacking bank proportionally more room, so PT2 falls below 10. Reported as a negative design result: under this threat model, per-epoch metering alone cannot both serve busy days and keep re-identification low. The Large runs serve every request (A24a) and report the frozen budget's shortfall and this replay (`budget-replay --cap-factor 4`).
+
+**P6, adequacy: triggered on HI-Medium; the stronger-detector track is added** (both owners, 7 Nov; `docs/eval/a25/benchmark_*.md`).
+
+| Minority-class F1 (%), test | HI-Medium | LI-Medium |
+| --- | --- | --- |
+| A · our pooled detector (account-window LightGBM, max of the two accounts) | 42.67 ± 2.76 | 24.08 ± 2.01 |
+| B · transaction LightGBM, own fields + both accounts' 47 features | **67.01 ± 2.27** | **34.34 ± 1.55** |
+| LightGBM + graph features (published) | 59.48 | 20.85 |
+| XGBoost + graph features (published) | 65.70 | 28.16 |
+| Multi-PNA + EU (published) | 66.48 | 36.07 |
+
+1. Model A's validation F1 was 45.03 on HI-Medium against 59.48: 14.45 points below, more than 5, so the rule is triggered. On LI-Medium it was +3.07 above (not triggered).
+2. Model B, built from the rule's own ingredients (the transaction's own fields on top of our features), is above every published model on HI-Medium and above both gradient-boosting baselines on LI-Medium.
+3. The gap is therefore in mapping account-window scores onto transactions, not in the features.
+
+**The stronger-detector track (S0+, S2+, oracle+), fixed now** (`finmesh/training/txdetector.py`):
+
+- **Detector.** Model B's design, scored per side. One row per (transaction, side held at the scoring member): the transaction's fields, the side's role, the own account's account-window features, and the counterparty's features.
+  - **S0+**: one model per member on its own rows, member view. The counterparty's features are used only when the same member holds it.
+  - **oracle+**: one pooled model with pooled features for both accounts.
+  - Training: transaction labels of the training partition after the burn-in, with G0's evaluation mask. Negatives subsampled at 5% and weighted back; early stopping on the end of training.
+- **Account-window score:** the largest side score in the window. It replaces the account-window LightGBM everywhere in the ladder (calibration, A13 alerts, records, sharing levels, stackers, the relational oracle). Nothing else changes.
+- **Configurations:** S0+, S2+, oracle+ and the relational oracle+. Seeds 0–2, no audit, no sweeps, no X6. Its own experiment (`X1-plus`) and opening per dataset and seed (`test-x1 --plus`).
+- **Rules, each Large dataset:**
+  - **H1a-L+**: S2+ − S0+ linked detection, paired 95% CI above 0.
+  - **H1b-L+**: S2+ ≥ 0.60 of the relational oracle+'s gain over S0+, if oracle+ − S0+ meets the G1 criterion.
+- **Validation check before the freeze:** `finmesh plus-validation` on HI-Medium and LI-Medium, next to the current detector on the same seeds. It is reported, not tuned: the design above is fixed.
+
+**LLM-judge ratings (reported, 7 Nov; `docs/eval/a25/narrative_judge_A25N.md`):** delivered text was faithful on the 30-case sheet in 70% (N0), 87% (N1), 97% (N2), 77% (N3) and **100% (N4, chosen)** of cases, against 33% for A23 in week 18. Of the texts the models wrote themselves, 50%, 64%, 93% and 65% were faithful.
+
+**Still to record before the frozen commit:** the `plus-validation` results (reported).
 
 ## Order of work and sign-offs
 

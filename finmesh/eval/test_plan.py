@@ -30,6 +30,14 @@ from finmesh.features.variants import DEFAULT_DEGREE_CAP
 from finmesh.paths import REPO_ROOT, DatasetPaths, data_root
 
 PLAN = REPO_ROOT / "docs" / "protocol" / "test_plan.md"
+A25_PLAN = REPO_ROOT / "docs" / "protocol" / "improvement_plan_A25.md"  # the Large openings
+
+
+def plan_for(paths: DatasetPaths) -> Path:
+    """The signed plan that governs a dataset's test openings."""
+    return A25_PLAN if "Large" in paths.name else PLAN
+
+
 RUNS: tuple[str, ...] = ("x1", "baselines", "x5", "ensemble", "narrative")
 
 
@@ -37,7 +45,7 @@ def frozen_commit(plan: Path = PLAN) -> str | None:
     """The commit the owner signed in the test plan (``**Frozen commit:** <sha>``)."""
     if not plan.exists():
         return None
-    m = re.search(r"\*\*Frozen commit:\*\*\s*`?([0-9a-f]{7,40})`?", plan.read_text())
+    m = re.search(r"\*\*Frozen commit[^*:]*:\*\*\s*`?([0-9a-f]{7,40})`?", plan.read_text())
     return m.group(1) if m else None
 
 
@@ -100,10 +108,11 @@ def preflight(
         lines.append(f"[{mark}] {text}")
 
     head = git_commit()
-    frozen = frozen_commit()
+    plan = plan_for(paths)
+    frozen = frozen_commit(plan)
     check(_clean_tree(), "working tree clean (no uncommitted change to tracked files)")
     if frozen is None:
-        check(None, f"HEAD {head[:12]}; no frozen commit signed in {PLAN.name} yet", False)
+        check(None, f"HEAD {head[:12]}; no frozen commit signed in {plan.name} yet", False)
     else:
         changed = code_changes_since(frozen)
         detail = "unknown" if changed is None else (", ".join(changed[:5]) or "none")
@@ -161,4 +170,4 @@ def preflight(
     return {"ok": ok, "lines": lines}
 
 
-__all__ = ["PLAN", "RUNS", "frozen_commit", "preflight"]
+__all__ = ["A25_PLAN", "PLAN", "RUNS", "frozen_commit", "plan_for", "preflight"]

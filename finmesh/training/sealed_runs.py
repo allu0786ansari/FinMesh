@@ -287,11 +287,16 @@ def run_baselines_test(
 NOART_CONFIGS: frozenset[str] = frozenset(
     {"S0", "S1/stacker", "S2/stacker", "oracle", "oracle-relational"}
 )  # A25 P1: the artefact-free track
+PLUS_CONFIGS: frozenset[str] = frozenset(
+    {"S0", "S2/stacker", "oracle", "oracle-relational"}
+)  # A25 P6 adequacy: the stronger-detector track (S0+, S2+, oracle+)
 
 
 def x1_config(
-    paths: DatasetPaths, option: str, x6: bool, feature_set: str = "all"
+    paths: DatasetPaths, option: str, x6: bool, feature_set: str = "all", detector: str = "gbdt"
 ) -> dict[str, Any]:
+    if detector != "gbdt":
+        return {"experiment": "X1-plus", "dataset": paths.name, "option": option}
     if feature_set != "all":
         return {"experiment": "X1-noart", "dataset": paths.name, "option": option}
     return {"experiment": "X1+X6" if x6 else "X1", "dataset": paths.name, "option": option}
@@ -313,6 +318,7 @@ def run_x1_test_seed(
     random_reference: bool = False,
     flags: Collection[str] = (),
     feature_set: str = "all",
+    detector: str = "gbdt",
 ) -> dict[str, Any]:
     """One seed of X1 (and X6 on the same scores) on test. See the module docstring.
     A25: ``flags`` adds the chosen protected-flag configuration(s); ``feature_set``
@@ -334,7 +340,7 @@ def run_x1_test_seed(
         if meter is not None:
             memory[phase] = meter.lap()
 
-    t, seconds = _train(paths, option, seed, audit, lap, feature_set)
+    t, seconds = _train(paths, option, seed, audit, lap, feature_set, detector)
     # Validation: the frozen run, plus everything fitted on all of it for the test.
     val = _phase(
         paths,
@@ -397,7 +403,7 @@ def run_x1_test_seed(
     tokens_used = token_shortfall(dict(test.tokens.service.used), token_budget(paths.name))
     scores = {n: test.score_of(n) for n in names}
     digest = scores_digest(test.keys, scores)
-    config = x1_config(paths, option, x6, feature_set)
+    config = x1_config(paths, option, x6, feature_set, detector)
     part = opener(
         config,
         seed,
@@ -481,6 +487,7 @@ def run_x1_test(
     progress: Callable[[str], None] | None = None,
     flags: Collection[str] = (),
     feature_set: str = "all",
+    detector: str = "gbdt",
 ) -> dict[str, Any]:
     """X1 (and X6) on test: every configuration on ``other_seeds``, the headline ones on
     ``headline_seeds`` too. The audit, the random reference and the narrative's tables
@@ -494,7 +501,13 @@ def run_x1_test(
     from finmesh.training.x1 import _recovery, _Stack, case_quality, combine
 
     noart = feature_set != "all"
-    if noart:
+    plus = detector != "gbdt"  # A25 P6 adequacy: S0+, S2+, oracle+
+    if noart and plus:
+        raise ValueError("the artefact-free and stronger-detector tracks run separately")
+    side = noart or plus
+    track = "x1noart" if noart else ("x1plus" if plus else "x1")
+    side_configs = NOART_CONFIGS if noart else PLUS_CONFIGS
+    if side:
         headline_seeds, audit, x6, sweeps = (), False, False, False
 
     if x6 and not sweeps:
@@ -508,7 +521,7 @@ def run_x1_test(
     per_seed: list[dict[str, Any]] = []
     with AnonPeak() as anon:
         for seed in seeds:
-            ckpt = out_dir / f"{'x1noart' if noart else 'x1'}_seed{seed}.pkl"
+            ckpt = out_dir / f"{track}_seed{seed}.pkl"
             if ckpt.exists():
                 per_seed.append(_load(ckpt))
                 if progress:
@@ -516,7 +529,10 @@ def run_x1_test(
                 continue
             full = seed in other_seeds
             refuse_if_opened(
-                paths, x1_config(paths, option, x6 and full, feature_set), seed, allow_repeat
+                paths,
+                x1_config(paths, option, x6 and full, feature_set, detector),
+                seed,
+                allow_repeat,
             )
             r = run_x1_test_seed(
                 paths,
@@ -528,12 +544,13 @@ def run_x1_test(
                 anon,
                 sweeps=sweeps,
                 audit=audit and seed == first,
-                only=NOART_CONFIGS if noart else (None if full else X1_HEADLINE),
+                only=side_configs if side else (None if full else X1_HEADLINE),
                 x6=x6 and full,
                 keep_tables=x6 and seed == first,
-                random_reference=seed == first and not noart,
-                flags=() if noart else flags,
+                random_reference=seed == first and not side,
+                flags=() if side else flags,
                 feature_set=feature_set,
+                detector=detector,
             )
             if r["narrative"] is not None:
                 _save(out_dir / "narrative_inputs.pkl", r["narrative"])
@@ -546,7 +563,7 @@ def run_x1_test(
         summary["case_quality"] = case_quality(
             per_seed, reps, (("S2/stacker", "S0"), ("S1/stacker", "S0"))
         )
-        if flags and not noart:
+        if flags and not side:
             stack = _Stack(per_seed)
             margin = ((per_seed[0].get("audit") or {}).get("H1c") or {}).get("within_margin", {})
             summary["flag_check"] = {
@@ -567,8 +584,9 @@ def run_x1_test(
         "seeds": seeds,
         "headline_seeds": list(headline_seeds),
         "other_seeds": list(other_seeds),
-        "headline_configurations": sorted(NOART_CONFIGS if noart else X1_HEADLINE),
+        "headline_configurations": sorted(side_configs if side else X1_HEADLINE),
         "feature_set": feature_set,
+        "detector": detector,
         "flags": list(flags),
         "primary_budget": "per_1000_per_day",
         "delay_windows": 12,

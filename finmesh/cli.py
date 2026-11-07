@@ -1601,6 +1601,70 @@ def cmd_benchmark(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_plus_validation(args: argparse.Namespace) -> int:
+    """A25 P6 adequacy: the stronger-detector track on validation, next to the current one."""
+    from finmesh.eval.provenance import write_artifact
+    from finmesh.sysinfo import AnonPeak
+    from finmesh.training.sealed_runs import PLUS_CONFIGS
+    from finmesh.training.x1 import _recovery, _Stack, combine, run_seed
+
+    paths = dataset_paths(args.dataset)
+    detectors = ("tx", "gbdt") if args.compare else ("tx",)
+    out_rows: dict[str, Any] = {}
+    for det in detectors:
+        per_seed = []
+        with AnonPeak() as anon:
+            for seed in _ints(args.seeds):
+                r = run_seed(
+                    paths,
+                    args.option,
+                    seed,
+                    args.reps,
+                    args.window_reps,
+                    anon,
+                    sweeps=False,
+                    audit=False,
+                    only=PLUS_CONFIGS,
+                    detector=det,
+                )
+                per_seed.append(r)
+                print(f"  {det} seed {seed}: {r['seconds']['total']:.0f} s")
+        summary = combine(per_seed, args.reps)
+        stack = _Stack(per_seed)
+        out_rows[det] = {
+            "linked": {c: summary[c]["linked"] for c in sorted(PLUS_CONFIGS) if c in summary},
+            "gain_S2": summary["S2/stacker"].get("linked_gain", {}).get("difference"),
+            "recovery": _recovery(stack, "S2/stacker", args.reps, "oracle-relational"),
+            "peak_anon_mb": anon.mb,
+        }
+    art, out = _a25_out(paths.name)
+    stamp = _stamp(paths, "plus-validation", {"option": args.option, "seeds": args.seeds},
+                   split="val")  # fmt: skip
+    write_artifact(art / f"plus_validation_{paths.name}.json", stamp, out_rows)
+    label = {"tx": "+ (transaction detector)", "gbdt": "current (account-window LightGBM)"}
+    lines = [
+        f"# Stronger-detector track on validation (A25 P6 adequacy) · {paths.name}",
+        "",
+        f"Seeds {args.seeds}. Linked scheme detection; gain = S2 − S0 (paired, scheme "
+        "bootstrap); recovery = (S2 − S0) / (relational oracle − S0), as H1b.",
+        "",
+        "| Detector | S0 | S2 | Oracle | Relational oracle | S2 − S0 | Recovery |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
+    ]
+    for det, v in out_rows.items():
+        lk = v["linked"]
+        lines.append(
+            f"| {label[det]} | {_ci3(lk.get('S0'))} | {_ci3(lk.get('S2/stacker'))} | "
+            f"{_ci3(lk.get('oracle'))} | {_ci3(lk.get('oracle-relational'))} | "
+            f"{_ci3(v['gain_S2'])} | {_ci3(v['recovery'])} |"
+        )
+    report = out / f"plus_validation_{paths.name}.md"
+    report.write_text("\n".join(lines) + "\n")
+    print("\n".join(lines[-len(out_rows) :]))
+    print(f"  report   {report}")
+    return 0
+
+
 def cmd_benchmark_table(args: argparse.Namespace) -> int:
     """A25 P6: one table over every benchmark run so far."""
     from finmesh.training.benchmark import render_table
@@ -1819,9 +1883,11 @@ def cmd_test_x1(args: argparse.Namespace) -> int:
         progress=lambda m: print(f"  {m}"),
         flags=tuple(args.flag or ()),
         feature_set="no_artefacts" if args.noart else "all",
+        detector="tx" if args.plus else "gbdt",
     )
     art, out = _test_out(paths)
     name = option_tag(paths.name, args.option) + ("_noart" if args.noart else "")
+    name += "_plus" if args.plus else ""
     artifact = write_artifact(
         art / f"x1_test_{name}.json", _stamp(paths, "x1-test", params), result
     )
@@ -2312,6 +2378,16 @@ def build_parser() -> argparse.ArgumentParser:
     bm.add_argument("--negative-rate", type=float, default=0.1)
     bm.set_defaults(func=cmd_benchmark)
 
+    pv = sub.add_parser("plus-validation", help="A25 P6: the S0+/S2+/oracle+ track on validation")
+    pv.add_argument("--dataset", required=True)
+    pv.add_argument("--option", default="B8")
+    pv.add_argument("--seeds", default="0,1,2")
+    pv.add_argument("--reps", type=int, default=1000)
+    pv.add_argument("--window-reps", type=int, default=200)
+    pv.add_argument("--compare", action=argparse.BooleanOptionalAction, default=True,
+                    help="also run the current detector on the same seeds")  # fmt: skip
+    pv.set_defaults(func=cmd_plus_validation)
+
     bt = sub.add_parser("benchmark-table", help="A25 P6: table over the benchmark runs")
     bt.set_defaults(func=cmd_benchmark_table)
 
@@ -2385,6 +2461,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     tx.add_argument(
         "--noart", action="store_true", help="A25 P1: the artefact-free track (its own opening)"
+    )
+    tx.add_argument(
+        "--plus",
+        action="store_true",
+        help="A25 P6 adequacy: the stronger-detector track S0+, S2+, oracle+ (its own opening)",
     )
     tx.add_argument(
         "--allow-repeat",

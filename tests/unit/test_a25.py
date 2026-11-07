@@ -400,3 +400,70 @@ def test_best_f1_threshold() -> None:
     f1, thr = best_f1(y, s)
     assert abs(f1 - 2 / 3) < 1e-12 and thr == 0.7  # top 3: tp 2 of 3 flagged, 2 of 3 positives
     assert abs(f1_at(y, s, thr) - f1) < 1e-12
+
+
+def test_plus_track_validation_and_test(
+    fixture_paths: Any,
+    ingested: object,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    data_env: Path,
+    keep_access_log: None,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from finmesh.cli import main
+    from finmesh.eval.budgets import Budget
+    from finmesh.eval.g0 import run_g0
+    from finmesh.eval.sealed import read_access_log
+    from finmesh.eval.universe import build_universe
+    from finmesh.features.build import build_features
+    from finmesh.training import sealed_runs, txdetector, x1
+
+    run_g0(fixture_paths)
+    build_universe(fixture_paths, "B8")
+    build_features(fixture_paths, "B8")
+    build_features(fixture_paths, "B8", view="pooled")
+    monkeypatch.setattr(x1, "PRIMARY", Budget("per_1000_per_day", 300.0))
+    monkeypatch.setattr(x1, "AE_SAMPLE", 3000)
+    monkeypatch.setattr(txdetector, "NEGATIVE_RATE", 0.5)
+
+    # Validation: S0+, S2+, oracle+ through the command, next to the current detector.
+    assert main(["plus-validation", "--dataset", fixture_paths.name, "--seeds", "0",
+                 "--reps", "50", "--window-reps", "20"]) == 0  # fmt: skip
+    out = capsys.readouterr().out
+    assert "+ (transaction detector)" in out and "current (account-window LightGBM)" in out
+
+    # The scorer covers every account-window it is asked about (no missing rows).
+    t, _ = x1._train(fixture_paths, "B8", 0, False, lambda _p: None, detector="tx")
+    assert isinstance(t.fn, txdetector.TableScorer) and t.fn.missing == 0
+    assert t.fn.detector.models and -1 in t.oracle.detector.models
+
+    # Test: its own experiment, opening and checkpoint.
+    monkeypatch.setattr(sealed_runs, "test_dir", lambda p, o: tmp_path / "test")
+    before = len(read_access_log(fixture_paths))
+    r = sealed_runs.run_x1_test(
+        fixture_paths, other_seeds=(0,), reps=50, window_reps=20, allow_repeat=True,
+        detector="tx",
+    )  # fmt: skip
+    assert r["detector"] == "tx" and r["audit"] is None and not r["sweeps"]
+    assert set(r["per_seed"][0]["linked"]) == set(sealed_runs.PLUS_CONFIGS)
+    log = read_access_log(fixture_paths)[before:]
+    assert len(log) == 1 and (tmp_path / "test" / "x1plus_seed0.pkl").exists()
+    assert sealed_runs.x1_config(fixture_paths, "B8", False, detector="tx")["experiment"] == (
+        "X1-plus"
+    )
+
+
+def test_preflight_reads_the_a25_plan_for_large_windows(tmp_path: Path) -> None:
+    from finmesh.eval.test_plan import A25_PLAN, PLAN, frozen_commit, plan_for
+    from finmesh.paths import dataset_paths
+
+    assert plan_for(dataset_paths("HI-Large-W16", root=tmp_path)) == A25_PLAN
+    assert plan_for(dataset_paths("HI-Medium", root=tmp_path)) == PLAN
+    doc = tmp_path / "plan.md"
+    doc.write_text("**Frozen commit (before any Large opening):** —\\n")
+    assert frozen_commit(doc) is None
+    doc.write_text("**Frozen commit (before any Large opening):** `abc1234`\\n")
+    assert frozen_commit(doc) == "abc1234"
+    doc.write_text("**Frozen commit:** 0123abcd\\n")
+    assert frozen_commit(doc) == "0123abcd"

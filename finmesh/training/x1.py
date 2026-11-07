@@ -234,7 +234,7 @@ class _Trained:
     lookback: int
     fn: Callable[[pl.DataFrame], np.ndarray]
     s0_cal: dict[int, Isotonic]  # on the held-out end of training (the validation run's)
-    oracle: GBDT
+    oracle: Any  # GBDT, or the oracle+ table scorer (A25 adequacy track)
     oracle_cal: dict[int, Isotonic]
     encoders: dict[int, Autoencoder]
     a5: dict[str, Any] | None
@@ -288,6 +288,7 @@ def _train(
     audit: bool,
     lap: Callable[[str], None],
     feature_set: str = "all",
+    detector: str = "gbdt",
 ) -> tuple[_Trained, dict[str, float]]:
     seconds: dict[str, float] = {}
     plan = load_plan(paths)
@@ -298,15 +299,33 @@ def _train(
     cols = feature_sets()[feature_set]  # A25 P1: "no_artefacts" for the artefact-free track
     members = sorted(store.accounts_per_member()["member"].to_list())
     t0 = time.perf_counter()
-    models = fit_local_models(store, feats, cols, windows, seed, members)
-    fn = _per_member(models)
+    oracle: Any
+    fn: Callable[[pl.DataFrame], np.ndarray]
+    if detector == "tx":  # A25 P6 adequacy track: S0+ and oracle+ (finmesh.training.txdetector)
+        from finmesh.training.sharing_run import store_membership
+        from finmesh.training.txdetector import TableScorer, TxDetector
+
+        ranges = {p: (int(w[0]), int(w[1])) for p, w in store.meta["partition_windows"].items()}
+        tail = {"train": int(windows.stop_from)}
+        membership = store_membership(paths, option)
+        local = TxDetector(paths, plan, feats, cols, membership, False, seed).fit(windows)
+        fn = TableScorer(local, ranges, tail)
+    elif detector == "gbdt":
+        models = fit_local_models(store, feats, cols, windows, seed, members)
+        fn = _per_member(models)
+    else:
+        raise ValueError(f"unknown detector {detector!r}")
     s0_cal = _calibrators(score_rows(store, feats, "train", fn, windows.stop_from))
     seconds["s0"] = round(time.perf_counter() - t0, 1)
     lap("s0")
     t0 = time.perf_counter()
-    fit, stop = training_rows(store, pooled_f, cols, windows, seed)
-    oracle = GBDT(cols, seed).fit(fit.x, fit.y, fit.w, stop.x, stop.y, stop.w)
-    del fit, stop
+    if detector == "tx":
+        pooled = TxDetector(paths, plan, pooled_f, cols, membership, True, seed).fit(windows)
+        oracle = TableScorer(pooled, ranges, tail)
+    else:
+        fit, stop = training_rows(store, pooled_f, cols, windows, seed)
+        oracle = GBDT(cols, seed).fit(fit.x, fit.y, fit.w, stop.x, stop.y, stop.w)
+        del fit, stop
     oracle_cal = _calibrators(score_rows(store, pooled_f, "train", oracle.score, windows.stop_from))
     seconds["oracle"] = round(time.perf_counter() - t0, 1)
     lap("oracle")
@@ -693,6 +712,7 @@ def run_seed(
     return_scores: bool = False,
     evaluate_configs: bool = True,
     flags: bool | Collection[str] = False,
+    detector: str = "gbdt",
 ) -> dict[str, Any]:
     """Every configuration for one seed on validation: scores and per-scheme outcomes.
 
@@ -708,7 +728,7 @@ def run_seed(
         if meter is not None:
             memory[phase] = meter.lap()
 
-    t, seconds = _train(paths, option, seed, audit, lap)
+    t, seconds = _train(paths, option, seed, audit, lap, detector=detector)
     ph = _phase(paths, option, seed, t, "val", seconds, lap, sweeps, audit, only, flags=flags)
     audit_result = None
     if ph.auditor is not None:
