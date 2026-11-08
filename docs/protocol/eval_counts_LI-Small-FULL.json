@@ -1,0 +1,38 @@
+{
+  "option": "B8",
+  "window_hours": 6,
+  "partition_windows": {
+    "train": [
+      0,
+      23
+    ],
+    "val": [
+      24,
+      31
+    ],
+    "test": [
+      32,
+      67
+    ]
+  },
+  "counts": {
+    "train": {
+      "account_windows": 3314583,
+      "positives": 3332,
+      "masked": 238,
+      "incidental": 238,
+      "accounts": 702916,
+      "schemes": 75,
+      "multi_member_schemes": 72
+    },
+    "val": {
+      "account_windows": 968135,
+      "positives": 1005,
+      "masked": 368,
+      "incidental": 90,
+      "accounts": 321322,
+      "schemes": 23,
+      "multi_member_schemes": 22
+    }
+  }
+}
