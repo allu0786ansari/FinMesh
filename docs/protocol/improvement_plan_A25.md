@@ -1,6 +1,6 @@
 # Amendment A25: improvements, confirmed on fresh data
 
-**Status: signed 6 Nov 2026; built and developed on validation (7–8 Nov); frozen commit signed 8 Nov 2026. No Large data opened before it.**
+**Status: signed 6 Nov 2026; built and developed on validation (7–8 Nov); frozen commit signed 8 Nov 2026 (re-signed under A25a). Large confirmation run 8 Nov; results in `docs/eval/a25/RESULTS_LARGE.md`, analysis in `docs/eval/a25/ANALYSIS.md`.**
 **Signed off by:** Allaudin Ansari· **Date:** 6 Nov 2026 · **Frozen commit (before any Large opening):** `177b77d` (signed 8 Nov 2026) · **A25a re-signed frozen commit:** c10fea8 (the HI-Large-W16 main X1 run was made under `177b77d`)
 
 
