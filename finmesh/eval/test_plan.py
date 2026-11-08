@@ -42,11 +42,16 @@ RUNS: tuple[str, ...] = ("x1", "baselines", "x5", "ensemble", "narrative")
 
 
 def frozen_commit(plan: Path = PLAN) -> str | None:
-    """The commit the owner signed in the test plan (``**Frozen commit:** <sha>``)."""
+    """The commit the owner signed last (``**Frozen commit:** <sha>``, or a later
+    ``**<amendment> re-signed frozen commit:** <sha>`` field)."""
     if not plan.exists():
         return None
-    m = re.search(r"\*\*Frozen commit[^*:]*:\*\*\s*`?([0-9a-f]{7,40})`?", plan.read_text())
-    return m.group(1) if m else None
+    found = re.findall(
+        r"\*\*[^*\n]*frozen commit[^*\n]*:\*\*\s*`?([0-9a-f]{7,40})`?",
+        plan.read_text(),
+        flags=re.IGNORECASE,
+    )
+    return found[-1] if found else None  # the latest signature (a re-signed amendment)
 
 
 def _clean_tree() -> bool | None:

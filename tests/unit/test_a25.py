@@ -289,6 +289,11 @@ def test_large_runner_extras_flag_noart_and_case_quality(
     assert c0["completeness"] is None or 0 < c0["completeness"] <= 1
     assert c0["workload_alerts_per_linked_scheme"] > 0
 
+    # A25a: the artefact-free track's validation is served in full (its traffic is not the
+    # main detector's), so a budget it exceeds does not stop it.
+    from finmesh.matching.tokens import token_budget
+
+    monkeypatch.setattr(x1, "token_budget", lambda _name: 1)
     n = sealed_runs.run_x1_test(
         fixture_paths,
         other_seeds=(0,),
@@ -297,6 +302,7 @@ def test_large_runner_extras_flag_noart_and_case_quality(
         allow_repeat=True,
         feature_set="no_artefacts",
     )
+    monkeypatch.setattr(x1, "token_budget", token_budget)
     assert n["feature_set"] == "no_artefacts" and not n["sweeps"] and n["audit"] is None
     assert set(n["per_seed"][0]["linked"]) == set(sealed_runs.NOART_CONFIGS)
     from finmesh.eval.a25_report import main_rows, noart_rows
@@ -498,6 +504,11 @@ def test_preflight_reads_the_a25_plan_for_large_windows(tmp_path: Path) -> None:
     assert frozen_commit(doc) == "abc1234"
     doc.write_text("**Frozen commit:** 0123abcd\\n")
     assert frozen_commit(doc) == "0123abcd"
+    line = "**Frozen commit (before any Large opening):** `177b77d` (signed) · "
+    doc.write_text(line + "**A25a re-signed frozen commit:** — (main run under 177b77d)")
+    assert frozen_commit(doc) == "177b77d"  # not yet re-signed: the first signature binds
+    doc.write_text(line + "**A25a re-signed frozen commit:** `9abc123` (main run under x)")
+    assert frozen_commit(doc) == "9abc123"
 
 
 def test_large_narrative_path_export_on_test_and_n4_render(

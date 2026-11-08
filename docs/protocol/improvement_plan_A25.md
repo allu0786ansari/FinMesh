@@ -1,7 +1,7 @@
 # Amendment A25: improvements, confirmed on fresh data
 
 **Status: signed 6 Nov 2026; built and developed on validation (7–8 Nov); frozen commit signed 8 Nov 2026. No Large data opened before it.**
-**Signed off by:** Allaudin Ansari· **Date:** 6 Nov 2026 · **Frozen commit (before any Large opening):** `177b77d` (signed 8 Nov 2026)
+**Signed off by:** Allaudin Ansari· **Date:** 6 Nov 2026 · **Frozen commit (before any Large opening):** `177b77d` (signed 8 Nov 2026) · **A25a re-signed frozen commit:** — (the HI-Large-W16 main X1 run was made under `177b77d`)
 
 ## Why this amendment exists
 
@@ -279,7 +279,7 @@ The rule fails on both counts. Busy test days needed more than twice the previou
 - **Rules, each Large dataset:**
   - **H1a-L+**: S2+ − S0+ linked detection, paired 95% CI above 0.
   - **H1b-L+**: S2+ ≥ 0.60 of the relational oracle+'s gain over S0+, if oracle+ − S0+ meets the G1 criterion.
-- **Token requests:** this track's candidates differ from the current detector's, and the A16 budget was sized on the current detector's traffic. Its requests are therefore served in full on validation as well as at test (as A24a does at test), and its peak use is reported against the frozen budget.
+- **Token requests (A25a extends this to the artefact-free track, 8 Nov):** this track's candidates differ from the current detector's, and the A16 budget was sized on the current detector's traffic. Its requests are therefore served in full on validation as well as at test (as A24a does at test), and its peak use is reported against the frozen budget.
 - **Validation check before the freeze:** `finmesh plus-validation` on HI-Medium and LI-Medium, next to the current detector on the same seeds. It is reported, not tuned: the design above is fixed.
 
 **LLM-judge ratings (reported, 7 Nov; `docs/eval/a25/narrative_judge_A25N.md`):** delivered text was faithful on the 30-case sheet in 70% (N0), 87% (N1), 97% (N2), 77% (N3) and **100% (N4, chosen)** of cases, against 33% for A23 in week 18. Of the texts the models wrote themselves, 50%, 64%, 93% and 65% were faithful.

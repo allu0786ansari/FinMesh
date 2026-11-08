@@ -239,6 +239,7 @@ class _Trained:
     encoders: dict[int, Autoencoder]
     a5: dict[str, Any] | None
     detector: str = "gbdt"  # "tx": the A25 stronger-detector track
+    feature_set: str = "all"  # "no_artefacts": the A25 artefact-free track
 
 
 @dataclass
@@ -363,6 +364,7 @@ def _train(
         encoders,
         a5,
         detector,
+        feature_set,
     )
     return trained, seconds
 
@@ -538,10 +540,11 @@ def _phase(
     # One token service per seed and partition (levels reuse the OPRF work). Validation:
     # the dataset's sized budget (A16), which never bound there. Test: every legitimate
     # request is served, and the frozen budget's shortfall is reported (A24 correction).
-    # The stronger-detector track (A25) has its own candidate traffic, which the A16 budget
-    # (sized on the account-window detector's) was not sized for: served in full on
-    # validation too, with the frozen budget's shortfall reported, as at test (A24a).
-    metered = not is_test and t.detector == "gbdt"
+    # The A25 side tracks (stronger detector, artefact-free features) have their own
+    # candidate traffic, which the A16 budget (sized on the main detector's) was not sized
+    # for: served in full on validation too, with the frozen budget's shortfall reported,
+    # as at test (A24a; A25a for the artefact-free track).
+    metered = not is_test and t.detector == "gbdt" and t.feature_set == "all"
     tokens = TokenEnv.new(token_budget(paths.name) if metered else UNMETERED)
     auditor = Auditor(paths, option, plan, keys, lookback, v0, v1, seed) if audit else None
     if auditor is not None:
