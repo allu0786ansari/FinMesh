@@ -1,0 +1,12 @@
+  seed 0: 915 s
+  seed 1: 1128 s
+  seed 2: 1379 s
+  S0                 linked 0.007
+  S2/stacker         linked 0.217  p (Holm) 0.0000
+  oracle             linked 0.058  p 0.0060
+  oracle-relational  linked 0.326  p 0.0000
+  H1b: S2 recovers 0.66 [0.48, 0.82]
+  token use: peak 34,200 vs frozen budget 87,926; 0.0% beyond it (served)
+  3423 s, peak memory 2090.3 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week18/x1_test_LI-Large-W16_noart.json
+  reports  /home/allu786ansari/FinMesh/docs/eval/test
