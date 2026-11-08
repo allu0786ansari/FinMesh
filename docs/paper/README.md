@@ -2,14 +2,14 @@
 
 | Path | What it is |
 | --- | --- |
-| `main.tex` | IEEEtran conference skeleton: every figure and table placed with its caption; section text still to write |
+| `main.tex` | The full draft (IEEEtran conference, 7 pages with references): every section written, every number taken from the result pages; for the authors to edit |
 | `figures/fig_*.pdf` | Vector figures (PNG previews alongside) |
 | `tables/tab_*.tex` | IEEEtran table floats, `\input` by `main.tex` |
 | `static/tab_related.tex` | The related-work comparison (curated; sources in `related_work.md`) |
 | `references.bib` | Every entry checked against its primary source |
 | `related_work.md` | Draft related-work text and the source of every table entry |
 | `assets.json` | Every number a figure or table shows, for checking against the result pages |
-| `preview.pdf` | A compiled preview of the skeleton (local build; see below) |
+| `preview.pdf` | A compiled preview of the draft (local build; see below) |
 
 ## Regenerate
 
