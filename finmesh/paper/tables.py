@@ -209,21 +209,42 @@ def benchmark() -> tuple[str, dict[str, Any]]:
     rename = {
         "A · our pooled detector": "Ours, account-window detector",
         "B · transaction LightGBM + our features": "Ours, transaction model",
-        "LightGBM + graph features (published)": "LightGBM + GFP [egressy2024]",
-        "XGBoost + graph features (published)": "XGBoost + GFP [egressy2024]",
+        "LightGBM + graph features (published)": "LightGBM + graph features [egressy2024]",
+        "XGBoost + graph features (published)": "XGBoost + graph features [egressy2024]",
         "Multi-PNA + EU (published)": "Multi-PNA + EU [egressy2024]",
     }
-    rows = [r"Model & HI-Medium & LI-Medium \\", r"\hline"]
+    order = ("HI-Small", "LI-Small", "HI-Medium", "LI-Medium")
+    cols = [c for c in order if any(c in v for v in b.values())]
+
+    def mean(text: str) -> float | None:
+        try:
+            return float(text.split("±")[0])
+        except ValueError:
+            return None
+
+    best = {
+        c: max((m for v in b.values() if (m := mean(v.get(c, ""))) is not None), default=None)
+        for c in cols
+    }
+    rows = ["Model & " + " & ".join(cols) + r" \\", r"\hline"]
     for k, v in b.items():
         name = _tex(rename.get(k, k)).replace("[egressy2024]", r"\cite{egressy2024}")
-        cells = [v.get(c, "---").replace("±", r"$\pm$") for c in ("HI-Medium", "LI-Medium")]
+        cells = []
+        for c in cols:
+            text = v.get(c, "---")
+            cell = text.replace("±", r"$\pm$")
+            if mean(text) is not None and mean(text) == best[c]:
+                cell = r"\textbf{" + cell + "}"
+            cells.append(cell)
         rows.append(f"{name} & " + " & ".join(cells) + r" \\")
     notes = (
         "Minority-class F1 (\\%) on AMLworld's published split (all transactions, by day "
-        "60/20/20), threshold chosen on validation; ours: mean $\\pm$ s.d. over 5 seeds. Pooled "
-        "data in every row (the published models see all banks)."
+        "60/20/20), threshold chosen on validation; ours: mean $\\pm$ s.d. over 5 seeds; best "
+        "per column in bold. Pooled data in every row (the published models see all banks)."
     )
-    return _float("table", "benchmark", "Detector against published results", "lcc", rows, notes), b
+    spec = "l" + "c" * len(cols)
+    env = "table*" if len(cols) > 2 else "table"
+    return _float(env, "benchmark", "Detector against published results", spec, rows, notes), b
 
 
 # --------------------------------------------------------------------------- Table V

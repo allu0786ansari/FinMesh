@@ -464,22 +464,32 @@
   },
   "benchmark": {
    "A \u00b7 our pooled detector": {
+    "HI-Small": "48.20 \u00b1 0.69",
+    "LI-Small": "23.21 \u00b1 2.80",
     "HI-Medium": "42.67 \u00b1 2.76",
     "LI-Medium": "24.08 \u00b1 2.01"
    },
    "B \u00b7 transaction LightGBM + our features": {
+    "HI-Small": "64.25 \u00b1 1.24",
+    "LI-Small": "34.99 \u00b1 1.51",
     "HI-Medium": "67.01 \u00b1 2.27",
     "LI-Medium": "34.34 \u00b1 1.55"
    },
    "LightGBM + graph features (published)": {
+    "HI-Small": "62.86",
+    "LI-Small": "20.83",
     "HI-Medium": "59.48",
     "LI-Medium": "20.85"
    },
    "XGBoost + graph features (published)": {
+    "HI-Small": "63.23",
+    "LI-Small": "27.30",
     "HI-Medium": "65.70",
     "LI-Medium": "28.16"
    },
    "Multi-PNA + EU (published)": {
+    "HI-Small": "68.16",
+    "LI-Small": "33.07",
     "HI-Medium": "66.48",
     "LI-Medium": "36.07"
    }

@@ -45,7 +45,10 @@ Two things still miss and must be reported:
 
 1. **Replication on fresh data.** Most collaborative-AML and federated-AML papers report one split, tuned and reported on the same data. Here the headline is decided on a pre-registered sealed test, then replicated on two further sealed windows from another period, with every opening logged. Across six datasets (HI/LI Small, Medium and Large) the H1a gain is positive with its CI above 0 every time.
 2. **The gain is not an artefact.** Without the seven payment-format shares and `self_tx`, the gain is still +0.44 (HI-Large) and +0.21 (LI-Large). LI depends more on those features: S0 falls to 0.007. Say so plainly; it is a finding about AMLworld's LI data.
-3. **The base detector is competitive.** On AMLworld's own published split, our features in a transaction model reach 67.0 F1 on HI-Medium, above every published model (Multi-PNA 66.5). On LI-Medium they reach 34.3, second to Multi-PNA (36.1). With that detector as the base (S0+), sharing still adds +0.43 and +0.36 on the Large tests. This answers "the gain only exists because the local detector is weak."
+3. **The base detector is competitive.** On AMLworld's own published split, our features in a transaction model:
+   - beat both published gradient-boosting baselines on all four sets: HI-Small 64.3, LI-Small 35.0, HI-Medium 67.0, LI-Medium 34.3 F1;
+   - beat the best published GNN (Multi-PNA) on LI-Small (35.0 vs 33.1) and HI-Medium (67.0 vs 66.5);
+   - trail it on HI-Small (68.2) and LI-Medium (36.1). With that detector as the base (S0+), sharing still adds +0.43 and +0.36 on the Large tests. This answers "the gain only exists because the local detector is weak."
 4. **A privacy leak found, fixed and confirmed on fresh data.**
    - Week 18 showed that sharing a bare alert flag lets a peer infer which accounts have high fan-in (LI-Medium).
    - The same leak reappears on LI-Large: plain S1 attack − prior is 0.043 [0.031, 0.059].
@@ -91,7 +94,7 @@ Two things still miss and must be reported:
 - any claim about real-bank performance;
 - "LLM narratives are faithful" for free text.
 
-**Suggested headline numbers for the abstract:** HI-Large linked detection 0.063 → 0.534 (+0.47), 0.92 of the pooled relational oracle; 8× fewer alerts per linked scheme; base detector at 67.0 F1 on the standard benchmark (above published models); alert-flag leak closed by gating at no detection cost.
+**Suggested headline numbers for the abstract:** HI-Large linked detection 0.063 → 0.534 (+0.47), 0.92 of the pooled relational oracle; 8× fewer alerts per linked scheme; base detector above both published gradient-boosting baselines on all four standard benchmark sets, and above the best GNN on two; alert-flag leak closed by gating at no detection cost.
 
 ## 6. Venue fit
 
@@ -114,5 +117,5 @@ No venue can be guaranteed. The paper now has what reviewers usually find missin
 3. **Cosmetic fixes in the generated pages:**
    - The H1c row's description reads as a pass even when the verdict is "no"; it should name the failing target (A3 fan-in).
    - The audit page truncates the configuration name `S1F[gate=2]`.
-4. **Optional:** the Small benchmark runs (HI-Small and LI-Small, reported only), to complete the four-column benchmark table.
+4. ~~The Small benchmark runs~~ (done 9 Nov: the benchmark table has all four published columns).
 5. **Optional, but it strengthens the narrative claim:** a two-person rating of the N4 test texts. The two-rater scorer already exists.

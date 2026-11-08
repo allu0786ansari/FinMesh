@@ -51,6 +51,8 @@ def test_build_writes_ieee_figures_tables_and_numbers(tmp_path: Path) -> None:
     assert {"tab_results.tex", "tab_datasets.tex", "tab_related.tex"} <= tabs
     res = (tmp_path / "tables" / "tab_results.tex").read_text()
     assert r"\begin{table*}" in res and r"\caption{" in res.split(r"\begin{tabular}")[0]
+    bench = (tmp_path / "tables" / "tab_benchmark.tex").read_text()
+    assert "HI-Small & LI-Small & HI-Medium & LI-Medium" in bench and r"\textbf{" in bench
     numbers = json.loads((tmp_path / "assets.json").read_text())
     assert numbers["figures"]["ladder"]["HI-Large-W16"]["S2"]["est"] == pytest.approx(0.5342)
     from PIL import Image
