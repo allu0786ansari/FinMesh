@@ -1,0 +1,19 @@
+\begin{table}[!t]
+\centering
+\caption{Detector against published results}
+\label{tab:benchmark}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lcc}
+\hline
+Model & HI-Medium & LI-Medium \\
+\hline
+Ours, account-window detector & 42.67 $\pm$ 2.76 & 24.08 $\pm$ 2.01 \\
+Ours, transaction model & 67.01 $\pm$ 2.27 & 34.34 $\pm$ 1.55 \\
+LightGBM + GFP \cite{egressy2024} & 59.48 & 20.85 \\
+XGBoost + GFP \cite{egressy2024} & 65.70 & 28.16 \\
+Multi-PNA + EU \cite{egressy2024} & 66.48 & 36.07 \\
+\hline
+\end{tabular}
+\par\smallskip\parbox{\linewidth}{\scriptsize Minority-class F1 (\%) on AMLworld's published split (all transactions, by day 60/20/20), threshold chosen on validation; ours: mean $\pm$ s.d. over 5 seeds. Pooled data in every row (the published models see all banks).}
+\end{table}

@@ -1,0 +1,24 @@
+\begin{table}[!t]
+\centering
+\caption{Case narratives: local models and select-then-template}
+\label{tab:narrative}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lccc}
+\hline
+Design & Grounding & Strict & Faithful \\
+\hline
+\multicolumn{4}{l}{\emph{HI-Medium validation, 200 cases (judge: 30)}} \\
+N0: \texttt{llama3.2:3b}, free text & 0.96 & 0.13 & 21/30 \\
+N1: \texttt{qwen2.5:7b}, free text & 0.97 & 0.10 & 26/30 \\
+N2: \texttt{llama3.1:8b}, free text & 0.99 & 0.06 & 29/30 \\
+N3: \texttt{qwen3:8b}, free text & 0.98 & 0.22 & 23/30 \\
+N4: select-then-template (N3) & 0.99 & 0.83 & 30/30 \\
+\hline
+\multicolumn{4}{l}{\emph{N4 on the A25 fresh tests}} \\
+HI-Large & 1.00 & 0.82 & --- \\
+LI-Large & 0.95 & 0.56 & --- \\
+\hline
+\end{tabular}
+\par\smallskip\parbox{\linewidth}{\scriptsize Grounding (H3b): first reply is valid, keeps the attributed typology and cites only evidence fields. Strict: also 1--4 fields, every number from the evidence, claim consistency and scope. Faithful: automated judge (one rater, not blind) on the 30-case sheet; delivered text after retry and template fallback.}
+\end{table}

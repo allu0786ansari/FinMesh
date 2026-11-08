@@ -1,0 +1,22 @@
+\begin{table*}[!t]
+\centering
+\caption{Pre-registered claims on the sealed tests}
+\label{tab:results}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lcccc}
+\hline
+Pre-registered claim & HI-Medium & LI-Medium & HI-Large & LI-Large \\
+\hline
+H1a: S2 $-$ S0 linked detection & 0.57 [0.53, 0.61] \cmark & 0.55 [0.45, 0.63] \cmark & 0.47 [0.43, 0.51] \cmark & 0.38 [0.29, 0.48] \cmark \\
+H1b: share of oracle gain ($\geq$0.60) & 0.98 [0.94, 1.03] \cmark & 0.79 [0.69, 0.88] \cmark & 0.92 [0.87, 0.97] \cmark & 0.64 [0.52, 0.77] \cmark \\
+H1c: plain flag, fan-in advantage & $-$0.002 [$-$0.008, 0.003] \cmark & 0.092 [0.079, 0.103] \xmark & 0.001 [$-$0.002, 0.003] \cmark & 0.043 [0.031, 0.059] \xmark \\
+\quad gated flag (A25) & --- & --- & 0.001 [$-$0.001, 0.003] \cmark & 0.004 [0.000, 0.007] \cmark \\
+H1d: PD gain share, least disclosure & 0.98 at 0.07 \cmark & 0.99 at 0.01 \cmark & 0.95 at 0.03 \cmark & 0.81 at $<$0.01 \cmark \\
+H3a: attribution above baselines & \cmark & \xmark & \xmark & \xmark \\
+H3b: narrative grounding ($\geq$0.95) & 0.86 [0.81, 0.90] \xmark & 0.92 [0.84, 0.96] \xmark & 1.00 [0.98, 1.00] \cmark & 0.95 [0.87, 0.98] \cmark \\
+PT2: hashing $\div$ OPRF re-id. ($\geq$10) & 19.9 \cmark & 8.7 \xmark & 8.1 \xmark & 9.3 \xmark \\
+\hline
+\end{tabular}
+\par\smallskip\parbox{\linewidth}{\scriptsize Sealed tests; 95\% intervals from a scheme bootstrap. H1c: upper 95\% bound of (attack $-$ prior) TPR at 1\% FPR at most 0.05 on every attack target (A2, A3); the value shown is the binding target, A3 fan-in, and the mark is the verdict over all targets and, for the plain flag, the S3 levels with $\varepsilon\leq 2$. H1d: PD configuration reaching $\geq$0.80 of S2's gain with the smallest share of S2's disclosed accounts. H3b on Medium: free-text narratives (A23); on Large: select-then-template (N4). Medium columns: week-18 tests; Large: A25 fresh tests.}
+\end{table*}

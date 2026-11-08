@@ -1,0 +1,23 @@
+\begin{table*}[!t]
+\centering
+\caption{Collaborative anti-money-laundering and financial-crime detection: what is shared, how it is protected, and how it is evaluated}
+\label{tab:related}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{*{6}{>{\raggedright\arraybackslash}p{2.55cm}}}
+\hline
+Work & Shared between institutions & Protection & Data & Evaluation & Privacy evidence \\
+\hline
+Suzumura et al.\ \cite{suzumura2019} & Model parameters (global graph features planned) & Federated learning; DP/MPC proposed, not evaluated & Simulated, six banks (FCA TechSprint) & One test split, prototype & None \\
+Arora et al.\ \cite{arora2023} & Bank account flags, inside a payment hub's training & Federated learning + MPC (oblivious transfer, secret sharing), noise & PETs Prize synthetic payments & Challenge test environment & Design argument \\
+Abadi et al.\ \cite{abadi2024starlit} & Identity alignment and model updates & Private set intersection + secure federated learning & Synthetic payments & Scalability and accuracy, prototype & Security proof \\
+Khan et al.\ \cite{khan2024fedrd} & Embeddings and gradients & Differential privacy + secure summation & PETs Prize synthetic, AMLSim & One test split; best test epoch reported & Formal DP bound \\
+van Egmond et al.\ \cite{vanegmond2024} & Encrypted risk scores, propagated across banks & Secure multi-party computation & One bank's transactions & Precision at fixed recall & Design argument \\
+Brand et al.\ \cite{brand2023fintracer} & Encrypted flow-tracing indicators & Homomorphic encryption & Nation-scale deployment & Run time only & Design argument \\
+BIS Innovation Hub \cite{bis2023aurora} & Collaborative analysis and learning & Privacy-enhancing technologies & Synthetic, national and cross-border & Scenario comparison & Not reported \\
+Zheng et al.\ \cite{zheng2025} & Model updates and aggregated node embeddings & Federated learning (no formal guarantee) & AMLworld HI-Small subset \cite{altman2023} & One split (5\% train) & None \\
+\hline
+This work & Minimised evidence records keyed by OPRF tokens; alert flags, gated & Pseudonymous tokens (OPRF), data minimisation, flag gating; LDP and progressive disclosure as options & AMLworld HI/LI Medium and two never-opened Large windows \cite{altman2023} & Pre-registered sealed tests, fresh replication, 95\% CIs, Holm & Empirical attacks (4 targets) and token re-identification \\
+\hline
+\end{tabular}
+\end{table*}

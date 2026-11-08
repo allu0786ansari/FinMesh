@@ -2085,6 +2085,16 @@ def cmd_a25_report(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_paper_assets(args: argparse.Namespace) -> int:
+    """IEEE-format figures and tables of the paper, from the committed result pages."""
+    from finmesh.paper.build import PAPER, build_assets
+
+    r = build_assets(Path(args.out) if args.out else PAPER)
+    for f in r["figures"] + r["tables"]:
+        print(f"  {f}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="finmesh", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -2408,6 +2418,10 @@ def build_parser() -> argparse.ArgumentParser:
     pv.add_argument("--compare", action=argparse.BooleanOptionalAction, default=True,
                     help="also run the current detector on the same seeds")  # fmt: skip
     pv.set_defaults(func=cmd_plus_validation)
+
+    pa = sub.add_parser("paper-assets", help="IEEE figures and tables of the paper")
+    pa.add_argument("--out", default="", help="default: docs/paper")
+    pa.set_defaults(func=cmd_paper_assets)
 
     ar = sub.add_parser("a25-report", help="A25: the Large confirmation's results page")
     ar.add_argument("--datasets", default="", help="default: HI-Large-W16,LI-Large-W16")

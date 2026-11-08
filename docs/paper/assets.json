@@ -1,0 +1,594 @@
+{
+ "figures": {
+  "ladder": {
+   "HI-Medium": {
+    "S0": {
+     "est": 0.1356,
+     "lo": 0.1096,
+     "hi": 0.162
+    },
+    "S1": {
+     "est": 0.688,
+     "lo": 0.652,
+     "hi": 0.722
+    },
+    "S2": {
+     "est": 0.7016,
+     "lo": 0.666,
+     "hi": 0.7372
+    },
+    "relational": {
+     "est": 0.714,
+     "lo": 0.6796,
+     "hi": 0.7496
+    }
+   },
+   "LI-Medium": {
+    "S0": {
+     "est": 0.1085,
+     "lo": 0.0574,
+     "hi": 0.1724
+    },
+    "S1": {
+     "est": 0.6525,
+     "lo": 0.5603,
+     "hi": 0.7411
+    },
+    "S2": {
+     "est": 0.6574,
+     "lo": 0.568,
+     "hi": 0.7426
+    },
+    "relational": {
+     "est": 0.8043,
+     "lo": 0.7319,
+     "hi": 0.8702
+    }
+   },
+   "HI-Large-W16": {
+    "S0": {
+     "est": 0.0632,
+     "lo": 0.0461,
+     "hi": 0.0823
+    },
+    "S1": {
+     "est": 0.5161,
+     "lo": 0.4796,
+     "hi": 0.5506
+    },
+    "S2": {
+     "est": 0.5342,
+     "lo": 0.5,
+     "hi": 0.569
+    },
+    "relational": {
+     "est": 0.5765,
+     "lo": 0.5403,
+     "hi": 0.6087
+    }
+   },
+   "LI-Large-W16": {
+    "S0": {
+     "est": 0.0674,
+     "lo": 0.0239,
+     "hi": 0.1218
+    },
+    "S1": {
+     "est": 0.3804,
+     "lo": 0.2899,
+     "hi": 0.4674
+    },
+    "S2": {
+     "est": 0.45,
+     "lo": 0.363,
+     "hi": 0.5391
+    },
+    "relational": {
+     "est": 0.6609,
+     "lo": 0.5695,
+     "hi": 0.7414
+    }
+   }
+  },
+  "privacy": {
+   "HI-Large-W16": {
+    "S1": {
+     "est": 0.0009,
+     "lo": -0.0022,
+     "hi": 0.0028
+    },
+    "S1F[gate=2]": {
+     "est": 0.0011,
+     "lo": -0.0009,
+     "hi": 0.0034
+    },
+    "S3[eps=0.5]": {
+     "est": -0.0033,
+     "lo": -0.0073,
+     "hi": 0.0006
+    },
+    "S3[eps=1]": {
+     "est": -0.0023,
+     "lo": -0.0057,
+     "hi": 0.0015
+    },
+    "S3[eps=2]": {
+     "est": -0.0039,
+     "lo": -0.0072,
+     "hi": -0.0004
+    },
+    "PD[tau=2]": {
+     "est": 0.0568,
+     "lo": 0.0512,
+     "hi": 0.0627
+    },
+    "PD[tau=3]": {
+     "est": 0.0101,
+     "lo": 0.0067,
+     "hi": 0.0121
+    },
+    "PD[tau=4]": {
+     "est": 0.0028,
+     "lo": -0.0003,
+     "hi": 0.0066
+    },
+    "S2": {
+     "est": 0.7296,
+     "lo": 0.7162,
+     "hi": 0.741
+    }
+   },
+   "LI-Large-W16": {
+    "S1": {
+     "est": 0.0429,
+     "lo": 0.0307,
+     "hi": 0.0589
+    },
+    "S1F[gate=2]": {
+     "est": 0.0038,
+     "lo": 0.0003,
+     "hi": 0.0072
+    },
+    "S3[eps=0.5]": {
+     "est": 0.0382,
+     "lo": 0.022,
+     "hi": 0.0549
+    },
+    "S3[eps=1]": {
+     "est": 0.0368,
+     "lo": 0.0169,
+     "hi": 0.056
+    },
+    "S3[eps=2]": {
+     "est": 0.0452,
+     "lo": 0.0285,
+     "hi": 0.062
+    },
+    "PD[tau=2]": {
+     "est": 0.0674,
+     "lo": 0.0527,
+     "hi": 0.0844
+    },
+    "PD[tau=3]": {
+     "est": 0.0453,
+     "lo": 0.0325,
+     "hi": 0.062
+    },
+    "PD[tau=4]": {
+     "est": 0.0439,
+     "lo": 0.0291,
+     "hi": 0.062
+    },
+    "S2": {
+     "est": 0.7368,
+     "lo": 0.7255,
+     "hi": 0.7499
+    }
+   }
+  },
+  "workload": {
+   "HI-Large-W16": {
+    "S2": 18.0,
+    "S0": 152.6
+   },
+   "LI-Large-W16": {
+    "S2": 139.5,
+    "S0": 943.5
+   }
+  },
+  "robustness": {
+   "HI-Medium Main detector": {
+    "est": 0.566,
+    "lo": 0.5292,
+    "hi": 0.606
+   },
+   "LI-Medium Main detector": {
+    "est": 0.5489,
+    "lo": 0.4489,
+    "hi": 0.634
+   },
+   "HI-Large Main detector": {
+    "est": 0.471,
+    "lo": 0.4332,
+    "hi": 0.5084
+   },
+   "HI-Large No artefact features": {
+    "est": 0.4376,
+    "lo": 0.3994,
+    "hi": 0.4742
+   },
+   "HI-Large Stronger detector": {
+    "est": 0.4328,
+    "lo": 0.3962,
+    "hi": 0.471
+   },
+   "LI-Large Main detector": {
+    "est": 0.3826,
+    "lo": 0.2891,
+    "hi": 0.4783
+   },
+   "LI-Large No artefact features": {
+    "est": 0.2101,
+    "lo": 0.1377,
+    "hi": 0.2827
+   },
+   "LI-Large Stronger detector": {
+    "est": 0.3551,
+    "lo": 0.2464,
+    "hi": 0.453
+   }
+  }
+ },
+ "tables": {
+  "datasets": {
+   "HI-Medium": {
+    "name": "HI-Medium",
+    "transactions": 31891251,
+    "laundering": 31146,
+    "accounts": 2077023,
+    "days": 16.0,
+    "schemes": 2756,
+    "test_multi_member": 480
+   },
+   "LI-Medium": {
+    "name": "LI-Medium",
+    "transactions": 31250113,
+    "laundering": 15270,
+    "accounts": 2032095,
+    "days": 16.0,
+    "schemes": 456,
+    "test_multi_member": 91
+   },
+   "HI-Large-W16": {
+    "name": "HI-Large-W16",
+    "transactions": 30259872,
+    "laundering": 39798,
+    "accounts": 1975814,
+    "days": 16.0,
+    "schemes": 6638,
+    "test_multi_member": 559
+   },
+   "LI-Large-W16": {
+    "name": "LI-Large-W16",
+    "transactions": 29650722,
+    "laundering": 18037,
+    "accounts": 1933714,
+    "days": 16.0,
+    "schemes": 896,
+    "test_multi_member": 78
+   }
+  },
+  "results": {
+   "gain": {
+    "HI-Medium": {
+     "est": 0.566,
+     "lo": 0.5292,
+     "hi": 0.606
+    },
+    "LI-Medium": {
+     "est": 0.5489,
+     "lo": 0.4489,
+     "hi": 0.634
+    },
+    "HI-Large-W16": {
+     "est": 0.471,
+     "lo": 0.4332,
+     "hi": 0.5084
+    },
+    "LI-Large-W16": {
+     "est": 0.3826,
+     "lo": 0.2891,
+     "hi": 0.4783
+    }
+   },
+   "recovery": {
+    "HI-Medium": {
+     "est": 0.9786,
+     "lo": 0.9354,
+     "hi": 1.03
+    },
+    "LI-Medium": {
+     "est": 0.789,
+     "lo": 0.6921,
+     "hi": 0.8761
+    },
+    "HI-Large-W16": {
+     "est": 0.9177,
+     "lo": 0.8697,
+     "hi": 0.9657
+    },
+    "LI-Large-W16": {
+     "est": 0.6447,
+     "lo": 0.5171,
+     "hi": 0.7684
+    }
+   },
+   "h1d": {
+    "HI-Medium": [
+     "4",
+     {
+      "est": 0.98,
+      "lo": 0.96,
+      "hi": 0.99
+     },
+     0.07
+    ],
+    "LI-Medium": [
+     "4",
+     {
+      "est": 0.99,
+      "lo": 0.95,
+      "hi": 1.03
+     },
+     0.01
+    ],
+    "HI-Large-W16": [
+     "4",
+     {
+      "est": 0.95,
+      "lo": 0.92,
+      "hi": 0.98
+     },
+     0.03
+    ],
+    "LI-Large-W16": [
+     "4",
+     {
+      "est": 0.81,
+      "lo": 0.67,
+      "hi": 0.95
+     },
+     0.0
+    ]
+   },
+   "h3b": {
+    "HI-Medium": {
+     "est": 0.86,
+     "lo": 0.805,
+     "hi": 0.901
+    },
+    "LI-Medium": {
+     "est": 0.921,
+     "lo": 0.838,
+     "hi": 0.963
+    },
+    "HI-Large-W16": {
+     "est": 1.0,
+     "lo": 0.981,
+     "hi": 1.0
+    },
+    "LI-Large-W16": {
+     "est": 0.951,
+     "lo": 0.865,
+     "hi": 0.983
+    }
+   },
+   "pt2": {
+    "HI-Medium": 19.86,
+    "LI-Medium": 8.69,
+    "HI-Large-W16": 8.07,
+    "LI-Large-W16": 9.32
+   },
+   "advantage": {
+    "HI-Medium": {
+     "S1": {
+      "est": -0.0022,
+      "lo": -0.0075,
+      "hi": 0.0031
+     },
+     "S1F": null
+    },
+    "LI-Medium": {
+     "S1": {
+      "est": 0.0921,
+      "lo": 0.0785,
+      "hi": 0.1033
+     },
+     "S1F": null
+    },
+    "HI-Large-W16": {
+     "S1": {
+      "est": 0.0009,
+      "lo": -0.0022,
+      "hi": 0.0028
+     },
+     "S1F": {
+      "est": 0.0011,
+      "lo": -0.0009,
+      "hi": 0.0034
+     }
+    },
+    "LI-Large-W16": {
+     "S1": {
+      "est": 0.0429,
+      "lo": 0.0307,
+      "hi": 0.0589
+     },
+     "S1F": {
+      "est": 0.0038,
+      "lo": 0.0003,
+      "hi": 0.0072
+     }
+    }
+   }
+  },
+  "case_quality": {
+   "HI-Large-W16": {
+    "completeness": [
+     0.77,
+     0.47
+    ],
+    "fragmentation": [
+     1.05,
+     1.51
+    ],
+    "alerts": [
+     18.0,
+     152.6
+    ]
+   },
+   "LI-Large-W16": {
+    "completeness": [
+     0.73,
+     0.48
+    ],
+    "fragmentation": [
+     1.06,
+     1.49
+    ],
+    "alerts": [
+     139.5,
+     943.5
+    ]
+   }
+  },
+  "benchmark": {
+   "A \u00b7 our pooled detector": {
+    "HI-Medium": "42.67 \u00b1 2.76",
+    "LI-Medium": "24.08 \u00b1 2.01"
+   },
+   "B \u00b7 transaction LightGBM + our features": {
+    "HI-Medium": "67.01 \u00b1 2.27",
+    "LI-Medium": "34.34 \u00b1 1.55"
+   },
+   "LightGBM + graph features (published)": {
+    "HI-Medium": "59.48",
+    "LI-Medium": "20.85"
+   },
+   "XGBoost + graph features (published)": {
+    "HI-Medium": "65.70",
+    "LI-Medium": "28.16"
+   },
+   "Multi-PNA + EU (published)": {
+    "HI-Medium": "66.48",
+    "LI-Medium": "36.07"
+   }
+  },
+  "narrative": {
+   "N0": {
+    "grounding": {
+     "est": 0.955,
+     "lo": 0.9167,
+     "hi": 0.9761
+    },
+    "strict": {
+     "est": 0.125,
+     "lo": 0.0861,
+     "hi": 0.178
+    },
+    "faithful": [
+     21,
+     30
+    ]
+   },
+   "N1": {
+    "grounding": {
+     "est": 0.965,
+     "lo": 0.9295,
+     "hi": 0.9829
+    },
+    "strict": {
+     "est": 0.1,
+     "lo": 0.0657,
+     "hi": 0.1494
+    },
+    "faithful": [
+     26,
+     30
+    ]
+   },
+   "N2": {
+    "grounding": {
+     "est": 0.99,
+     "lo": 0.9643,
+     "hi": 0.9973
+    },
+    "strict": {
+     "est": 0.055,
+     "lo": 0.031,
+     "hi": 0.0958
+    },
+    "faithful": [
+     29,
+     30
+    ]
+   },
+   "N3": {
+    "grounding": {
+     "est": 0.98,
+     "lo": 0.9497,
+     "hi": 0.9922
+    },
+    "strict": {
+     "est": 0.215,
+     "lo": 0.1637,
+     "hi": 0.277
+    },
+    "faithful": [
+     23,
+     30
+    ]
+   },
+   "N4": {
+    "grounding": {
+     "est": 0.985,
+     "lo": 0.9568,
+     "hi": 0.9949
+    },
+    "strict": {
+     "est": 0.83,
+     "lo": 0.7718,
+     "hi": 0.8757
+    },
+    "faithful": [
+     30,
+     30
+    ]
+   },
+   "N4 HI-Large-W16": {
+    "grounding": {
+     "est": 1.0,
+     "lo": 0.9812,
+     "hi": 1.0
+    },
+    "strict": {
+     "est": 0.82,
+     "lo": 0.7609,
+     "hi": 0.8671
+    }
+   },
+   "N4 LI-Large-W16": {
+    "grounding": {
+     "est": 0.9508,
+     "lo": 0.8651,
+     "hi": 0.9831
+    },
+    "strict": {
+     "est": 0.5574,
+     "lo": 0.433,
+     "hi": 0.6749
+    }
+   }
+  }
+ }
+}
