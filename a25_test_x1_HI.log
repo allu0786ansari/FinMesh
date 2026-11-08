@@ -1,0 +1,15 @@
+  seed 0: 5997 s
+  seed 1: 6062 s
+  seed 2: 6083 s
+  seed 3: 2278 s
+  seed 4: 2178 s
+  S0                 linked 0.063
+  S2/stacker         linked 0.534  p (Holm) 0.0000
+  oracle             linked 0.434  p 0.0000
+  oracle-relational  linked 0.576  p 0.0000
+  H1b: S2 recovers 0.92 [0.87, 0.97]
+  H3a met on test: False
+  token use: peak 60,035 vs frozen budget 109,282; 0.0% beyond it (served)
+  22602 s, peak memory 3355.1 MB
+  artifact /home/allu786ansari/FinMesh/data/artifacts/week18/x1_test_HI-Large-W16.json
+  reports  /home/allu786ansari/FinMesh/docs/eval/test

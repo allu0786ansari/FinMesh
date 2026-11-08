@@ -1,0 +1,31 @@
+Traceback (most recent call last):
+  File "/home/allu786ansari/FinMesh/.venv/bin/finmesh", line 10, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/home/allu786ansari/FinMesh/finmesh/cli.py", line 2535, in main
+    return int(args.func(args))
+               ^^^^^^^^^^^^^^^
+  File "/home/allu786ansari/FinMesh/finmesh/cli.py", line 1879, in cmd_test_x1
+    result = run_x1_test(
+             ^^^^^^^^^^^^
+  File "/home/allu786ansari/FinMesh/finmesh/training/sealed_runs.py", line 537, in run_x1_test
+    r = run_x1_test_seed(
+        ^^^^^^^^^^^^^^^^^
+  File "/home/allu786ansari/FinMesh/finmesh/training/sealed_runs.py", line 345, in run_x1_test_seed
+    val = _phase(
+          ^^^^^^^
+  File "/home/allu786ansari/FinMesh/finmesh/training/x1.py", line 558, in _phase
+    run = simulate(
+          ^^^^^^^^^
+  File "/home/allu786ansari/FinMesh/finmesh/sharing/simulate.py", line 228, in simulate
+    nodes[m].tokens.tokens(epoch, [identifier(c) for c in ordered]),
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/allu786ansari/FinMesh/finmesh/matching/tokens.py", line 131, in tokens
+    evaluated = self.transport(self.bank, epoch, [b for _, b in blinds])
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/allu786ansari/FinMesh/finmesh/sharing/simulate.py", line 79, in transport
+    answer = self.service.evaluate(b, epoch, points)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/allu786ansari/FinMesh/finmesh/matching/tokens.py", line 101, in evaluate
+    raise BudgetExceeded(
+finmesh.matching.tokens.BudgetExceeded: bank 7 would exceed 109282 evaluations in epoch 1
