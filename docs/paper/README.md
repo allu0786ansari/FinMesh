@@ -8,6 +8,7 @@
 | `static/tab_related.tex` | The related-work comparison (curated; sources in `related_work.md`) |
 | `references.bib` | Every entry checked against its primary source |
 | `related_work.md` | Draft related-work text and the source of every table entry |
+| `VERIFICATION.md` | Every factual statement in the draft mapped to the result page or code it comes from |
 | `assets.json` | Every number a figure or table shows, for checking against the result pages |
 | `preview.pdf` | A compiled preview of the draft (local build; see below) |
 
