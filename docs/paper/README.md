@@ -11,6 +11,8 @@
 | `related_work.md` | Draft related-work text and the source of every table entry |
 | `VERIFICATION.md` | Every factual statement in the draft mapped to the result page or code it comes from |
 | `assets.json` | Every number a figure or table shows, for checking against the result pages |
+| `paper.docx` | Editable Word version of the draft in IEEE two-column layout (generated from `main.tex`; see below) |
+| `tools/make_docx.py`, `tools/ieee.csl` | The Word converter and the IEEE citation style it uses (CC BY-SA 3.0, Citation Style Language project) |
 | `preview.pdf` | A compiled preview of the draft (local build; see below) |
 
 ## Regenerate
@@ -54,3 +56,13 @@ pdflatex main && bibtex main && pdflatex main && pdflatex main
 ```
 
 `preview.pdf` was built in the cloud workspace with IEEEtran.cls V1.8 and the natbib variant of the IEEE bibliography style. Your official build will differ only in small typographic details.
+
+## Word version
+
+`paper.docx` is generated from `main.tex`, so `main.tex` stays the master copy. Rebuild it after a LaTeX build, which supplies the section, figure, table and citation numbers:
+
+```bash
+python docs/paper/tools/make_docx.py --aux <build folder>/main.aux --out docs/paper/paper.docx
+```
+
+It needs pandoc 3, python-docx and pdftoppm. It uses the IEEE Word template's page set-up: US Letter, two 3.5 in columns and Times New Roman 10 pt. Word has no floating figures, so tables that span both columns sit in a one-column block near where they are cited, and figures stay where they are in the text. Move them by hand if a page breaks badly.
