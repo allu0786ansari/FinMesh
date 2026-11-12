@@ -1,23 +1,122 @@
-# FinMesh with Docker Compose (week 17).
+# FinMesh with Docker Compose. The guide is docs/containers.md.
 #
-#   docker compose --profile smoke up --build     # X7 on the synthetic smoke world
-#   docker compose --profile console up --build   # console over ./data/demo/<dataset>
+# Demo path (the slim runtime image):
+#   docker compose --profile smoke up --build        X7 on the synthetic smoke world
+#   docker compose --profile console up --build      analyst console, http://127.0.0.1:8050
 #
-# Your data stays on your machine: ./data is mounted at /data. The console is published
-# on the host's 127.0.0.1 only.
+# Research pipeline (the full image; your checkout is mounted at /app, data at /data):
+#   docker compose --profile pipeline run --rm pipeline <stage>       docker/reproduce.sh
+#   docker compose --profile cli run --rm finmesh <command> [args]    any finmesh command
+#   docker compose --profile paper run --rm paper                     paper figures and tables
+#   docker compose --profile ci run --rm ci                           scripts/ci_local.sh
+#
+# Narratives (a local Ollama server in its own container; nothing leaves the machine):
+#   docker compose --profile llm up -d ollama
+#   docker compose --profile llm exec ollama ollama pull qwen3:8b
+#   docker compose --profile llm run --rm pipeline-llm <stage>-llm
+#
+# Settings (environment or a .env file next to this one; see .env.example):
+#   FINMESH_SRC       the checkout to mount at /app (default: this folder). The sealed-test
+#                     stages need the signed commit, so point this at a clone checked out
+#                     there (docs/containers.md, step 3).
+#   FINMESH_DATA_DIR  the data folder to mount at /data (default: ./data)
+#   FINMESH_UID/GID   your user and group id, so files are written as you (default 1000)
+#
+# Data stays on your machine. Every port is published on 127.0.0.1 only.
+
+x-pipeline: &pipeline
+  build:
+    context: .
+    target: full
+  image: finmesh:full
+  user: "${FINMESH_UID:-1000}:${FINMESH_GID:-1000}"
+  working_dir: /app
+  volumes:
+    - "${FINMESH_SRC:-.}:/app"
+    - "${FINMESH_DATA_DIR:-./data}:/data"
+  environment:
+    FINMESH_DATA: /data
+    KAGGLE_USERNAME: "${KAGGLE_USERNAME:-}"
+    KAGGLE_KEY: "${KAGGLE_KEY:-}"
+    MODEL: "${MODEL:-llama3.2:3b}"
+    A25_MODEL: "${A25_MODEL:-qwen3:8b}"
+
 services:
+  # ------------------------------------------------------------------ demo path
   smoke:
     profiles: ["smoke"]
-    build: .
+    build:
+      context: .
+      target: runtime
     image: finmesh:local
     command: ["x7", "--smoke", "--node-timeout", "1"]
 
   console:
     profiles: ["console"]
-    build: .
+    build:
+      context: .
+      target: runtime
     image: finmesh:local
     command: ["console", "--dataset", "${FINMESH_DATASET:-HI-Medium}", "--host", "0.0.0.0"]
     volumes:
-      - ./data:/data
+      - "${FINMESH_DATA_DIR:-./data}:/data"
     ports:
       - "127.0.0.1:8050:8050"
+
+  # ------------------------------------------------------------------ research pipeline
+  pipeline:
+    <<: *pipeline
+    profiles: ["pipeline"]
+    entrypoint: ["bash", "/opt/finmesh/reproduce.sh"]
+    command: ["smoke"]
+
+  finmesh:
+    <<: *pipeline
+    profiles: ["cli"]
+    entrypoint: ["uv", "run", "finmesh"]
+    command: ["check"]
+
+  paper:
+    <<: *pipeline
+    profiles: ["paper"]
+    entrypoint: ["uv", "run", "finmesh"]
+    command: ["paper-assets"]
+
+  ci:
+    <<: *pipeline
+    profiles: ["ci"]
+    entrypoint: ["bash", "scripts/ci_local.sh"]
+    command: []
+    environment:
+      # the fixture runs of the CI script write here, not into your data folder
+      FINMESH_DATA: /tmp/finmesh-ci
+
+  # ------------------------------------------------------------------ narratives (local LLM)
+  ollama:
+    profiles: ["llm"]
+    image: "${OLLAMA_IMAGE:-ollama/ollama:0.9.0}"
+    volumes:
+      - ollama-models:/root/.ollama
+    ports:
+      - "127.0.0.1:11434:11434"
+
+  pipeline-llm:
+    <<: *pipeline
+    profiles: ["llm"]
+    # Shares the Ollama container's network, so the model server is at localhost:11434:
+    # FinMesh accepts only local model endpoints (finmesh.attribution.llm_probe).
+    network_mode: "service:ollama"
+    depends_on: [ollama]
+    entrypoint: ["bash", "/opt/finmesh/reproduce.sh"]
+    command: ["validation-llm"]
+
+  finmesh-llm:
+    <<: *pipeline
+    profiles: ["llm"]
+    network_mode: "service:ollama"
+    depends_on: [ollama]
+    entrypoint: ["uv", "run", "finmesh"]
+    command: ["llm-probe", "--model", "llama3.2:3b"]
+
+volumes:
+  ollama-models:

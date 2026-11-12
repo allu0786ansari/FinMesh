@@ -1,7 +1,9 @@
-# Only the package, its lock and the README go into the image; never data or secrets.
+# Only the package, its lock, the README and the stage runner go into the image; never data,
+# results or secrets. Compose mounts a checkout and the data folder at run time instead.
 *
 !pyproject.toml
 !uv.lock
 !README.md
 !finmesh/
+!docker/reproduce.sh
 finmesh/**/__pycache__

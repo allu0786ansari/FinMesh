@@ -117,7 +117,8 @@ docs/
   gates/ protocol/ proposal/ runlog/ data_profile/   design, decisions and evidence
 tests/                unit, contract and integration tests (integration needs real data)
 scripts/              local CI, scale check, week runners
-Dockerfile, compose.yaml   container image; smoke test and console profiles
+docker/               the pipeline's stage runner (reproduce.sh) for the containers
+Dockerfile, compose.yaml   runtime and full images; demo, pipeline, LLM, paper and CI profiles
 ```
 
 Data never enters git. Everything large lives under `data/` (ignored), or wherever `FINMESH_DATA` points.
@@ -155,9 +156,16 @@ uv run finmesh paper-assets      # rebuilds every result figure and table from t
 
 ### Containers
 
+The whole pipeline runs in Docker: two images (a slim runtime image for the demo path and console, and a full image for the research pipeline), with your checkout and data folder mounted. The guide, including which commit each stage runs on, is [`docs/containers.md`](docs/containers.md).
+
 ```bash
-docker compose --profile smoke up --build      # X7 on a synthetic smoke world
-docker compose --profile console up --build    # analyst console on ./data/demo/<dataset>, at 127.0.0.1:8050
+cp .env.example .env                                         # set FINMESH_UID/GID to the output of `id`
+make docker-build                                            # finmesh:local and finmesh:full
+make docker-smoke                                            # X7, then the fixture pipeline, in minutes
+docker compose --profile pipeline run --rm pipeline data     # a stage: data, validation, primary, replication, paper ...
+docker compose --profile llm up -d ollama                    # local model server for the narrative stages
+docker compose --profile console up --build                  # analyst console at 127.0.0.1:8050
+make docker-ci                                               # the CI checks inside the container
 ```
 
 ### Development

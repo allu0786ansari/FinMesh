@@ -69,17 +69,41 @@ jobs:
           uv run finmesh check
 
   container:
-    # The container smoke pipeline (week 17): build the image, then run X7 on the
-    # synthetic smoke world inside it, as separate processes.
+    # Both images (week 19): the runtime image runs X7 on the synthetic smoke world; the
+    # full image runs the pipeline's smoke stage on this checkout and data volume, parses
+    # every stage, and rebuilds the paper's tables identically from the committed pages.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Build the image
-        run: docker build -t finmesh:local .
-      - name: X7 smoke inside the container
+      - name: Use the runner's user and group inside the containers
+        run: |
+          echo "FINMESH_UID=$(id -u)" >> "$GITHUB_ENV"
+          echo "FINMESH_GID=$(id -g)" >> "$GITHUB_ENV"
+          mkdir -p data
+      - name: Build the images
+        run: |
+          docker build --target runtime -t finmesh:local .
+          docker build --target full -t finmesh:full .
+      - name: X7 smoke inside the runtime image
         run: docker run --rm finmesh:local x7 --smoke --node-timeout 1
-      - name: Compose file is valid
-        run: docker compose --profile smoke --profile console config --quiet
+      - name: Compose file is valid for every profile
+        run: |
+          for p in smoke console pipeline cli paper ci llm; do
+            docker compose --profile "$p" config --quiet
+          done
+      - name: Every pipeline stage parses (dry run)
+        run: |
+          for s in data validation validation-llm primary primary-llm replication \
+                   replication-llm paper; do
+            docker compose --profile pipeline run --rm pipeline "$s" --dry-run > /dev/null
+          done
+      - name: Pipeline smoke stage in the full image (checkout and data mounted)
+        run: docker compose --profile pipeline run --rm pipeline smoke
+      - name: Paper tables rebuild identically inside the container
+        run: |
+          docker compose --profile paper run --rm paper
+          git diff --exit-code -- docs/paper/tables docs/paper/assets.json
+          git diff --stat -- docs/paper/figures || true
 
   secret-scan:
     runs-on: ubuntu-latest
