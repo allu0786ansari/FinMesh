@@ -1,0 +1,87 @@
+% Fig. 1 of the paper: the protocol for one query between two banks.
+% Source of docs/paper/figures/fig_architecture.pdf (vector, fonts embedded). Rebuild with
+%   cd docs/paper/static && pdflatex fig_architecture && mv fig_architecture.pdf ../figures/
+% Every element is checked against the code in docs/paper/VERIFICATION.md ("Fig. 1" rows).
+% Updated from the proposal's workflow diagram (docs/proposal/workflow.png) to the system
+% that was built and evaluated.
+\documentclass[10pt,border=0.5pt]{standalone}
+\usepackage{times}
+\usepackage{amsmath}
+\usepackage{tikz}
+\usetikzlibrary{positioning,calc,arrows.meta,fit,backgrounds}
+
+\definecolor{ink}{HTML}{0B0B0B}
+\definecolor{ink2}{HTML}{52514E}
+\definecolor{lane}{HTML}{F2F1EE}
+\definecolor{c1}{HTML}{1C5CAB}
+\definecolor{c2}{HTML}{0D366B}
+\definecolor{tint}{HTML}{E3EEFB}
+
+\begin{document}
+\begin{tikzpicture}[
+  font=\footnotesize, text=ink,
+  box/.style={draw=c1, line width=0.5pt, fill=white, rounded corners=1.5pt, align=center,
+              text width=28mm, inner sep=2.2pt, minimum height=13.8mm},
+  flow/.style={-{Stealth[length=3.2pt,width=2.8pt]}, draw=ink2, line width=0.5pt},
+  wire/.style={-{Stealth[length=3.8pt,width=3.4pt]}, draw=c2, line width=0.9pt},
+  tok/.style={{Stealth[length=3.2pt,width=2.8pt]}-{Stealth[length=3.2pt,width=2.8pt]},
+              draw=c1, line width=0.5pt, dash pattern=on 2pt off 1.2pt},
+  lbl/.style={font=\footnotesize, text=ink, align=center, inner sep=0.8pt},
+  node distance=4mm and 16mm,
+]
+% ---------------------------------------------------------------- bank A (requester)
+\node[box] (a1)
+  {\textbf{Local detector (S0)}\\ LightGBM, 47 features;\\ calibrated score};
+\node[box, below=of a1] (a2)
+  {\textbf{Query}\\ score ${\ge}\,0.01$ or alerted;\\ counterparties at B\\ within 72\,h};
+\node[box, below=of a2] (a3)
+  {\textbf{Fusion stacker}\\ own score + answers;\\ fixed alert budget};
+\node[box, below=of a3] (a4)
+  {\textbf{Case}\\ cross-bank linking\\ (72\,h); typology;\\ N4 narrative};
+
+% ---------------------------------------------------------------- bank B (responder)
+\node[box, right=of a1] (b3)
+  {\textbf{Evidence store}\\ own alerts and\\ minimised records;\\ token index};
+\node[box, right=of a2] (b1)
+  {\textbf{Request guard}\\ signature, nonce, expiry,\\ purpose, hop limit,\\ rate per token};
+\node[box, right=of a3] (b2)
+  {\textbf{Response policy}\\ S1 flag, S1F gated flag,\\ S2 record, S3 RR($\varepsilon$),\\ PD($\tau$)};
+\node[lbl, text width=30mm, font=\footnotesize\itshape, text=ink2] (aud) at (b2 |- a4)
+  {Leakage audit: B as an honest-but-curious peer attacks all it receives};
+
+% ---------------------------------------------------------------- token service
+\node[box, fill=tint, text width=83.4mm, minimum height=0pt,
+      above=8mm of $(a1.north west)!0.5!(b3.north east)$, anchor=south] (ts)
+  {\textbf{Token service}: OPRF (RFC 9497, ristretto255-SHA512);\\
+   key per 7-day epoch; per-bank, per-epoch query budget};
+
+% ---------------------------------------------------------------- lanes and boundary
+\begin{scope}[on background layer]
+  \node[fill=lane, rounded corners=2pt, inner sep=1.8mm, fit=(a1)(a4)] (laneA) {};
+  \node[fill=lane, rounded corners=2pt, inner sep=1.8mm, fit=(b3)(b2)(aud)(b2 |- a4.south)]
+    (laneB) {};
+\end{scope}
+\node[lbl, anchor=south, font=\footnotesize\bfseries] at (laneA.north) {Bank A (requester)};
+\node[lbl, anchor=south, font=\footnotesize\bfseries] at (laneB.north) {Bank B (responder)};
+\path ($(laneA.north east)!0.5!(laneB.north west)$) coordinate (bt)
+      ($(laneA.south east)!0.5!(laneB.south west)$) coordinate (bb);
+\draw[ink2, line width=0.6pt, dash pattern=on 2.5pt off 1.8pt] (bt) -- (bb);
+\node[lbl, rotate=90, fill=white, font=\footnotesize\itshape, text=ink2, inner sep=1.2pt]
+  at ($(bt |- a4)$) {boundary};
+
+% ---------------------------------------------------------------- internal flow
+\draw[flow] (a1) -- (a2);
+\draw[flow] (a2) -- (a3);
+\draw[flow] (a3) -- (a4);
+\draw[flow] (b1) -- (b2);
+\draw[flow] (b3.east) -- ++(1.2mm,0) |- (b2.east);
+
+% ---------------------------------------------------------------- across the boundary
+\draw[wire] (a2.east) -- node[lbl, above, yshift=0.6pt] {signed} node[lbl, below, yshift=-0.6pt] {request} (b1.west);
+\draw[wire] (b2.west) -- node[lbl, above, yshift=0.6pt] {flag or} node[lbl, below, yshift=-0.6pt] {record} (a3.east);
+
+% ---------------------------------------------------------------- tokens (blinded)
+\draw[tok] (a2.west) -- ++(-1.1mm,0) coordinate (ta) -- (ta |- ts.south);
+\node[lbl, rotate=90, anchor=south] at ($(ta)!0.5!(ta |- ts.south)$) {blinded IDs $\leftrightarrow$ tokens};
+\end{tikzpicture}
+\end{document}

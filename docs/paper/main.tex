@@ -148,6 +148,19 @@ and we compare our detector with those results.
 
 % =========================================================================================
 \section{System}\label{sec:system}
+Fig.~\ref{fig:arch} shows the protocol for one query between two banks. Every bank plays both
+roles.
+
+\begin{figure}[!t]
+\centering
+\includegraphics{fig_architecture}
+\caption{Protocol for one query. Bank~A tokenises the counterparties of a suspicious account
+through the token service and sends a signed request to the bank that holds them; Bank~B's
+guard checks the request and its policy answers at the configured sharing level. Only the
+messages on the two dark arrows cross the boundary between banks. S4 (S2 with an embedding) is
+a leakage reference and is not shown.}
+\label{fig:arch}
+\end{figure}
 
 \subsection{Setting and threat model}
 Each bank in the federation observes the transactions that have one end at one of its own
@@ -174,13 +187,18 @@ oblivious pseudorandom function in the mode-0 ristretto255-SHA512 suite of RFC
 9497~\cite{rfc9497}. A bank blinds an identifier, the token service evaluates it under the
 key of the current seven-day epoch, and the bank unblinds the result. Every evaluation is an
 online, logged query, and each bank has a per-epoch budget set to twice the largest
-legitimate use observed on validation. Tokens derived from a key shared by all banks are
-used only as a control in the audit.
+legitimate use observed on validation. Each bank tokenises its own accounts in the same way, so
+that it can recognise the tokens it receives. Tokens derived from a key shared by all banks
+are used only as a control in the audit.
 
 \subsection{Evidence and sharing levels}
 An account-window whose calibrated probability is at least 0.01, or which has been alerted,
-queries the banks that hold its counterparties within the 72-hour lookback. The answer
-depends on the sharing level.
+queries the banks that hold its counterparties within the 72-hour lookback. A request carries
+the token, the time range, a declared purpose, a hop limit and the requester's probability
+bucket, and is signed by a request issuer whose public key every bank holds. The responder's
+guard refuses a request with an invalid signature, an expired or replayed request, one with an
+undeclared purpose or a spent hop limit, and any request for a token that has already received
+20 answers in the epoch. The answer depends on the sharing level.
 \begin{itemize}
 \item \textbf{S1}: the alert flag for the counterparty and a time bucket.
 \item \textbf{S2}: an evidence record containing the probability bucket, the three features

@@ -2,9 +2,10 @@
 
 | Path | What it is |
 | --- | --- |
-| `main.tex` | The full draft (IEEEtran conference, 7 pages with references): every section written, every number taken from the result pages; for the authors to edit |
+| `main.tex` | The full draft (IEEEtran conference, 8 pages with references): every section written, every number taken from the result pages; for the authors to edit |
 | `figures/fig_*.pdf` | Vector figures (PNG previews alongside) |
 | `tables/tab_*.tex` | IEEEtran table floats, `\input` by `main.tex` |
+| `static/fig_architecture.tex` | Fig. 1, the protocol diagram (TikZ source of `figures/fig_architecture.pdf`; drawn, not generated) |
 | `static/tab_related.tex` | The related-work comparison (curated; sources in `related_work.md`) |
 | `references.bib` | Every entry checked against its primary source |
 | `related_work.md` | Draft related-work text and the source of every table entry |
@@ -22,7 +23,7 @@ The command rebuilds `figures/`, `tables/` and `assets.json` from the committed 
 - `docs/eval/test` and `docs/eval/a25`;
 - `docs/gates` and `docs/data_profile`.
 
-It needs no data folder. A value missing from a page stops the build rather than being guessed.
+It needs no data folder. Fig. 1 is drawn rather than generated; rebuild it with `cd static && pdflatex fig_architecture && mv fig_architecture.pdf ../figures/`. A value missing from a page stops the build rather than being guessed.
 
 ## IEEE conventions applied
 

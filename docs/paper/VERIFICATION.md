@@ -27,6 +27,26 @@ Each factual statement in the draft and its source in the repository. Result pag
 | Oracle; relational oracle (pooled score + counterparties' pooled scores, stacker) as H1b ceiling | preregistration §6, §6a (A14) |
 | Attributor; JSON narrative with typology and field checks; one retry; template fallback; N4 selects ≤ 4 fields | preregistration §6d–6g; `finmesh/attribution/narrative.py`, `narrative_cases.py` |
 
+## Fig. 1 (architecture) and the request sentences in Section III
+
+Fig. 1 updates the proposal's workflow diagram (`docs/proposal/workflow.png`) to the system that was built and evaluated. Changes from that diagram: two banks drawn as requester and responder with the bank boundary, the response policy shown as the evaluated levels (S1, S1F, S2, S3, PD) rather than "S1 by default, escalate", the gated flag added, and three boxes left out. The federated DP scorer is left out because gate G3 kept detectors local; the privacy ledger and analyst approval belong to the demo path, which the paper does not evaluate.
+
+| Element | Source |
+| --- | --- |
+| Token service: OPRF RFC 9497 ristretto255-SHA512, 7-day epoch key, per-bank per-epoch budget | `finmesh/matching/oprf.py`, `tokens.py`; preregistration A16 |
+| Blinded IDs ↔ tokens between requester and token service | `finmesh/sharing/simulate.py` (A tokenises b through the token service) |
+| Each bank tokenises its own accounts to index its records | `finmesh/sharing/node.py` (token index) |
+| Local detector: LightGBM, 47 features, calibrated score | as Section III-B rows above |
+| Query: score ≥ 0.01 or alerted; counterparties at B within 72 h | preregistration §6a (A13) |
+| Request fields: token, time range, purpose, hop limit, requester bucket; signed | `finmesh/sharing/messages.py` (`EvidenceRequest`) |
+| Signed by a request issuer (Ed25519) whose public key nodes hold | `finmesh/sharing/requests.py` (`RequestIssuer`) |
+| Guard refuses bad signature, expired, replayed (nonce), undeclared purpose, spent hop limit, more than 20 answers per token and epoch | `finmesh/sharing/requests.py` (`RequestGuard`, `RATE_PER_TOKEN = 20`, `EXPIRY_WINDOWS = 1`); used in every run via `simulate.py` |
+| Evidence store: own alerts and minimised records | `finmesh/sharing/node.py` |
+| Response policy S1, S1F, S2, S3 RR(ε), PD(τ); S4 reference not drawn | `finmesh/sharing/node.py` |
+| Only requests and responses cross between banks | `finmesh/sharing/messages.py` (`ALLOWLIST`, `Bus`) |
+| Fusion stacker; fixed alert budget; cross-bank linking 72 h; typology; N4 | as Section III-E/F rows above |
+| Leakage audit: B as honest-but-curious peer attacking what it receives | preregistration §6b (A15); `docs/eval/test/audit_*.md` |
+
 ## Evaluation method (Section IV)
 
 | Statement | Source |
