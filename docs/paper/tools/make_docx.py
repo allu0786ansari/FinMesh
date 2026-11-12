@@ -72,14 +72,24 @@ def read_aux(aux: Path) -> tuple[dict[str, str], dict[str, int]]:
         m.group(1): re.sub(r"\\mbox\s*\{(.*)\}", r"\1", m.group(2)).strip()
         for m in re.finditer(r"\\newlabel\{([^}]*)\}\{\{(.*?)\}\{\d+\}", text)
     }
-    cites = {m.group(1): int(m.group(2)) for m in re.finditer(r"\\bibcite\{([^}]*)\}\{\{(\d+)\}", text)}
+    cites = {
+        m.group(1): int(m.group(2)) for m in re.finditer(r"\\bibcite\{([^}]*)\}\{\{(\d+)\}", text)
+    }
     return labels, cites
 
 
 MATH = [
-    (r"\varepsilon", "\\textit{ε}"), (r"\tau", "\\textit{τ}"), (r"\pm", "±"), (r"\geq", "≥"),
-    (r"{\ge}", "≥"), (r"\ge", "≥"), (r"\leq", "≤"), (r"\div", "÷"), (r"\in", "∈"),
-    (r"\,", "\u202f"), ("-", "−"),
+    (r"\varepsilon", "\\textit{ε}"),
+    (r"\tau", "\\textit{τ}"),
+    (r"\pm", "±"),
+    (r"\geq", "≥"),
+    (r"{\ge}", "≥"),
+    (r"\ge", "≥"),
+    (r"\leq", "≤"),
+    (r"\div", "÷"),
+    (r"\in", "∈"),
+    (r"\,", "\u202f"),
+    ("-", "−"),
 ]
 
 
@@ -88,7 +98,9 @@ def math_to_text(expr: str) -> str:
     out = expr
     for a, b in MATH:
         out = out.replace(a, b)
-    out = re.sub(r"(?<![\\\w{])([a-zA-Z])(?![\w}])", r"\\textit{\1}", out)  # single-letter variables
+    out = re.sub(
+        r"(?<![\\\w{])([a-zA-Z])(?![\w}])", r"\\textit{\1}", out
+    )  # single-letter variables
     out = re.sub(r"(?<=\S)\s*([=≤≥∈])\s*", r" \1 ", out)
     return out.strip()
 
@@ -97,8 +109,11 @@ def common_rewrites(s: str, labels: dict[str, str], cites: dict[str, int]) -> st
     s = re.sub(r"(?m)(?<!\\)%.*$", "", s)
     s = re.sub(r"\$([^$]+)\$", lambda m: math_to_text(m.group(1)), s)
     s = re.sub(r"\\ref\{([^}]*)\}", lambda m: labels[m.group(1)], s)
-    s = re.sub(r"\\cite\{([^}]*)\}",
-               lambda m: ", ".join(f"[{cites[k.strip()]}]" for k in m.group(1).split(",")), s)
+    s = re.sub(
+        r"\\cite\{([^}]*)\}",
+        lambda m: ", ".join(f"[{cites[k.strip()]}]" for k in m.group(1).split(",")),
+        s,
+    )
     s = re.sub(r"\\label\{[^}]*\}", "", s)
     return s.replace(r"\cmark", "✓").replace(r"\xmark", "✗").replace("{,}", ",")
 
@@ -135,8 +150,11 @@ def body_latex(tex: str, labels: dict[str, str], cites: dict[str, int]) -> str:
         num = labels[re.search(r"\\label\{([^}]*)\}", content).group(1)]
         cap, _ = command_arg(content, r"\caption")
         img = re.search(r"\\includegraphics(?:\[[^\]]*\])?\{(fig_\w+)\}", content).group(1)
-        return (f"\n\n\\begin{{figure}}\n\\includegraphics{{{img}.png}}\n"
-                f"\\caption{{Fig.~{num}. {cap}}}\n\\end{{figure}}\n\n")
+        return (
+            f"\n\n\\begin{{figure}}\n\\includegraphics{{{img}.png}}\n"
+            f"\\caption{{Fig.~{num}. {cap}}}\n\\end{{figure}}\n\n"
+        )
+
     body = re.sub(r"\\begin\{figure\}(?:\[[^\]]*\])?(.*?)\\end\{figure\}", figure, body, flags=re.S)
     body = common_rewrites(body, labels, cites)
     sec = sub = 0
@@ -151,9 +169,13 @@ def body_latex(tex: str, labels: dict[str, str], cites: dict[str, int]) -> str:
             return rf"\section*{{{ROMAN[sec - 1]}. {text}}}"
         sub += 1
         return rf"\subsection*{{{chr(64 + sub)}. {text}}}"
+
     body = re.sub(r"\\(section|subsection)(\*?)\{([^}]*)\}", heading, body)
-    return ("\\documentclass{article}\n\\begin{document}\n" + body
-            + "\n\\section*{References}\n\n@@REFERENCES@@\n\n\\end{document}\n")
+    return (
+        "\\documentclass{article}\n\\begin{document}\n"
+        + body
+        + "\n\\section*{References}\n\n@@REFERENCES@@\n\n\\end{document}\n"
+    )
 
 
 # ============================================================================ tables
@@ -166,6 +188,7 @@ def parse_inline(s: str, fmt: frozenset = frozenset()) -> list[tuple[str, frozen
         if buf:
             out.append(("".join(buf), fmt))
             buf.clear()
+
     cmds = {r"\textbf": "b", r"\emph": "i", r"\textit": "i", r"\texttt": "tt"}
     s = re.sub(r"\s+", " ", s)
     while i < len(s):
@@ -180,9 +203,19 @@ def parse_inline(s: str, fmt: frozenset = frozenset()) -> list[tuple[str, frozen
             inner, i = braced(s, i)
             out += parse_inline(inner, fmt)
             continue
-        for a, b in ((r"\%", "%"), (r"\&", "&"), (r"\ ", " "), ("---", "—"), ("--", "–"),
-                     ("~", "\u00a0"), (r"\_", "_"), (r"\{", "{"), (r"\}", "}"),
-                     ("\\quad ", "\u2003"), ("\\quad", "\u2003")):
+        for a, b in (
+            (r"\%", "%"),
+            (r"\&", "&"),
+            (r"\ ", " "),
+            ("---", "—"),
+            ("--", "–"),
+            ("~", "\u00a0"),
+            (r"\_", "_"),
+            (r"\{", "{"),
+            (r"\}", "}"),
+            ("\\quad ", "\u2003"),
+            ("\\quad", "\u2003"),
+        ):
             if s.startswith(a, i):
                 buf.append(b)
                 i += len(a)
@@ -206,13 +239,15 @@ def parse_table(src: str) -> dict:
     spec, j = braced(src, i)
     body = src[j : src.index(r"\end{tabular}")]
     m = re.fullmatch(r"\*\{(\d+)\}\{.*\}", spec)
-    aligns = ["p"] * int(m.group(1)) if m else [c for c in re.sub(r"\{[^}]*\}", "", spec) if c in "lcrp"]
+    aligns = (
+        ["p"] * int(m.group(1)) if m else [c for c in re.sub(r"\{[^}]*\}", "", spec) if c in "lcrp"]
+    )
     rows, rule_next = [], False
     for chunk in re.split(r"\\\\", body):
         chunk = chunk.strip()
         while chunk.startswith(r"\hline"):
             rule_next = True
-            chunk = chunk[len(r"\hline"):].strip()
+            chunk = chunk[len(r"\hline") :].strip()
         if not chunk:
             continue
         cells = []
@@ -229,15 +264,23 @@ def parse_table(src: str) -> dict:
     return {"wide": wide, "caption": caption, "note": note, "aligns": aligns, "rows": rows}
 
 
-ALIGN = {"l": WD_ALIGN_PARAGRAPH.LEFT, "c": WD_ALIGN_PARAGRAPH.CENTER,
-         "r": WD_ALIGN_PARAGRAPH.RIGHT, "p": WD_ALIGN_PARAGRAPH.LEFT}
+ALIGN = {
+    "l": WD_ALIGN_PARAGRAPH.LEFT,
+    "c": WD_ALIGN_PARAGRAPH.CENTER,
+    "r": WD_ALIGN_PARAGRAPH.RIGHT,
+    "p": WD_ALIGN_PARAGRAPH.LEFT,
+}
 
 
 def add_runs(par, pieces, size, base_italic=False):
     for text, f in pieces:
         r = par.add_run(text)
-        set_font(r, size=size, bold=True if "b" in f else None,
-                 italic=True if ("i" in f or base_italic) else None)
+        set_font(
+            r,
+            size=size,
+            bold=True if "b" in f else None,
+            italic=True if ("i" in f or base_italic) else None,
+        )
         if "tt" in f:
             rf = r._element.get_or_add_rPr().get_or_add_rFonts()
             for a in ("w:ascii", "w:hAnsi", "w:cs"):
@@ -246,7 +289,9 @@ def add_runs(par, pieces, size, base_italic=False):
 
 def set_borders(parent, tag: str, edges: dict[str, int]):
     b = OxmlElement(tag)
-    names = ("top", "left", "bottom", "right") + (("insideH", "insideV") if tag == "w:tblBorders" else ())
+    names = ("top", "left", "bottom", "right") + (
+        ("insideH", "insideV") if tag == "w:tblBorders" else ()
+    )
     for edge in names:
         e = OxmlElement(f"w:{edge}")
         size = edges.get(edge, 0)
@@ -263,11 +308,30 @@ def set_borders(parent, tag: str, edges: dict[str, int]):
 
 
 # schema order: an element must precede these siblings
-AFTER_TBLBORDERS = ("w:shd", "w:tblLayout", "w:tblCellMar", "w:tblLook", "w:tblCaption",
-                    "w:tblDescription", "w:tblPrChange")
+AFTER_TBLBORDERS = (
+    "w:shd",
+    "w:tblLayout",
+    "w:tblCellMar",
+    "w:tblLook",
+    "w:tblCaption",
+    "w:tblDescription",
+    "w:tblPrChange",
+)
 AFTER_TBLLAYOUT = AFTER_TBLBORDERS[2:]
-AFTER_TCBORDERS = ("w:shd", "w:noWrap", "w:tcMar", "w:textDirection", "w:tcFitText", "w:vAlign",
-                   "w:hideMark", "w:headers", "w:cellIns", "w:cellDel", "w:cellMerge", "w:tcPrChange")
+AFTER_TCBORDERS = (
+    "w:shd",
+    "w:noWrap",
+    "w:tcMar",
+    "w:textDirection",
+    "w:tcFitText",
+    "w:vAlign",
+    "w:hideMark",
+    "w:headers",
+    "w:cellIns",
+    "w:cellDel",
+    "w:cellMerge",
+    "w:tcPrChange",
+)
 AFTER_TCMAR = AFTER_TCBORDERS[3:]
 
 
@@ -339,8 +403,9 @@ def build_table(doc, t: dict, labels, cites):
             if c["span"] > 1:
                 cell = cell.merge(tbl.cell(r_i, col + c["span"] - 1))
             p = cell.paragraphs[0]
-            para_format(p, align=ALIGN[c["align"] or t["aligns"][col]], before=1, after=1,
-                        first=Inches(0))
+            para_format(
+                p, align=ALIGN[c["align"] or t["aligns"][col]], before=1, after=1, first=Inches(0)
+            )
             add_runs(p, c["pieces"], 8)
             col += c["span"]
         trpr = tbl.rows[r_i]._tr.get_or_add_trPr()
@@ -377,7 +442,9 @@ def style_runs(par, **kw):
         set_font(Run(r, par), **kw)
 
 
-def para_format(par, align=None, before=0, after=0, first=None, left=None, hanging=None, keep_next=None):
+def para_format(
+    par, align=None, before=0, after=0, first=None, left=None, hanging=None, keep_next=None
+):
     pf = par.paragraph_format
     if align is not None:
         pf.alignment = align
@@ -442,8 +509,15 @@ def sectpr(num: int):
     pg.set(qn("w:h"), "15840")
     sp.append(pg)
     mar = OxmlElement("w:pgMar")
-    for k, v in {"top": 1080, "right": 900, "bottom": 1440, "left": 900, "header": 720,
-                 "footer": 720, "gutter": 0}.items():
+    for k, v in {
+        "top": 1080,
+        "right": 900,
+        "bottom": 1440,
+        "left": 900,
+        "header": 720,
+        "footer": 720,
+        "gutter": 0,
+    }.items():
         mar.set(qn(f"w:{k}"), str(v))
     sp.append(mar)
     c = OxmlElement("w:cols")
@@ -483,21 +557,47 @@ def build(aux: Path, out: Path, csl: Path) -> None:
     with tempfile.TemporaryDirectory() as tmpd:
         tmp = Path(tmpd)
         for pdf in (PAPER / "figures").glob("fig_*.pdf"):
-            subprocess.run(["pdftoppm", "-r", "600", "-png", "-singlefile", str(pdf),
-                            str(tmp / pdf.stem)], check=True)
+            subprocess.run(
+                ["pdftoppm", "-r", "600", "-png", "-singlefile", str(pdf), str(tmp / pdf.stem)],
+                check=True,
+            )
         (tmp / "body.tex").write_text(body_latex(tex, labels, cites))
         fm_tex = common_rewrites(fm["abstract"], labels, cites) + "\n\n@@KW@@ " + fm["keywords"]
-        (tmp / "fm.tex").write_text("\\documentclass{article}\\begin{document}\n" + fm_tex
-                                    + "\n\\end{document}\n")
+        (tmp / "fm.tex").write_text(
+            "\\documentclass{article}\\begin{document}\n" + fm_tex + "\n\\end{document}\n"
+        )
         order = sorted(cites, key=cites.get)
         (tmp / "refs.md").write_text(" ".join(f"[@{k}]" for k in order) + "\n")
 
         def run(*a):
             subprocess.run(list(a), cwd=tmp, check=True)
-        run("pandoc", "body.tex", "-f", "latex", "-t", "docx", "--resource-path", str(tmp), "-o", "body.docx")
+
+        run(
+            "pandoc",
+            "body.tex",
+            "-f",
+            "latex",
+            "-t",
+            "docx",
+            "--resource-path",
+            str(tmp),
+            "-o",
+            "body.docx",
+        )
         run("pandoc", "fm.tex", "-f", "latex", "-t", "docx", "-o", "fm.docx")
-        run("pandoc", "refs.md", "--citeproc", "--csl", str(csl), "--bibliography",
-            str(PAPER / "references.bib"), "-t", "docx", "-o", "refs.docx")
+        run(
+            "pandoc",
+            "refs.md",
+            "--citeproc",
+            "--csl",
+            str(csl),
+            "--bibliography",
+            str(PAPER / "references.bib"),
+            "-t",
+            "docx",
+            "-o",
+            "refs.docx",
+        )
         doc = Document(str(tmp / "body.docx"))
         fmdoc = Document(str(tmp / "fm.docx"))
         refdoc = Document(str(tmp / "refs.docx"))
@@ -511,7 +611,7 @@ def build(aux: Path, out: Path, csl: Path) -> None:
     n = len(fm["authors"])
     atab = plain_table(doc, 1, n)
     first.addprevious(atab._tbl)
-    for cell, a in zip(atab.rows[0].cells, fm["authors"]):
+    for cell, a in zip(atab.rows[0].cells, fm["authors"], strict=False):
         cell.width = Inches(PAGE_IN / n)
         p = cell.paragraphs[0]
         para_format(p, align=WD_ALIGN_PARAGRAPH.CENTER, after=1)
@@ -553,22 +653,37 @@ def build(aux: Path, out: Path, csl: Path) -> None:
             anchor = el
             if t["wide"]:
                 if m.group(1) in DEFER:
-                    anchor = next(h for h in body.iter(qn("w:p"))
-                                  if Paragraph(h, doc._body).text.strip() == DEFER[m.group(1)])
+                    anchor = next(
+                        h
+                        for h in body.iter(qn("w:p"))
+                        if Paragraph(h, doc._body).text.strip() == DEFER[m.group(1)]
+                    )
                 while True:
                     prev = anchor.getprevious()
-                    pp = Paragraph(prev, doc._body) if prev is not None and prev.tag == qn("w:p") else None
-                    if pp is None or pp._p.pPr is not None and pp._p.pPr.sectPr is not None:
+                    pp = (
+                        Paragraph(prev, doc._body)
+                        if prev is not None and prev.tag == qn("w:p")
+                        else None
+                    )
+                    if pp is None or (pp._p.pPr is not None and pp._p.pPr.sectPr is not None):
                         break
-                    if (pp.style is not None and pp.style.name in FIGURE_STYLES) or not pp.text.strip() \
-                            and pp._p.find(".//" + qn("w:drawing")) is not None:
+                    if (pp.style is not None and pp.style.name in FIGURE_STYLES) or (
+                        not pp.text.strip() and pp._p.find(".//" + qn("w:drawing")) is not None
+                    ):
                         anchor = prev
                         continue
                     break
                 section_break(doc, anchor, 2)
             el_marker, el = el, anchor
-            cap = new_par(doc, el, align=WD_ALIGN_PARAGRAPH.CENTER, before=6, after=3,
-                          first=Inches(0), keep_next=True)
+            cap = new_par(
+                doc,
+                el,
+                align=WD_ALIGN_PARAGRAPH.CENTER,
+                before=6,
+                after=3,
+                first=Inches(0),
+                keep_next=True,
+            )
             r1 = cap.add_run(f"TABLE {num}")
             set_font(r1, size=8)
             r1.add_break(WD_BREAK.LINE)
@@ -577,8 +692,9 @@ def build(aux: Path, out: Path, csl: Path) -> None:
                 r.font.small_caps = True
             el.addprevious(build_table(doc, t, labels, cites)._tbl)
             if t["note"]:
-                note = new_par(doc, el, align=WD_ALIGN_PARAGRAPH.JUSTIFY, before=2, after=8,
-                               first=Inches(0))
+                note = new_par(
+                    doc, el, align=WD_ALIGN_PARAGRAPH.JUSTIFY, before=2, after=8, first=Inches(0)
+                )
                 add_runs(note, parse_inline(common_rewrites(t["note"], labels, cites)), 7)
             else:
                 new_par(doc, el, after=6, first=Inches(0))
@@ -599,16 +715,27 @@ def build(aux: Path, out: Path, csl: Path) -> None:
                 np_ = Paragraph(new, doc._body)
                 np_.style = get_style(doc, "Normal")
                 style_runs(np_, size=8)
-                para_format(np_, align=WD_ALIGN_PARAGRAPH.JUSTIFY, after=1, left=Inches(0.3),
-                            hanging=Inches(0.3))
+                para_format(
+                    np_,
+                    align=WD_ALIGN_PARAGRAPH.JUSTIFY,
+                    after=1,
+                    left=Inches(0.3),
+                    hanging=Inches(0.3),
+                )
             body.remove(el)
             continue
         if style == "Image Caption":
             style_runs(par, size=8)
             para_format(par, align=WD_ALIGN_PARAGRAPH.JUSTIFY, before=3, after=8, first=Inches(0))
         elif style in ("Captioned Figure", "Figure"):
-            para_format(par, align=WD_ALIGN_PARAGRAPH.CENTER, before=6, after=2, first=Inches(0),
-                        keep_next=True)
+            para_format(
+                par,
+                align=WD_ALIGN_PARAGRAPH.CENTER,
+                before=6,
+                after=2,
+                first=Inches(0),
+                keep_next=True,
+            )
         elif style in ("Body Text", "First Paragraph", "Compact"):
             style_runs(par, size=10)
 
@@ -621,29 +748,40 @@ def build(aux: Path, out: Path, csl: Path) -> None:
 
 
 ORDER = {
-    "style": "name aliases basedOn next link autoRedefine hidden uiPriority semiHidden unhideWhenUsed "
-             "qFormat locked personal personalCompose personalReply rsid pPr rPr tblPr trPr tcPr tblStylePr",
-    "pPr": "pStyle keepNext keepLines pageBreakBefore framePr widowControl numPr suppressLineNumbers pBdr "
-           "shd tabs suppressAutoHyphens kinsoku wordWrap overflowPunct topLinePunct autoSpaceDE "
-           "autoSpaceDN bidi adjustRightInd snapToGrid spacing ind contextualSpacing mirrorIndents "
-           "suppressOverlap jc textDirection textAlignment textboxTightWrap outlineLvl divId cnfStyle "
-           "rPr sectPr pPrChange",
-    "settings": "writeProtection view zoom removePersonalInformation embedTrueTypeFonts embedSystemFonts "
-                "saveSubsetFonts hideSpellingErrors hideGrammaticalErrors proofState stylePaneFormatFilter "
-                "trackRevisions doNotTrackMoves defaultTabStop drawingGridHorizontalSpacing "
-                "drawingGridVerticalSpacing displayHorizontalDrawingGridEvery "
-                "displayVerticalDrawingGridEvery characterSpacingControl savePreviewPicture footnotePr "
-                "endnotePr compat docVars rsids mathPr themeFontLang clrSchemeMapping decimalSymbol "
-                "listSeparator",
-    "tcPr": "cnfStyle tcW gridSpan hMerge vMerge tcBorders shd noWrap tcMar textDirection tcFitText "
-            "vAlign hideMark headers cellIns cellDel cellMerge tcPrChange",
+    "style": (
+        "name aliases basedOn next link autoRedefine hidden uiPriority semiHidden "
+        "unhideWhenUsed qFormat locked personal personalCompose personalReply rsid "
+        "pPr rPr tblPr trPr tcPr tblStylePr"
+    ),
+    "pPr": (
+        "pStyle keepNext keepLines pageBreakBefore framePr widowControl numPr "
+        "suppressLineNumbers pBdr shd tabs suppressAutoHyphens kinsoku wordWrap "
+        "overflowPunct topLinePunct autoSpaceDE autoSpaceDN bidi adjustRightInd snapToGrid "
+        "spacing ind contextualSpacing mirrorIndents suppressOverlap jc textDirection "
+        "textAlignment textboxTightWrap outlineLvl divId cnfStyle rPr sectPr pPrChange"
+    ),
+    "settings": (
+        "writeProtection view zoom removePersonalInformation embedTrueTypeFonts "
+        "embedSystemFonts saveSubsetFonts hideSpellingErrors hideGrammaticalErrors proofState "
+        "stylePaneFormatFilter trackRevisions doNotTrackMoves defaultTabStop "
+        "drawingGridHorizontalSpacing drawingGridVerticalSpacing "
+        "displayHorizontalDrawingGridEvery displayVerticalDrawingGridEvery "
+        "characterSpacingControl savePreviewPicture footnotePr endnotePr compat docVars rsids "
+        "mathPr themeFontLang clrSchemeMapping decimalSymbol listSeparator"
+    ),
+    "tcPr": (
+        "cnfStyle tcW gridSpan hMerge vMerge tcBorders shd noWrap tcMar textDirection "
+        "tcFitText vAlign hideMark headers cellIns cellDel cellMerge tcPrChange"
+    ),
 }
 
 
 def tidy_package(path: Path) -> None:
     """Put pandoc's default parts into schema order, so that strict readers accept the file."""
     import zipfile
+
     from lxml import etree
+
     w = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
     rank = {tag: {n: i for i, n in enumerate(order.split())} for tag, order in ORDER.items()}
     with zipfile.ZipFile(path) as z:

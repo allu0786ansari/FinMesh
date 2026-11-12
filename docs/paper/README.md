@@ -12,6 +12,7 @@
 | `VERIFICATION.md` | Every factual statement in the draft mapped to the result page or code it comes from |
 | `assets.json` | Every number a figure or table shows, for checking against the result pages |
 | `paper.docx` | Editable Word version of the draft in IEEE two-column layout (generated from `main.tex`; see below) |
+| `tools/make_overleaf.sh` | Packs the paper as an Overleaf project (.zip); see below |
 | `tools/make_docx.py`, `tools/ieee.csl` | The Word converter and the IEEE citation style it uses (CC BY-SA 3.0, Citation Style Language project) |
 | `preview.pdf` | A compiled preview of the draft (local build; see below) |
 
@@ -66,3 +67,11 @@ python docs/paper/tools/make_docx.py --aux <build folder>/main.aux --out docs/pa
 ```
 
 It needs pandoc 3, python-docx and pdftoppm. It uses the IEEE Word template's page set-up: US Letter, two 3.5 in columns and Times New Roman 10 pt. Word has no floating figures, so tables that span both columns sit in a one-column block near where they are cited, and figures stay where they are in the text. Move them by hand if a page breaks badly.
+
+## Overleaf
+
+```bash
+bash docs/paper/tools/make_overleaf.sh            # writes docs/paper/FinMesh_paper_overleaf.zip
+```
+
+The .zip has `main.tex` at the top, `references.bib`, `figures/*.pdf`, `tables/*.tex`, the TikZ source of Fig. 1 under `source/` and a short README. On Overleaf, choose New Project, then Upload Project, and set the compiler to pdfLaTeX with `main.tex` as the main document. Overleaf provides `IEEEtran.cls` and `IEEEtran.bst`. The package was test-built with IEEEtran.cls V1.8b and the standard IEEEtran.bst: 8 pages, no errors or warnings, all fonts embedded. Once you edit on Overleaf, Overleaf is the master copy; copy changes back here if the repository should follow.
