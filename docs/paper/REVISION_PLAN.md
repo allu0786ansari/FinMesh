@@ -239,7 +239,7 @@ tests and replication on withheld data.
 | B2 | Data and Code Availability: replace with the merged paragraph agreed on 12 Nov (below) | Gives the repository link |
 | B3 | For a double-blind venue only: replace the GitHub URL with an anonymised mirror (e.g. anonymous.4open.science) or "available on acceptance", and remove names from the author block | The URL and the author block identify the authors |
 
-B2 (revised 12 Nov after testing the claim; see below):
+B2 (revised 12 Nov after testing the claim; replaced in the final version by the shorter paragraph agreed with the authors, now in `main.tex`):
 
 ```latex
 \section*{Data and Code Availability}
@@ -292,7 +292,7 @@ Edits (text, tables and figures):
 
 Keep the amendment codes A24a, A24b and A25a in Limitations: they point to entries a reader can look up in the public amendment log.
 
-## 12. References check (12 Nov; for the Overleaf copy)
+## 12. References check (12 Nov; applied 12 Nov)
 
 All 21 cited keys exist in `references.bib`; numbering follows first citation; every in-text citation sits on the claim its source supports (checked against `related_work.md` and the sources). Fixes:
 
@@ -300,7 +300,7 @@ All 21 cited keys exist in `references.bib`; numbering follows first citation; e
 | --- | --- | --- |
 | F1 | Add the IEEEtran control entry and `\bstctlcite{IEEEexample:BSTcontrol}` right after `\begin{document}`: more than six authors print as "First author et al." | IEEE reference style; [6], [8], [9], [11] list 7–13 authors. Also saves about six lines |
 | F2 | Cite a k-ary randomised-response source next to Warner: `\cite{warner1965,wang2017ldp}` | Warner (1965) is binary; the k-ary mechanism used for S3 is in Wang et al. (USENIX Security 2017) |
-| F3 | `dwork2006` is in the bib but cited nowhere: either cite it once for ε-differential privacy (S3 bullet) or delete it | Unused entry |
+| F3 | `dwork2006` is in the bib but cited nowhere: deleted | Unused entry |
 | F4 | van Egmond note: `{Cryptology ePrint Archive}, Paper 2024/065` | IEEEtran lower-cased "cryptology" |
 | F5 | Project Aurora title: "Project {Aurora}: The power …" | Capital after the colon, as in the other titles |
 | F6 | Egressy et al.: add `volume = {38}, number = {10}, pages = {11838--11846}, doi = {10.1609/aaai.v38i10.29069}` | Complete record (mlanthology) |
@@ -382,3 +382,7 @@ Sources: [FATF stocktake](https://www.fatf-gafi.org/en/publications/Digitaltrans
 ## Page budget
 
 The paper is 8 pages, with three references on page 8. These changes add five references and about thirty lines of text; the result should still fit in 8 pages. Check after compiling.
+
+## 13. Final assembly (12 Nov)
+
+Applied: section 12 (F1–F7); the authors' Data and Code Availability paragraph; `\IEEEtriggeratref{10}` to balance the last page. Compiled with IEEEtran.cls V1.8b and IEEEtran.bst: 8 pages, no errors, no undefined references, no overfull boxes, all fonts embedded, 22 references. Rebuilt `preview.pdf`, `paper.docx` and the Overleaf zip from this source.

@@ -119,3 +119,6 @@ Every claim about another paper is sourced in `docs/paper/related_work.md`, with
 | N4 strict grounding 0.82 (HI-Large), 0.56 (LI-Large) | `RESULTS_LARGE.md` (H3b rows) |
 | Limitations: PT2 8.1/9.3/8.7 vs 10; adaptive budget 2.6–3.2; H1b-L+ 0.49; federation B8 | `audit_*.md`; `budget_replay_*_cap4x.md`; `RESULTS_LARGE.md`; `preregistration.md` §1 |
 | `finmesh paper-assets` rebuilds Figs. 2–5 and Tables I–VI from the committed pages without data | tested 12 Nov in a clean clone: tables byte-identical, figures pixel-identical (PDFs now byte-identical too: no creation date) |
+| S3's k-ary randomised response: Warner (binary) and Wang et al. (k-ary, ε-LDP) | [warner1965], [wang2017ldp] (USENIX Security 2017, pp. 729–745; checked 12 Nov) |
+| Table IV GBDT baselines: numbers as reported in Egressy et al., Table 2; baselines attributed there to Altman et al. | [egressy2024] (arXiv:2306.11586, Table 2; AAAI 38(10), pp. 11838–11846), [altman2023] |
+| Data and Code Availability: the repository holds the implementation, pre-registration and amendments, sealed-test access log, experiment outputs, step-by-step run logs and the scripts for the result figures and tables | repository root `README.md`; `docs/runlog/`; `finmesh paper-assets` (tested 12 Nov) |

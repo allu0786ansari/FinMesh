@@ -18,6 +18,8 @@
 \graphicspath{{figures/}}
 
 \begin{document}
+% IEEE reference style: more than six authors print as "First author et al."
+\bstctlcite{IEEEexample:BSTcontrol}
 
 \title{Privacy-Preserving Evidence Sharing for Cross-Bank Anti-Money Laundering:\\
 A Pre-Registered Evaluation}
@@ -225,7 +227,7 @@ and a magnitude bucket), and bucketed counters for fan-in, fan-out, transaction 
 amounts in each direction, pass-through, cross-bank share, share of new counterparties and
 minimum delay. Raw values are never sent.
 \item \textbf{S3}: S2 with every field other than the time bucket and the flag released by
-$k$-ary randomised response~\cite{warner1965}, at a total
+$k$-ary randomised response~\cite{warner1965,wang2017ldp}, at a total
 $\varepsilon \in \{0.5, 1, 2, 4, 8\}$ per record, with at most $\varepsilon = 8$ spent per
 account and epoch.
 \item \textbf{S4}: S2 together with an 8-dimensional autoencoder embedding, included as an
@@ -519,14 +521,18 @@ assistance of an AI system (Claude, Anthropic). The authors designed the study, 
 and revised all text and code, and take full responsibility for the content.
 
 \section*{Data and Code Availability}
-AMLworld~\cite{altman2023} is available under the CDLA-Permissive-2.0 licence. The FinMesh
-source code (MIT licence), configurations, pre-registration, amendments, sealed-test access
-log and result pages are publicly available at
-\url{https://github.com/allu0786ansari/FinMesh}. One command, \texttt{finmesh
-paper-assets}, rebuilds Figs.~2--5 and Tables~I--VI from the committed result pages without
-access to the data; the result pages themselves are reproduced from the raw AMLworld files
-by the commands listed, in order, in the repository's run logs.
+The AMLworld datasets~\cite{altman2023} are publicly available under the
+CDLA-Permissive-2.0 licence. The FinMesh implementation (MIT licence), the
+pre-registration and its amendments, the sealed-test access log and the outputs of
+all experiments are available at
+\url{https://github.com/allu0786ansari/FinMesh}.
+The repository provides step-by-step instructions to reproduce the experiments
+from the raw data and scripts that regenerate the result figures and tables of
+this paper.
 
+% Balances the two columns of the last page (IEEE template advice). If the text above
+% changes, adjust the number so that both columns end at about the same height.
+\IEEEtriggeratref{10}
 \bibliographystyle{IEEEtran}
 \bibliography{references}
 
