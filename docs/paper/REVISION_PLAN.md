@@ -144,6 +144,48 @@ only when the requester's probability bucket is at least 2 (calibrated probabili
 0.05).
 ```
 
+## 5. Evaluation Method (reviewed 12 Nov)
+
+| # | Change | Reason |
+| --- | --- | --- |
+| E1 | **Must fix.** "Every later change was recorded as a dated amendment, with its reason, before the results it concerned existed." contradicts Section VI (A24b corrected a report page after an opening). Reword as below | Internal consistency; `docs/proposal/CHANGES.md` |
+| E2 | "model settings were never tuned on validation data" → say what was fixed and what was selected (as below) | Section IV-D selects the A25 candidates on validation, so the sentence as written contradicts the next subsection; the pre-registration fixes the *registered* model settings (`preregistration.md` §6) |
+| E3 | Table III note: add "H2 (a federated DP scorer, a supporting track) is reported in Section VI." | The table jumps from H1 to H3; a reviewer will ask where H2 is |
+| E4 | Optional, if space allows: one sentence on compute, e.g. "All runs used a single laptop with 8 GB of memory." | Reproducibility; reviewers often ask |
+
+E1 and E2 (replace those two sentences in IV-C):
+
+```latex
+Hypotheses (Table~\ref{tab:results}), operating points, model settings and statistical
+rules were registered at the outset. Thresholds marked as provisional could be revised once,
+using validation results, at a pre-planned gate (G1), after which the registration was
+frozen; the registered model settings were fixed in advance rather than tuned on validation
+data. Every later change was recorded as a dated amendment with its reason. All but one were
+made before the results they concerned existed; the exception corrected a report page after
+an opening without changing any score (Section~\ref{sec:limits}).
+```
+
+(Needs `\label{sec:limits}` on `\section{Limitations}`.)
+
+## 6. Results (reviewed 12 Nov)
+
+| # | Change | Reason |
+| --- | --- | --- |
+| X1 | **Must add.** Tokens paragraph: report that in the week-18 HI-Medium test legitimate token use exceeded the frozen budget in 2 of 16 bank-epochs (18.8% of requests), and that budgets were then sized per window from validation traffic before the fresh tests | A pre-registered (reported) outcome that the paper currently omits (`docs/eval/test/RESULTS.md`, token-budget row); the improvement plan sized the Large budgets per window |
+| X2 | Robustness: "In every model the most important features are…" → "At gate G1, the payment-format shares and the self-transfer indicator were the strongest features of every baseline model; they may reflect properties of the simulator." | The source (`docs/gates/G1.md`) is about the G1 baselines; "every model" over-generalises |
+| X3 | Fig. 3 caption: "with a stronger transaction-level detector that outperforms both published gradient-boosting baselines" → "with a per-bank version of the transaction-level detector of Table~\ref{tab:benchmark}" | As A2: the per-bank version is what the figure shows |
+| X4 | Narratives: after "N4 met the target on both fresh tests (1.00 and 0.95)", add "although its strict grounding was lower on LI-Large (0.56) than on HI-Large (0.82)" | Balance; the numbers are already in Table VI |
+
+X1 (add to the end of the Tokens paragraph, replacing "Legitimate token use stayed within the frozen budget on both fresh tests."):
+
+```latex
+In the week-18 HI-Medium test, legitimate use exceeded the frozen budget in 2 of 16
+bank-epochs (18.8\% of token requests); for the fresh tests the budget was therefore sized
+per window from validation traffic, and legitimate use stayed within it on both.
+```
+
+Checked and unchanged: data and federation, the label and metric definitions, the G1 numbers (0.508 [0.465, 0.550]; 0.864 and 0.886), the A25 selection rules and outcomes (gated flag 1.01; N4 on qwen3:8b; benchmark gap 14.5 points), the frozen-commit signature (signed by the first author, `improvement_plan_A25.md`), statistics, the audit design, and every number in Sections V-A to V-E against `RESULTS.md` and `RESULTS_LARGE.md`.
+
 ## New bibliography entries (add to `references.bib`)
 
 Each checked against its source on 12 Nov 2026.
@@ -200,4 +242,4 @@ Sources: [FATF stocktake](https://www.fatf-gafi.org/en/publications/Digitaltrans
 
 ## Page budget
 
-The paper is 8 pages, with three references on page 8. These changes add five references and about eight lines of text; the result should still fit in 8 pages. Check after compiling.
+The paper is 8 pages, with three references on page 8. These changes add five references and about fourteen lines of text; the result should still fit in 8 pages. Check after compiling.
