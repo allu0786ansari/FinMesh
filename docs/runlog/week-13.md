@@ -123,7 +123,7 @@ Interrupted? Run the same command again.
 ### 3. Push
 
 ```bash
-git add docs/eval/ docs/protocol/ week13.log
+git add docs/eval/ docs/protocol/
 git commit -m "Week 13: X6 attribution and the A64 real-bank check on real data"
 git push
 ```

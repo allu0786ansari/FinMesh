@@ -1,6 +1,0 @@
-  partition calibration            candidates  alerts   mean p peak tokens member/epoch  budget
-  val 39-50 end of training            74,784   6,240   0.0022      28,244          7/1  74,510
-  val 39-50 fitted on validation      123,995   6,240   0.0026      45,179          7/1  74,510
-  test 52-63 end of training           119,880   6,240   0.0020     162,800          7/1  74,510
-  test 52-63 fitted on validation      215,176   6,240   0.0026     181,112          7/1  74,510
-  details  /home/allu786ansari/FinMesh/data/artifacts/week18/traffic_HI-Medium.json

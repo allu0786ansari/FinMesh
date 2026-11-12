@@ -1,9 +1,0 @@
-  tx seed 0: 1490 s, peak token use 96,263 per bank and epoch
-  tx seed 1: 1322 s, peak token use 33,179 per bank and epoch
-  tx seed 2: 1130 s, peak token use 35,535 per bank and epoch
-  gbdt seed 0: 343 s, peak token use 37,255 per bank and epoch
-  gbdt seed 1: 334 s, peak token use 38,004 per bank and epoch
-  gbdt seed 2: 343 s, peak token use 42,052 per bank and epoch
-| + (transaction detector) | 0.179 [0.151, 0.209] | 0.699 [0.664, 0.734] | 0.704 [0.668, 0.741] | 0.739 [0.705, 0.772] | 0.520 [0.479, 0.561] | 0.928 [0.878, 0.979] | 63,119 | 96,263 |
-| current (account-window LightGBM) | 0.174 [0.145, 0.203] | 0.736 [0.703, 0.771] | 0.672 [0.636, 0.707] | 0.747 [0.713, 0.782] | 0.562 [0.523, 0.603] | 0.981 [0.936, 1.025] | 71,791 | 42,052 |
-  report   /home/allu786ansari/FinMesh/docs/eval/a25/plus_validation_HI-Medium.md

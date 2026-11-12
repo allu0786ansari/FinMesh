@@ -42,3 +42,6 @@ kaggle.json
 finmesh_src.zip
 result_*.partial.json
 docs/paper/FinMesh_paper_overleaf.zip
+
+# Console output of runs (tee <name>.log): kept on the machine that ran it, never versioned
+*.log

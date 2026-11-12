@@ -190,12 +190,12 @@ If it stops (power, sleep), run the same command again: finished steps are skipp
 ### 3. Push
 
 ```bash
-git add docs/eval/ docs/gates/G3_evidence.md finmesh/schemas/dp_hparams.json week12.log
+git add docs/eval/ docs/gates/G3_evidence.md finmesh/schemas/dp_hparams.json
 git commit -m "Week 12: A19 retune, X5 with IID arm, membership audit, ensemble, G3 evidence"
 git push
 ```
 
-Please include `week12.log`: the timings and the per-setting tuning lines are in it. I write the G3 decision note (`docs/gates/G3.md`) from what you push.
+Keep `week12.log` on your machine and paste its timings and per-setting tuning lines if they are needed. I write the G3 decision note (`docs/gates/G3.md`) from what you push.
 
 ## Troubleshooting
 

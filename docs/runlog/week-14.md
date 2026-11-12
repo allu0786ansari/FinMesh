@@ -121,7 +121,7 @@ Save it as CSV with the same name, then:
 
 ```bash
 uv run finmesh narrative-review --dataset HI-Medium
-git add docs/eval/ week14_a23.log
+git add docs/eval/
 git commit -m "Week 14: A23 narrative and blind review"
 git push
 ```
@@ -233,7 +233,7 @@ It re-renders both coverage pages (seconds), runs the A22 narrative on HI-Medium
 Don't look at the true patterns first. Save the file as is.
 
 ```bash
-git add docs/eval/ week14_rerun.log
+git add docs/eval/
 git commit -m "Week 14 rerun: A22 narrative, coverage pages, blind review"
 git push
 ```
@@ -371,7 +371,7 @@ Interrupted? Run the same command again. Ollama not running? The script stops at
 ### 4. Push
 
 ```bash
-git add docs/eval/ docs/protocol/ week14.log
+git add docs/eval/ docs/protocol/
 git commit -m "Week 14: coverage curve and the constrained narrative on real data"
 git push
 ```

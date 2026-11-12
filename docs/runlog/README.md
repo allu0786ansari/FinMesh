@@ -10,3 +10,5 @@ One file per finished week (`week-01.md`, `week-02.md`, ...). Each run log has t
 6. **Open items**: decisions needed from you before the next week.
 
 Results that matter for the research (profiles, gate numbers) live in `docs/data_profile/`, `docs/gates/` and the stamped artifacts, not in these logs.
+
+The console output that the commands write with `tee <name>.log` stays on the machine that ran them. `*.log` files are not versioned (`.gitignore`), because every number they contain is in the result pages under `docs/eval/` and `docs/gates/`. The console logs pushed during weeks 12–18 and A25 were removed from the repository on 12 Nov 2026; they remain in the git history.

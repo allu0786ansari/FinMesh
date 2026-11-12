@@ -137,7 +137,7 @@ This builds the image and runs X7 smoke inside it; GitHub CI does the same on ev
 ### 4. Push
 
 ```bash
-git add docs/eval/x7_HI-Medium.md week17.log
+git add docs/eval/x7_HI-Medium.md
 git commit -m "Week 17: X7 on HI-Medium"
 git push
 ```
