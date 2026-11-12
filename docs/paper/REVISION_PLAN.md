@@ -292,6 +292,39 @@ Edits (text, tables and figures):
 
 Keep the amendment codes A24a, A24b and A25a in Limitations: they point to entries a reader can look up in the public amendment log.
 
+## 12. References check (12 Nov; for the Overleaf copy)
+
+All 21 cited keys exist in `references.bib`; numbering follows first citation; every in-text citation sits on the claim its source supports (checked against `related_work.md` and the sources). Fixes:
+
+| # | Fix | Reason |
+| --- | --- | --- |
+| F1 | Add the IEEEtran control entry and `\bstctlcite{IEEEexample:BSTcontrol}` right after `\begin{document}`: more than six authors print as "First author et al." | IEEE reference style; [6], [8], [9], [11] list 7–13 authors. Also saves about six lines |
+| F2 | Cite a k-ary randomised-response source next to Warner: `\cite{warner1965,wang2017ldp}` | Warner (1965) is binary; the k-ary mechanism used for S3 is in Wang et al. (USENIX Security 2017) |
+| F3 | `dwork2006` is in the bib but cited nowhere: either cite it once for ε-differential privacy (S3 bullet) or delete it | Unused entry |
+| F4 | van Egmond note: `{Cryptology ePrint Archive}, Paper 2024/065` | IEEEtran lower-cased "cryptology" |
+| F5 | Project Aurora title: "Project {Aurora}: The power …" | Capital after the colon, as in the other titles |
+| F6 | Egressy et al.: add `volume = {38}, number = {10}, pages = {11838--11846}, doi = {10.1609/aaai.v38i10.29069}` | Complete record (mlanthology) |
+| F7 | Table IV: the two GBDT baseline rows `\cite{altman2023,egressy2024}` | Egressy et al. report these numbers (verified, Table 2: 62.86/20.83/59.48/20.85 and 63.23/27.30/65.70/28.16; Multi-PNA+EU 68.16/33.07/66.48/36.07) but attribute the baselines to Altman et al. |
+
+Compiled with F1, F2, F4, F5 in a test copy: 8 pages, no errors, no undefined citations.
+
+```bibtex
+@IEEEtranBSTCTL{IEEEexample:BSTcontrol,
+  CTLuse_forced_etal       = "yes",
+  CTLmax_names_forced_etal = "6",
+  CTLnames_show_etal       = "1"
+}
+@inproceedings{wang2017ldp,
+  author    = {Wang, Tianhao and Blocki, Jeremiah and Li, Ninghui and Jha, Somesh},
+  title     = {Locally Differentially Private Protocols for Frequency Estimation},
+  booktitle = {26th USENIX Security Symposium (USENIX Security 17)},
+  pages     = {729--745},
+  year      = {2017}
+}
+```
+
+Sources: [Wang et al., USENIX Security 2017](https://www.usenix.org/conference/usenixsecurity17/technical-sessions/presentation/wang-tianhao); [Egressy et al., AAAI 2024 record](https://mlanthology.org/aaai/2024/egressy2024aaai-provably); [Egressy et al., arXiv:2306.11586, Table 2](https://arxiv.org/pdf/2306.11586v3.pdf).
+
 ## New bibliography entries (add to `references.bib`)
 
 Each checked against its source on 12 Nov 2026.
