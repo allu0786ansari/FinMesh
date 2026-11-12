@@ -210,8 +210,8 @@ def benchmark() -> tuple[str, dict[str, Any]]:
     rename = {
         "A · our pooled detector": "Ours, account-window detector",
         "B · transaction LightGBM + our features": "Ours, transaction model",
-        "LightGBM + graph features (published)": "LightGBM + graph features [altman2023+egressy2024]",
-        "XGBoost + graph features (published)": "XGBoost + graph features [altman2023+egressy2024]",
+        "LightGBM + graph features (published)": "LightGBM + graph features [baselines]",
+        "XGBoost + graph features (published)": "XGBoost + graph features [baselines]",
         "Multi-PNA + EU (published)": "Multi-PNA + EU [egressy2024]",
     }
     order = ("HI-Small", "LI-Small", "HI-Medium", "LI-Medium")
@@ -231,7 +231,7 @@ def benchmark() -> tuple[str, dict[str, Any]]:
     for k, v in b.items():
         name = (
             _tex(rename.get(k, k))
-            .replace("[altman2023+egressy2024]", r"\cite{altman2023,egressy2024}")
+            .replace("[baselines]", r"\cite{altman2023,egressy2024}")  # Egressy et al. report them
             .replace("[egressy2024]", r"\cite{egressy2024}")
         )
         cells = []
