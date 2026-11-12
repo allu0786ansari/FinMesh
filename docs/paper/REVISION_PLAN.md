@@ -186,6 +186,77 @@ per window from validation traffic, and legitimate use stayed within it on both.
 
 Checked and unchanged: data and federation, the label and metric definitions, the G1 numbers (0.508 [0.465, 0.550]; 0.864 and 0.886), the A25 selection rules and outcomes (gated flag 1.01; N4 on qwen3:8b; benchmark gap 14.5 points), the frozen-commit signature (signed by the first author, `improvement_plan_A25.md`), statistics, the audit design, and every number in Sections V-A to V-E against `RESULTS.md` and `RESULTS_LARGE.md`.
 
+## 7. Limitations (reviewed 12 Nov)
+
+| # | Change | Reason |
+| --- | --- | --- |
+| L1 | Add `\label{sec:limits}` to `\section{Limitations}` | Needed by E1 |
+| L2 | Add the token limitation: the OPRF limits re-identification only as far as the per-epoch budget does (8–9-fold reduction against hashing on three of four tests; an adaptive budget made it worse) | A privacy reviewer will look for it here, not only in V-C (`audit_*.md`, `budget_replay_*`) |
+| L3 | Add: with the strongest pooled model (stronger detector, LI-Large), minimised sharing recovered less than half of its gain (0.49) | The one robustness rule not met belongs among the limits (`RESULTS_LARGE.md`, H1b-L+) |
+| L4 | Add: one fixed federation of eight similarly sized members; larger or unequal federations not tested | Scope of the evidence (`preregistration.md` §1, B8) |
+
+Insert after "…but not differentially private." :
+
+```latex
+The oblivious tokens limit re-identification only as far as the per-epoch budget does:
+relative to hashing, re-identification fell 8- to 9-fold on three of the four tests, short
+of the tenfold target, and an adaptive budget made it worse. When the pooled model was
+strongest (the stronger detector on LI-Large), minimised sharing recovered less than half of
+its gain. All tests use one federation of eight members of similar size; larger or more
+unequal federations were not studied.
+```
+
+## 8. Conclusion (reviewed 12 Nov)
+
+| # | Change | Reason |
+| --- | --- | --- |
+| C1 | "with a competitive local detector" → "with a stronger local detector" | Matches Section V-B |
+| C2 | Add one sentence on what was not met, and one on future work | A conclusion that lists only successes reads as selective; IEEE conclusions usually name next steps |
+
+Replacement Conclusion:
+
+```latex
+Sharing a small amount of evidence about counterparty accounts, namely an alert flag and a
+bucketed record addressed by metered tokens, allowed banks to link several times as many
+laundering schemes as local monitoring and to recover most of the gain of a pooled model,
+with far fewer alerts per linked scheme. These results held on four sealed tests, two of
+which were not opened during development, without the suspected artefact features and with
+a stronger local detector. Measuring leakage with attacks revealed that even the simplest
+disclosure, a bare alert flag, can leak an account attribute, and a gated flag removed this
+leakage on fresh data. Typology attribution and the pre-registered limit on token
+re-identification were not achieved. Natural next steps are a pilot on real transaction
+data under a data-sharing agreement, larger federations of unequal banks, flags with formal
+privacy guarantees, and blind human review of the case narratives. We suggest that
+collaborative financial-crime detection adopt the same practice of pre-registration, sealed
+tests and replication on withheld data.
+```
+
+## 9. Back matter (reviewed 12 Nov)
+
+| # | Change | Reason |
+| --- | --- | --- |
+| B1 | Acknowledgment: keep as is (IEEE requires the AI disclosure). Revise it only if your final use of AI assistance differs; optionally thank the department for support | IEEE author guidelines on AI-generated text |
+| B2 | Data and Code Availability: replace with the merged paragraph agreed on 12 Nov (below) | Gives the repository link |
+| B3 | For a double-blind venue only: replace the GitHub URL with an anonymised mirror (e.g. anonymous.4open.science) or "available on acceptance", and remove names from the author block | The URL and the author block identify the authors |
+
+B2:
+
+```latex
+\section*{Data and Code Availability}
+AMLworld is available under the CDLA-Permissive-2.0 licence. The FinMesh source code
+(MIT licence), experimental configurations, evaluation scripts, pre-registration,
+amendments, sealed-test access log and result pages are publicly available at
+\url{https://github.com/allu0786ansari/FinMesh}. A single command regenerates every
+figure and table in this paper from the committed result pages.
+```
+
+## 10. Final pass (after all edits)
+
+1. Apply sections 1–9 in `main.tex`, the Table III note (E3) in `tables/tab_results.tex`, and the five new entries in `references.bib`.
+2. Compile on Overleaf (pdfLaTeX; `main.tex`): check no undefined references or citations, no overfull boxes, page count, and that the reference numbers follow first citation.
+3. Update `VERIFICATION.md` for the new statements (token-budget overrun, bucket edges, ε cap, the limitations) and rebuild `paper.docx`, `preview.pdf` and the Overleaf zip from the final source.
+4. Spelling: the text uses British spelling throughout (minimised, licence, artefact); keep it consistent, or switch to American spelling if the venue asks.
+
 ## New bibliography entries (add to `references.bib`)
 
 Each checked against its source on 12 Nov 2026.
@@ -242,4 +313,4 @@ Sources: [FATF stocktake](https://www.fatf-gafi.org/en/publications/Digitaltrans
 
 ## Page budget
 
-The paper is 8 pages, with three references on page 8. These changes add five references and about fourteen lines of text; the result should still fit in 8 pages. Check after compiling.
+The paper is 8 pages, with three references on page 8. These changes add five references and about thirty lines of text; the result should still fit in 8 pages. Check after compiling.
