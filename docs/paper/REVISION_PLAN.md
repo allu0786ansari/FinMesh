@@ -239,23 +239,58 @@ tests and replication on withheld data.
 | B2 | Data and Code Availability: replace with the merged paragraph agreed on 12 Nov (below) | Gives the repository link |
 | B3 | For a double-blind venue only: replace the GitHub URL with an anonymised mirror (e.g. anonymous.4open.science) or "available on acceptance", and remove names from the author block | The URL and the author block identify the authors |
 
-B2:
+B2 (revised 12 Nov after testing the claim; see below):
 
 ```latex
 \section*{Data and Code Availability}
-AMLworld is available under the CDLA-Permissive-2.0 licence. The FinMesh source code
-(MIT licence), experimental configurations, evaluation scripts, pre-registration,
-amendments, sealed-test access log and result pages are publicly available at
-\url{https://github.com/allu0786ansari/FinMesh}. A single command regenerates every
-figure and table in this paper from the committed result pages.
+AMLworld~\cite{altman2023} is available under the CDLA-Permissive-2.0 licence. The FinMesh
+source code (MIT licence), configurations, pre-registration, amendments, sealed-test access
+log and result pages are publicly available at
+\url{https://github.com/allu0786ansari/FinMesh}. One command, \texttt{finmesh
+paper-assets}, rebuilds Figs.~2--5 and Tables~I--VI from the committed result pages without
+access to the data; the result pages themselves are reproduced from the raw AMLworld files
+by the commands listed, in order, in the repository's run logs.
 ```
+
+Why the earlier wording ("one command regenerates every figure and table") was changed. Tested 12 Nov in a clean clone with no data folder: `uv run finmesh paper-assets` ran in about 10 s; Tables I–VI and `assets.json` came out byte-identical to the committed files, and Figs. 2–5 pixel-identical (the PDF files differ only in their embedded creation date). But:
+- Fig. 1 is drawn, not generated (TikZ source `docs/paper/static/fig_architecture.tex`);
+- Table I is a curated table, copied from `docs/paper/static/`, not computed;
+- the command rebuilds the paper's figures and tables **from the result pages**; producing those pages from raw data is the full pipeline (AMLworld download, then the run logs `week-01` to `week-18` and `a25`, several overnight runs on an 8 GB machine). That cannot honestly be called one command.
+
 
 ## 10. Final pass (after all edits)
 
 1. Apply sections 1–9 in `main.tex`, the Table III note (E3) in `tables/tab_results.tex`, and the five new entries in `references.bib`.
 2. Compile on Overleaf (pdfLaTeX; `main.tex`): check no undefined references or citations, no overfull boxes, page count, and that the reference numbers follow first citation.
-3. Update `VERIFICATION.md` for the new statements (token-budget overrun, bucket edges, ε cap, the limitations) and rebuild `paper.docx`, `preview.pdf` and the Overleaf zip from the final source.
+3. Run `uv run finmesh paper-assets` after the section 11 code edits, then update `VERIFICATION.md` for the new statements (token-budget overrun, bucket edges, ε cap, the limitations) and rebuild `paper.docx`, `preview.pdf` and the Overleaf zip from the final source.
 4. Spelling: the text uses British spelling throughout (minimised, licence, artefact); keep it consistent, or switch to American spelling if the venue asks.
+
+## 11. Naming of the two test rounds (agreed 12 Nov)
+
+"Week-18" is a project-schedule label, not a term a reader knows, and "A25 fresh tests" uses an internal amendment code. Use two names throughout:
+
+- **primary tests**: the HI-Medium and LI-Medium sealed tests, which decided the pre-registered hypotheses;
+- **replication tests**: the HI-Large and LI-Large windows, never opened during development, on which the later improvements were confirmed (amendment A25).
+
+"Final amendment test" was considered and not used: to a reviewer "amendment" signals a post-hoc change, while "replication" says what these tests are for. Introduce A25 once, in the heading text of IV-D ("Replication on unopened windows"), with "(amendment A25 in the public amendment log)".
+
+Edits (text, tables and figures):
+
+| Where | Now | Change to |
+| --- | --- | --- |
+| `main.tex` IV-C, last sentence | "The week-18 tests on HI-Medium and LI-Medium decided…" | "The primary tests on HI-Medium and LI-Medium decided…" |
+| `main.tex` IV-D heading | "Fresh replication (amendment A25)" | "Replication on unopened windows" + "(amendment A25 in the public amendment log)" in its first sentence |
+| `main.tex` IV-D, first sentence | "after the week-18 tests … on those tests" | "after the primary tests … on those tests" |
+| `main.tex` V-A | "…in the week-18 tests, and … in the fresh tests" | "…in the primary tests, and … in the replication tests" |
+| `main.tex` Fig. 2 caption | "HI- and LI-Medium are the week-18 tests; HI- and LI-Large are the fresh windows, which were not opened during development." | "HI- and LI-Medium are the primary tests; HI- and LI-Large are the replication tests, on windows not opened during development." |
+| `main.tex` elsewhere | "fresh tests", "fresh windows", "fresh data" (abstract, contributions, V-C, V-E, conclusion; and the plan's new text) | "replication tests" / "replication windows"; "on fresh data" may stay where it reads naturally, but use one term for the tests |
+| `finmesh/paper/figures.py` (Fig. 2 panel labels) | "Week 18 tests", "A25 fresh tests" | "Primary tests", "Replication tests"; regenerate with `finmesh paper-assets` |
+| `finmesh/paper/tables.py` (Table II note) | "Medium: the week-18 sealed tests; Large: the A25 fresh tests." | "Medium: the primary tests; Large: the replication tests." |
+| `finmesh/paper/tables.py` (Table III note) | "Medium columns: week-18 tests; Large: A25 fresh tests." | "Medium columns: primary tests; Large: replication tests." |
+| `finmesh/paper/tables.py` (Table V note) | "A25 fresh tests, seeds 0--4." | "Replication tests, seeds 0--4." |
+| `finmesh/paper/tables.py` (Table VI row) | "N4 on the A25 fresh tests" | "N4 on the replication tests" |
+
+Keep the amendment codes A24a, A24b and A25a in Limitations: they point to entries a reader can look up in the public amendment log.
 
 ## New bibliography entries (add to `references.bib`)
 
