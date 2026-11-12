@@ -1,70 +1,212 @@
 # FinMesh
 
-Privacy-preserving cross-bank financial-crime detection. FinMesh measures **what banks should share, and what each piece of shared information costs in privacy**: a utility–leakage frontier for cross-bank evidence exchange, built and evaluated on the public synthetic AMLworld data.
+**Privacy-preserving evidence sharing for cross-bank anti-money laundering, with a pre-registered evaluation.**
 
-The full research design is in [`docs/proposal/FinMesh_Proposal_v2.md`](docs/proposal/FinMesh_Proposal_v2.md). Work follows a 20-week plan; each finished week has a run log in [`docs/runlog/`](docs/runlog/) with the exact commands to reproduce it.
+[![ci](https://github.com/allu0786ansari/FinMesh/actions/workflows/ci.yml/badge.svg)](https://github.com/allu0786ansari/FinMesh/actions/workflows/ci.yml)
+![Python 3.11–3.13](https://img.shields.io/badge/python-3.11%E2%80%933.13-blue)
+[![Code licence: MIT](https://img.shields.io/badge/code-MIT-green)](LICENSE)
+[![Data: AMLworld, CDLA-Permissive-2.0](https://img.shields.io/badge/data-CDLA--Permissive--2.0-lightgrey)](docs/data_License.md)
 
-## Status
+A laundering scheme usually touches several banks, and each bank's monitoring sees only its own part of it. In FinMesh, banks answer each other's queries about counterparty accounts with **minimised evidence**: an alert flag, a probability bucket and bucketed behaviour counters. Each query is addressed by a token from an **oblivious pseudorandom function (OPRF)**, so no account number is exchanged.
 
-| Week | Dates | Focus | State |
-| --- | --- | --- | --- |
-| 1 | 26 Oct – 1 Nov 2026 | Repository, CI, AMLworld ingestion, data profile | Done; verified on real data 24 Oct ([run log](docs/runlog/week-01.md)) |
-| 2 | 2 – 8 Nov | Visibility model, federation, splits, Gate G0 | Done; **G0 passed** with amendments A5–A7 ([decision](docs/gates/G0.md)) |
-| 3 | 9 – 15 Nov | Labels, sealed test, metrics, budgets, bootstrap | Done; harness verified on real data 25 Oct ([run log](docs/runlog/week-03.md)) |
-| 4 | 16 – 22 Nov | Behaviour, graph and neighbourhood features | Done on real data 25 Oct; diagnostics led to A8–A11 ([run log](docs/runlog/week-04.md)) |
-| 5 | 23 – 29 Nov | Baselines, preregistration, Gate G1 | Done; **G1 passed** (oracle − S0 linked +0.51), preregistration frozen, tag `g1` ([decision](docs/gates/G1.md)) |
-| 6 | 30 Nov – 6 Dec | Token service, evidence records, S1 and S2 | Done on real data 26 Oct; S1 reaches the pooled-linking bound (0.85 of the oracle gain on HI-Medium) ([run log](docs/runlog/week-06.md)) |
-| 7 | 7 – 13 Dec | Fusion and triage, S4, propagation, X1 and the first frontier | Done on real data 26 Oct; sharing beats the pooled oracle, so A14 adds a relational oracle ([run log](docs/runlog/week-07.md)) |
-| 8 | 14 – 20 Dec | Relational oracle, S3 (local DP), progressive disclosure, X3, audit A1–A3 | Done on real data 29 Oct; H1b 0.98 (HI) and 0.83 (LI) of the relational ceiling; S3 existence leak and token budget led to A16 ([run log](docs/runlog/week-08.md)) |
-| 9 | 21 – 27 Dec | S3 fix, sized budgets, attacks A4–A6, Gate G2 evidence, demo slice | Done on real data 29 Oct; **G2 passed** ([decision](docs/gates/G2.md), [run log](docs/runlog/week-09.md)) |
-| 10 | 28 Dec – 3 Jan | Neural scorer, DP-SGD with persistent accounting, FedAvg, X4 part 1 | Done on real data 30 Oct; MLP near the GBDT without privacy, DP collapsed with the a-priori clip norm, which led to A18 ([run log](docs/runlog/week-10.md)) |
-| 11 | 4 – 10 Jan | DP tuning on the proxy, account unit, degree cap, indirect influence, X5 | Done on real data 30 Oct; the degree cap cuts the worst-case influence from about 3,500 accounts to about 10 at almost no cost; the A18 grid's flaws led to A19 ([run log](docs/runlog/week-11.md)) |
-| 12 | 11 – 17 Jan | DP retune (A19), IID arm, membership audit, stacked ensemble, Gate G3 | Done on real data 31 Oct; **G3 passed**: retuned DP reaches 0.78 (HI) and 0.96 (LI) of centralised, but adds nothing to the local GBDT on HI, so the detector stays local ([decision](docs/gates/G3.md), [run log](docs/runlog/week-12.md)) |
-| 13 | 18 – 24 Jan | Attribution by sharing level (X6), real-bank X1 check (A64) | Done on real data 31 Oct; **H3a met on HI-Medium** (S2 − S0 +0.042 [0.016, 0.068]), the gain comes from cross-bank structure; A64 covers only 4.7% of accounts, which led to A21 ([run log](docs/runlog/week-13.md)) |
-| 14 | 25 – 31 Jan | Coverage curve (A21), constrained narrative with abstention, grounding (H3b) | Run 1 Nov: the sharing gain grows steadily with coverage and S2 matches the pooled ceiling at every size; narrative: three validation runs; A23 (frozen) makes 87.5% of first replies and 100% of delivered texts claim-consistent, H3b 0.920 HI (target 0.95, judged on test); awaiting the owner's blind review ([run log](docs/runlog/week-14.md)) |
-| 15–17 | 1 – 21 Feb | Demo path and analyst console | Week 15 done (2 Nov): token service and bank nodes over HTTP, strict wire format, authentication, durable orchestration (sessions, idempotent alerts, crash resume, partial evidence, four-eyes approval, persistent budgets); contract tests show HTTP and harness messages and cards identical ([run log](docs/runlog/week-15.md)). Week 16 done (2 Nov): demo world on HI-Medium (200 alerts, 733 evidence requests, 0 refused, tokens at 9–13% of budget), analyst console with four-eyes approval checked by both members, privacy ledger ([run log](docs/runlog/week-16.md)). Week 17 done (2 Nov): X7 on HI-Medium as real processes passes every engineering acceptance criterion: PT6 p95 0.18 s (target 3 s), 200 of 200 sessions closed under node and token-service kills and a slow node, replay sends nothing, 10 of 10 security probes refused, about 2.1 GB for the whole consortium; Docker image with container smoke in CI ([run log](docs/runlog/week-17.md)) |
-| 18–20 | 22 Feb – 14 Mar 2027 | Sealed-test runs, paper, release, Gate G4 | **Week 18 test done (6 Nov):** H1a holds on HI-Medium (linked detection 0.136 → 0.702, +0.566 [0.529, 0.606]) and on every replication set; H1b holds (0.98 HI, 0.79 LI); H1c holds on HI, misses on LI (alert-flag leak of fan-in); H1d holds but is uninformative (S1 alone reaches 0.98 of S2); H2a/H2b split by regime as at G3; H3a holds on HI; H3b misses (0.86 HI, 0.92 LI). Two-rater review pending ([results](docs/eval/test/RESULTS.md), [run log](docs/runlog/week-18.md)) |
+The project measures two things together: how much cross-bank detection improves at each sharing level, and how much a curious receiving bank can infer from what it is sent. Every hypothesis was **pre-registered** and decided once on **sealed test data**. Later improvements were confirmed on two further test windows that had never been opened.
 
-## Quick start
+Everything runs on IBM's public synthetic [AMLworld](https://www.kaggle.com/datasets/ealtman2019/ibm-transactions-for-anti-money-laundering-aml) data (HI and LI variants). No real bank data is used.
 
-Requirements: Python 3.11–3.13 (3.12 recommended), [uv](https://docs.astral.sh/uv/), git, about 8 GB of RAM and 5 GB of free disk.
+---
 
-```bash
-git clone https://github.com/allu0786ansari/FinMesh.git
-cd FinMesh
-uv sync                      # installs locked dependencies into .venv
-uv run pytest                # unit tests on the synthetic fixture
-uv run finmesh fixture       # write the synthetic test dataset
-uv run finmesh week1 --dataset FIXTURE-Small   # full week-1 pipeline on it
-uv run finmesh check         # what is installed and which data is present
-bash scripts/ci_local.sh     # exactly what GitHub CI runs
-```
+## Paper
 
-To run on the real data, follow [`docs/runlog/week-01.md`](docs/runlog/week-01.md): download AMLworld, then `uv run finmesh week1 --dataset HI-Small` and the same for `LI-Small`.
+**Privacy-Preserving Evidence Sharing for Cross-Bank Anti-Money Laundering: A Pre-Registered Evaluation**
+Allaudin Ansari, Ravi Sah, M. Jagadeesh (SRM Institute of Science and Technology)
+
+| | |
+| --- | --- |
+| [`docs/paper/preview.pdf`](docs/paper/preview.pdf) | Compiled draft (IEEE conference format) |
+| [`docs/paper/main.tex`](docs/paper/main.tex) | LaTeX source; figures in `figures/`, tables in `tables/` |
+| [`docs/paper/paper.docx`](docs/paper/paper.docx) | Editable Word version |
+| [`docs/paper/VERIFICATION.md`](docs/paper/VERIFICATION.md) | Every factual statement in the paper, mapped to the result page or code it comes from |
+| [`docs/paper/README.md`](docs/paper/README.md) | How to rebuild the figures, tables, Word file and Overleaf package |
+
+---
+
+## Key results
+
+Linked scheme detection is the share of laundering schemes whose accounts end up in one case within 72 hours. It is measured on four sealed tests, at a fixed alert budget of one alert per 1,000 accounts per day. S0 is local monitoring only; S2 adds minimised evidence records.
+
+| Sealed test | S0 (local only) | S2 (evidence records) | Gain, 95% CI | Share of pooled relational model's gain |
+| --- | --- | --- | --- | --- |
+| HI-Medium (week 18) | 0.136 | 0.702 | +0.566 [0.529, 0.606] | 0.98 |
+| LI-Medium (week 18) | 0.109 | 0.657 | +0.549 [0.449, 0.634] | 0.79 |
+| HI-Large, fresh window (A25) | 0.063 | 0.534 | +0.471 [0.433, 0.508] | 0.92 |
+| LI-Large, fresh window (A25) | 0.067 | 0.450 | +0.383 [0.289, 0.478] | 0.64 |
+
+<p align="center"><img src="docs/paper/figures/fig_ladder.png" width="520" alt="Linked scheme detection by sharing level on the four sealed tests"></p>
+
+- **Robust gain.** The gain stays positive without the suspected simulator artefact features (+0.438 HI-Large, +0.210 LI-Large). It also stays positive with a stronger transaction-level detector as the local baseline (+0.433, +0.355). On AMLworld's published split, that detector beats both published gradient-boosting baselines on all four sets.
+- **A leak found, fixed and confirmed.** The attack-based audit found that a plain alert flag reveals high fan-in on low-illicit data: an advantage of 0.043 [0.031, 0.059] on LI-Large. A gated flag, chosen on validation by a pre-registered rule, brings this down to 0.004 [0.000, 0.007] and keeps 93–100% of the flag's detection value.
+- **Less analyst work.** With sharing, an analyst reviews 18 alerts per linked scheme instead of 153 (HI-Large), and 140 instead of 944 (LI-Large). Cases are also more complete: on HI-Large, the largest case holds 0.77 of a scheme's accounts, against 0.47 without sharing.
+- **Grounded case narratives.** Free-text narratives from small local language models missed the grounding target (0.86 and 0.92 against 0.95). A select-then-template design met it on both fresh tests (1.00 and 0.95).
+- **Reported as not met:**
+  - Typology attribution on the fresh tests.
+  - The pre-registered token re-identification target. The OPRF reduces token re-identification 8–9× relative to shared-key hashing, short of the 10× target.
+
+Full results: [`docs/eval/test/RESULTS.md`](docs/eval/test/RESULTS.md) (week 18), [`docs/eval/a25/RESULTS_LARGE.md`](docs/eval/a25/RESULTS_LARGE.md) (fresh windows), [`docs/eval/a25/ANALYSIS.md`](docs/eval/a25/ANALYSIS.md) (interpretation).
+
+---
+
+## How it works
+
+<p align="center"><img src="docs/paper/figures/fig_architecture.png" width="460" alt="Protocol for one query between two banks"></p>
+
+1. **Local detection (S0).** Every 6-hour window, each bank scores its active accounts with LightGBM (47 behaviour, graph, history and neighbourhood features) and raises a fixed number of alerts.
+2. **Tokens.** For a suspicious account, the bank tokenises the account's counterparties at other banks through an OPRF token service (RFC 9497, ristretto255-SHA512). The service uses a key per 7-day epoch and a per-bank query budget.
+3. **Evidence request.** A signed, single-use request with a declared purpose and a hop limit goes to the bank holding the counterparty. That bank's guard checks it, then its policy answers at the configured sharing level.
+4. **Fusion and linking.** A per-bank logistic stacker combines the bank's own score with the answers under the same alert budget. Alerts are linked into cases across banks.
+5. **Case narrative.** An attributor proposes a typology. A local model selects up to four evidence fields, and fixed templates write the text.
+
+| Level | What the responding bank returns |
+| --- | --- |
+| S0 | Nothing (local monitoring only) |
+| S1 | Alert flag and time bucket |
+| S1F | Gated flag: the flag only when the requester's own probability bucket is at least 2 |
+| S2 | Minimised record: probability bucket, top-3 autoencoder deviations, bucketed counters (fan-in/out, counts, amounts, pass-through, cross-bank share, new-counterparty share, minimum delay) |
+| S3 | S2 released through k-ary randomised response (ε ∈ {0.5, 1, 2, 4, 8}) |
+| PD | Progressive disclosure: S1, plus the S2 record only when the requester's bucket is at least τ |
+| S4 | S2 plus an 8-dimensional embedding; upper reference for leakage |
+
+---
+
+## Evaluation protocol
+
+| Step | Where |
+| --- | --- |
+| Research design and threat model | [`docs/proposal/FinMesh_Proposal_v2.md`](docs/proposal/FinMesh_Proposal_v2.md) |
+| Pre-registration: hypotheses, metrics, operating points, statistics | [`docs/protocol/preregistration.md`](docs/protocol/preregistration.md) |
+| Gates G0–G3, each with its evidence and decision | [`docs/gates/`](docs/gates/) |
+| Every amendment, dated, with its reason | [`docs/proposal/CHANGES.md`](docs/proposal/CHANGES.md) |
+| Sealed-test plan: run order, one opening per experiment, dataset and seed | [`docs/protocol/test_plan.md`](docs/protocol/test_plan.md) |
+| Fresh replication (A25): rules fixed before the runs | [`docs/protocol/improvement_plan_A25.md`](docs/protocol/improvement_plan_A25.md) |
+| Run logs with the exact commands, week by week | [`docs/runlog/`](docs/runlog/) |
+
+Test labels stay sealed: each configuration's scores are stored with a SHA-256 digest before the labels are opened, and every opening is logged (`uv run finmesh sealed-log --dataset <set>`). Every result file is stamped with the code commit, data manifest hash, parameters and seed. Missed targets are reported as findings.
+
+---
 
 ## Repository layout
 
 ```
-finmesh/          research harness (all experiments run in-process here)
-  data/           ingestion, scheme linking, manifests, fixture, profile
-  eval/           provenance stamps (week 1); metrics and budgets (week 3)
-  features/ models/ federation/ sharing/ matching/ fusion/ attacks/ attribution/ schemas/
-services/         demo-path services (weeks 15–17)
-console/          analyst console (week 17)
-experiments/      one config + runner per experiment X1–X7
-docs/             proposal, run logs, gates, protocol, data card, literature matrix
-scripts/          utilities (scale check)
-tests/            unit, integration (real data, skipped if absent), contract
+finmesh/              the package: every experiment runs in-process here
+  data/               AMLworld ingestion, scheme linking, windows, splits, visibility, fixture
+  features/           per-bank behaviour, graph, history and neighbourhood features
+  models/             LightGBM detector, calibration, autoencoder
+  matching/           OPRF (RFC 9497) and token service with per-epoch budgets
+  sharing/            evidence records, signed requests and guard, sharing levels, LDP (S3)
+  fusion/             local incidents and the fusion (triage) stacker
+  federation/         FedAvg and DP-SGD with privacy accounting (supporting track)
+  attribution/        typology attributor and case narratives (local LLM via Ollama)
+  training/           experiment runners X1–X6, audit attacks, benchmark, sealed runs
+  eval/               metrics, bootstrap, gates, sealed test, provenance, reports
+  services/           demo path: token service and bank nodes over HTTP, orchestration,
+                      analyst console, privacy ledger, X7 (latency, faults, probes)
+  paper/              builds the paper's figures and tables from committed result pages
+  schemas/            frozen feature sets, evidence schema, token budgets, DP settings
+docs/
+  paper/              the paper (LaTeX, PDF preview, Word), verification record
+  eval/               every result page (validation; test/ for sealed tests; a25/)
+  gates/ protocol/ proposal/ runlog/ data_profile/   design, decisions and evidence
+tests/                unit, contract and integration tests (integration needs real data)
+scripts/              local CI, scale check, week runners
+Dockerfile, compose.yaml   container image; smoke test and console profiles
 ```
 
-Data never enters git. Everything large lives under `data/` (or wherever `FINMESH_DATA` points).
+Data never enters git. Everything large lives under `data/` (ignored), or wherever `FINMESH_DATA` points.
 
-## Ground rules
+---
 
-- **Validation before test.** The sealed test split is opened once, in week 18.
-- **Every number has provenance.** Results are JSON artifacts stamped with code commit, data manifest hash, parameters and seed. Anything built from the synthetic fixture is marked and can never pass a gate.
-- **Missed targets are findings.** Gates decide whether to continue, adjust or cut; they are never skipped.
+## Getting started
 
-## Licence
+**Requirements:** Python 3.11–3.13 (3.12 recommended), [uv](https://docs.astral.sh/uv/) and git. You need about 8 GB of RAM and 5 GB of free disk; everything was run on an 8 GB laptop under WSL. [Ollama](https://ollama.com) is needed only for the narrative experiments.
 
-Code: [MIT](LICENSE). Data: the IBM AMLworld datasets are under [CDLA-Permissive-2.0](docs/data_License.md); see the [data card](docs/data_card.md).
+```bash
+git clone https://github.com/allu0786ansari/FinMesh.git
+cd FinMesh
+uv sync                                        # locked dependencies into .venv
+uv run finmesh check                           # environment and data status
+uv run finmesh fixture                         # small synthetic dataset for a smoke run
+uv run finmesh week1 --dataset FIXTURE-Small   # ingest and profile it end to end
+uv run pytest                                  # 409 tests
+```
+
+### Real data
+
+1. Download AMLworld: `uv sync --extra kaggle`, then `uv run finmesh download --dataset HI-Medium`. This needs a Kaggle API token; a browser download is described in [`docs/runlog/week-01.md`](docs/runlog/week-01.md).
+2. Follow the run logs in order. Each one lists the exact commands and expected outputs:
+   - [`week-01`](docs/runlog/week-01.md) to [`week-17`](docs/runlog/week-17.md) cover validation and engineering.
+   - [`week-18`](docs/runlog/week-18.md) covers the sealed tests.
+   - [`a25`](docs/runlog/a25.md) covers the fresh Large windows.
+3. `uv run finmesh --help` lists every command.
+
+### Paper figures and tables
+
+```bash
+uv run finmesh paper-assets      # rebuilds every result figure and table from the committed pages; no data needed
+```
+
+### Containers
+
+```bash
+docker compose --profile smoke up --build      # X7 on a synthetic smoke world
+docker compose --profile console up --build    # analyst console on ./data/demo/<dataset>, at 127.0.0.1:8050
+```
+
+### Development
+
+```bash
+bash scripts/ci_local.sh    # what GitHub CI runs: ruff, mypy, pytest with coverage ≥ 80%, gitleaks
+```
+
+---
+
+## Security and privacy ground rules
+
+- Data, keys and demo secrets never enter git. `data/` is ignored, and CI runs a secret scan on every push.
+- Bank-side sharing code never names key material. Only allow-listed message types cross a node boundary, and no message field carries an account, amount or raw score. A contract test checks this.
+- Services and the console bind to `127.0.0.1` only.
+- The sealed test is read only through the logged opener, and no setting is tuned on validation after a freeze.
+
+---
+
+## Limitations
+
+- AMLworld is synthetic, and performance on real bank data is not shown.
+- The low-illicit windows contain few cross-bank test schemes (78 and 91), so their intervals are wide.
+- The threat model is honest-but-curious peers. Collusion, poisoning and compromised hosts are out of scope.
+- S1, S2 and PD are minimised but not differentially private. Only S3 carries a formal guarantee.
+- The narrative faithfulness ratings come from one automated rater, not a blind human panel.
+
+---
+
+## Citation
+
+```bibtex
+@misc{ansari2026finmesh,
+  title        = {Privacy-Preserving Evidence Sharing for Cross-Bank Anti-Money Laundering:
+                  A Pre-Registered Evaluation},
+  author       = {Ansari, Allaudin and Sah, Ravi and Jagadeesh, M.},
+  year         = {2026},
+  howpublished = {\url{https://github.com/allu0786ansari/FinMesh}},
+  note         = {Manuscript}
+}
+```
+
+## Authors
+
+- **Allaudin Ansari**, UG student, SRM Institute of Science and Technology, Kattankulathur, Chennai
+- **Ravi Sah**, UG student, SRM Institute of Science and Technology, Kattankulathur, Chennai
+- **M. Jagadeesh**, Assistant Professor, Department of Computing Technologies, SRM Institute of Science and Technology, Kattankulathur, Chennai
+
+## Licence and acknowledgements
+
+- **Licences:** the code is under the [MIT licence](LICENSE). The AMLworld datasets are by IBM, under [CDLA-Permissive-2.0](docs/data_License.md); see the [data card](docs/data_card.md).
+- **AI assistance:** parts of the software and documentation were prepared with an AI system (Claude, Anthropic). The authors designed the study, reviewed all code and text, and take responsibility for the content.
