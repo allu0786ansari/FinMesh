@@ -48,25 +48,28 @@ jagadeeshdevika@gmail.com}}
 
 \begin{abstract}
 A laundering scheme usually touches several banks, and each bank's monitoring sees only
-its own part of it. We evaluate a protocol in which banks answer each other's queries with
-minimised evidence about counterparty accounts: an alert flag, a probability bucket and
-bucketed behaviour counters, addressed by tokens from an oblivious pseudorandom function.
-All hypotheses were pre-registered and decided once on sealed test data; improvements made
-afterwards were confirmed on two further test windows that had not been opened during
-development. On the high-illicit fresh window of AMLworld, sharing raised the share of
-schemes linked into one case from 0.063 to 0.534 (gain 0.47, 95\% CI [0.43, 0.51]),
-recovering 0.92 of the gain of a pooled relational model. The gain was positive on all four
-sealed tests. It remained without the suspected simulator artefacts and with a local
-detector that outperforms published gradient-boosting results on the AMLworld benchmark. With sharing, an analyst reviewed 6.8
-to 8.5 times fewer alerts per linked scheme. An attack-based leakage audit found that the
-plain alert flag reveals high fan-in in the low-illicit data; a gated flag selected on
-validation removed this leakage on fresh data without reducing detection. Typology
-attribution and the pre-registered token re-identification target were not met.
+its own part of it. We design and evaluate a privacy-preserving protocol in which banks
+answer each other's queries with minimised evidence about counterparty accounts (an alert
+flag, a probability bucket and bucketed behaviour counters), addressed by tokens from an
+oblivious pseudorandom function. All hypotheses were pre-registered and decided once on
+sealed test data from the synthetic AMLworld benchmark; improvements made afterwards were
+confirmed on two further test windows that had never been opened. On the unopened
+high-illicit window, sharing raised the share of laundering schemes linked into one case
+from 0.063 to 0.534 (gain 0.47, 95\% CI [0.43, 0.51]), recovering 0.92 of the gain of a
+pooled relational model. The gain was significant on all four sealed tests, persisted
+without the suspected simulator artefacts, and persisted with a per-bank version of a
+transaction-level detector that outperforms published gradient-boosting results on
+AMLworld. On the replication windows, analysts reviewed 6.8 to 8.5 times fewer alerts per
+linked scheme. An attack-based leakage audit found that the plain alert flag reveals high
+fan-in in the low-illicit data; a gated flag selected on validation removed this leakage on
+the replication windows while keeping 93--100\% of the flag's detection gain. Typology
+attribution did not replicate, and the oblivious tokens reduced re-identification 8 to 9
+times relative to hashing, short of the pre-registered tenfold target.
 \end{abstract}
 
 \begin{IEEEkeywords}
-anti-money laundering, inter-bank information sharing, privacy-enhancing technologies,
-oblivious pseudorandom functions, pre-registration, leakage audit
+anti-money laundering, inter-bank information sharing, leakage audit, oblivious
+pseudorandom functions, pre-registration, privacy-enhancing technologies
 \end{IEEEkeywords}
 
 % =========================================================================================
@@ -75,9 +78,11 @@ oblivious pseudorandom functions, pre-registration, leakage audit
 Money laundering commonly moves funds through accounts held at different institutions.
 Funds may be collected at one bank, passed through accounts at others and withdrawn
 elsewhere, so the transaction monitoring of any single bank observes only some of the legs.
-In practice this produces many alerts that are investigated in isolation and few cases
-that capture a scheme as a whole. Sharing information between banks can connect these
-fragments, but it also discloses information about customers who may be innocent. Two
+Alerts therefore tend to be investigated in isolation, and few cases capture a scheme as a
+whole. Sharing information between banks can connect these fragments, and the Financial
+Action Task Force encourages such sharing within data-protection
+rules~\cite{fatf2021stocktake,fatf2022partnering}; but sharing also discloses information
+about customers who may be innocent. Two
 questions therefore arise together: how much detection improves with sharing, and how much
 a receiving bank can infer from what it is sent.
 
@@ -97,21 +102,24 @@ were fixed once, from validation data, at a planned gate; and each frozen config
 then evaluated once on sealed test data, with every opening of the test labels logged. Later
 improvements were developed on validation data only, selected by rules written before the
 candidates were run, and confirmed on two 16-day windows of AMLworld~\cite{altman2023}
-that had never been used.
+that had never been used. We call the first round the \emph{primary tests} and the second
+the \emph{replication tests}.
 
 The contributions are as follows.
 \begin{itemize}
 \item A protocol for cross-bank detection based on minimised evidence records, OPRF
-tokens~\cite{rfc9497}, a per-bank fusion stacker and a pooled linking rule, organised as a
-ladder of sharing levels.
-\item A pre-registered evaluation on four sealed tests, two of them fresh. Sharing increased
+tokens~\cite{rfc9497}, a per-bank fusion stacker and a cross-bank linking rule, organised
+as a ladder of sharing levels. The implementation, pre-registration, amendments and
+sealed-test access log are public.
+\item A pre-registered evaluation on four sealed tests: two primary and two replication tests. Sharing increased
 linked scheme detection by 0.38 to 0.57 over local monitoring and recovered 0.64 to 0.98 of
 the gain of a pooled relational model. The gain persisted without the suspected artefact
 features and with a stronger local detector.
 \item An attack-based leakage audit that identified attribute leakage through alert flags,
-and a gated flag, selected by a pre-registered rule, that removed it on fresh data.
-\item Case-quality measures relevant to investigators: more complete cases and 6.8 to 8.5
-times fewer alerts per linked scheme.
+and a gated flag, selected by a pre-registered rule, that removed it on the replication
+tests.
+\item Case-quality measures relevant to investigators: on the replication tests, more
+complete cases and 6.8 to 8.5 times fewer alerts per linked scheme.
 \item Evidence that small local language models do not produce reliably grounded case
 narratives, and a select-then-template design that does.
 \end{itemize}
@@ -135,14 +143,22 @@ Table~\ref{tab:related} summarises these works. Our approach differs in three re
 Banks exchange evidence about counterparty accounts rather than model updates. Leakage is
 estimated empirically with attacks, in addition to the guarantees of the mechanisms. None of
 the studies in the table reports results on a pre-registered sealed test or replicates them
-on data withheld throughout development, and at least two select models on the split from
-which they report results.
+on data withheld throughout development, and at least one reports peak test performance
+without a separate validation split~\cite{khan2024fedrd}.
 
 For the data and the detector we build on AMLworld~\cite{altman2023}, a synthetic
 transaction set with laundering labels and typologies. Directed multigraph
 GNNs~\cite{egressy2024} and subgraph features combined with gradient
-boosting~\cite{blanusa2024} give the strongest published transaction-level results on it,
-and we compare our detector with those results.
+boosting~\cite{blanusa2024} report strong transaction-level results on it, and we compare
+our detector with those published numbers (Table~\ref{tab:benchmark}).
+
+Three building blocks come from other literatures. Our tokens follow the use of oblivious
+pseudorandom functions for private matching and keyword search~\cite{freedman2005keyword},
+in the form standardised by RFC~9497~\cite{rfc9497}. Our audit takes the attack-based view
+of privacy risk, in which an adversary infers membership or attributes from what is
+released~\cite{yeom2018privacy}. Our sealed test answers evidence that leakage between
+development and test data inflates results in machine-learning-based
+science~\cite{kapoor2023leakage}; pre-registration~\cite{nosek2018} is one remedy.
 
 \input{tables/tab_related.tex}
 
@@ -167,7 +183,8 @@ Each bank in the federation observes the transactions that have one end at one o
 accounts, including the counterparty's account and bank. The adversaries are
 honest-but-curious. A peer bank follows the protocol but examines every token, request and
 response it receives, and knows the accounts it has itself paid or been paid by. The token
-service sees only blinded queries and does not collude with banks. Poisoning, collusion and
+service sees only blinded queries and does not collude with banks; it learns how many
+queries each bank makes, but not their content. Poisoning, collusion and
 compromised hosts are outside the scope, and we make no legal or regulatory claim.
 
 \subsection{Local detection (S0)}
@@ -181,8 +198,8 @@ into incidents when the accounts transacted directly with each other within 72 h
 
 \subsection{Tokens}
 A bank must be able to recognise that the account a peer asks about is one of its own
-counterparties, without account numbers being exchanged and without any bank holding a key
-that would let it tokenise arbitrary identifiers. Tokens are therefore produced by an
+counterparties, without account numbers being exchanged and so that no bank holds a key
+with which it could tokenise identifiers offline. Tokens are therefore produced by an
 oblivious pseudorandom function in the mode-0 ristretto255-SHA512 suite of RFC
 9497~\cite{rfc9497}. A bank blinds an identifier, the token service evaluates it under the
 key of the current seven-day epoch, and the bank unblinds the result. Every evaluation is an
@@ -201,20 +218,23 @@ undeclared purpose or a spent hop limit, and any request for a token that has al
 20 answers in the epoch. The answer depends on the sharing level.
 \begin{itemize}
 \item \textbf{S1}: the alert flag for the counterparty and a time bucket.
-\item \textbf{S2}: an evidence record containing the probability bucket, the three features
+\item \textbf{S2}: an evidence record containing the probability bucket (five buckets, with
+edges at 0.01, 0.05, 0.2 and 0.5), the three features
 that deviate most from the bank's local autoencoder reconstruction (each with a direction
 and a magnitude bucket), and bucketed counters for fan-in, fan-out, transaction counts and
 amounts in each direction, pass-through, cross-bank share, share of new counterparties and
 minimum delay. Raw values are never sent.
 \item \textbf{S3}: S2 with every field other than the time bucket and the flag released by
 $k$-ary randomised response~\cite{warner1965}, at a total
-$\varepsilon \in \{0.5, 1, 2, 4, 8\}$ per record and at most 8 per account and epoch.
+$\varepsilon \in \{0.5, 1, 2, 4, 8\}$ per record, with at most $\varepsilon = 8$ spent per
+account and epoch.
 \item \textbf{S4}: S2 together with an 8-dimensional autoencoder embedding, included as an
 upper reference for leakage.
 \item \textbf{PD} (progressive disclosure): the S1 answer, with the S2 record added only when
 the requester's own probability bucket is at least $\tau \in \{2, 3, 4\}$.
 \item \textbf{S1F} (gated flag, introduced in Section~\ref{sec:a25}): the S1 answer, given
-only when the requester's probability bucket is at least 2.
+only when the requester's probability bucket is at least 2 (calibrated probability at least
+0.05).
 \end{itemize}
 
 \subsection{Fusion and linking}
@@ -271,17 +291,19 @@ was 0.508 [0.465, 0.550], and nearly all of it came from linking: any-alert dete
 Hypotheses (Table~\ref{tab:results}), operating points, model settings and statistical
 rules were registered at the outset. Thresholds marked as provisional could be revised once,
 using validation results, at a pre-planned gate (G1), after which the registration was
-frozen; model settings were never tuned on validation data. Every later change was recorded
-as a dated amendment, with its reason, before the results it concerned existed. Test labels
+frozen; the registered model settings were fixed in advance rather than tuned on validation
+data. Every later change was recorded as a dated amendment with its reason. All but one were
+made before the results they concerned existed; the exception corrected a report page after
+an opening without changing any score (Section~\ref{sec:limits}). Test labels
 were kept sealed. Each configuration scored the test data without labels, and a SHA-256
 digest of its scores was logged at the single opening allowed for each experiment, dataset
-and seed. A repeated opening was permitted only after a crash and was logged. The week-18
+and seed. A repeated opening was permitted only after a crash and was logged. The primary
 tests on HI-Medium and LI-Medium decided the pre-registered hypotheses.
 
-\subsection{Fresh replication (amendment A25)}\label{sec:a25}
-Improvements made after the week-18 tests could not be evaluated on those tests without
+\subsection{Replication on unopened windows}\label{sec:a25}
+Improvements made after the primary tests could not be evaluated on those tests without
 fitting to them. They were developed on Medium validation data and chosen by rules written
-before the candidates were run.
+before the candidates were run (amendment A25 in the public amendment log).
 \begin{itemize}
 \item \emph{Protected flag.} Among randomised-response and gated versions of the S1 flag, the
 rule selected the candidate that stayed within the privacy margin on every attack target of
@@ -297,15 +319,16 @@ transaction-level detector (Section~\ref{sec:robust}) was added as the configura
 S2+ and oracle+.
 \end{itemize}
 The first author then signed a frozen commit, and each experiment and seed was run once on
-the two Large windows: the main track, an artefact-free track and the stronger-detector
-track.
+the two Large windows, the replication tests: the main track, an artefact-free track and the
+stronger-detector track.
 
 \subsection{Statistics}
 Headline configurations were run with five seeds and the remaining ones with three; the seed
 controls model training and negative sampling. Per-scheme outcomes were averaged over seeds,
 and confidence intervals were obtained from a bootstrap over schemes with 1,000 replicates.
 Gains over S0 were paired by scheme, and their p-values were adjusted with the Holm
-procedure~\cite{holm1979} across all sharing configurations compared with S0.
+procedure~\cite{holm1979} across all sharing configurations compared with S0. All runs
+used a single laptop with 8~GB of memory.
 
 \subsection{Leakage audit}
 A curious peer bank attacks everything it receives in seed 0 of each main run. Attack A1 attempts
@@ -325,8 +348,8 @@ and for S3 with $\varepsilon \leq 2$.
 \subsection{Detection}
 Fig.~\ref{fig:ladder} and Table~\ref{tab:results} summarise the sealed tests. Local
 monitoring linked between 0.063 and 0.136 of the schemes. With evidence records (S2), linked
-detection rose to 0.702 on HI-Medium and 0.657 on LI-Medium in the week-18 tests, and to
-0.534 on HI-Large and 0.450 on LI-Large in the fresh tests. All gains had 95\% intervals
+detection rose to 0.702 on HI-Medium and 0.657 on LI-Medium in the primary tests, and to
+0.534 on HI-Large and 0.450 on LI-Large in the replication tests. All gains had 95\% intervals
 above zero after Holm correction, and random alerts at the same budget linked no scheme. S2
 recovered 0.98, 0.79, 0.92 and 0.64 of the relational oracle's gain, which meets the
 pre-registered threshold of 0.60 on all four tests, although the interval for LI-Large
@@ -342,17 +365,17 @@ by itself. A single model trained on every bank's data and linked by the same ru
 \caption{Linked scheme detection on the four sealed tests by sharing level: local only
 (S0), tokens and alert flags (S1), minimised evidence records (S2), and the pooled
 relational oracle. Bars show the mean over seeds and whiskers the 95\% bootstrap interval
-over schemes. HI- and LI-Medium are the week-18 tests; HI- and LI-Large are the fresh
-windows, which were not opened during development.}
+over schemes. HI- and LI-Medium are the primary tests; HI- and LI-Large are the replication
+tests, on windows that were not opened during development.}
 \label{fig:ladder}
 \end{figure}
 
 \input{tables/tab_results.tex}
 
 \subsection{Robustness}\label{sec:robust}
-\emph{Artefact features.} In every model the most important features are the AMLworld
-payment-format shares and the self-transfer indicator, which may reflect properties of the
-simulator. With these features removed (Fig.~\ref{fig:robustness}), the gain was 0.438 on
+\emph{Artefact features.} At gate G1, the AMLworld payment-format shares and the
+self-transfer indicator were the strongest features of every baseline model; they may
+reflect properties of the simulator. With these features removed (Fig.~\ref{fig:robustness}), the gain was 0.438 on
 HI-Large and 0.210 on LI-Large, both with intervals above zero. On LI-Large the flags alone
 then contributed little (S1 reached 0.054), whereas the records still reached 0.217, so in
 this setting most of the information is carried by the records.
@@ -371,9 +394,8 @@ was not met.
 \includegraphics[width=\columnwidth]{fig_robustness}
 \caption{Sharing gain (S2 $-$ S0 in linked detection) with 95\% intervals. The main detector
 is shown on all four tests; on the Large tests the gain is also shown without the suspected
-artefact features (payment-format shares and self-transfers) and with a stronger
-transaction-level detector that outperforms both published gradient-boosting baselines on
-the AMLworld benchmark (Table~\ref{tab:benchmark}).}
+artefact features (payment-format shares and self-transfers) and with a per-bank version of
+the transaction-level detector of Table~\ref{tab:benchmark}.}
 \label{fig:robustness}
 \end{figure}
 
@@ -398,8 +420,10 @@ reaches 0.95 of the S2 gain.
 \emph{Tokens.} With shared-key hashing, a peer re-identified 0.39 of the record tokens of
 other banks on HI-Large; within the OPRF budget it re-identified 0.049. The resulting ratio
 of 8.1 (HI-Large), 9.3 (LI-Large), 8.7 (LI-Medium) and 19.9 (HI-Medium) is below the
-pre-registered value of 10 on three of the four tests. Legitimate token use stayed within
-the frozen budget on both fresh tests. We also replayed an adaptive budget, set to twice the
+pre-registered value of 10 on three of the four tests. In the primary HI-Medium test,
+legitimate use exceeded the frozen budget in 2 of 16 bank-epochs (18.8\% of token
+requests); for the replication tests the budget was therefore sized per window from
+validation traffic, and legitimate use stayed within it on both. We also replayed an adaptive budget, set to twice the
 previous epoch's use, on the recorded traffic. It left refusals on busy days well above the
 1\% target and lowered the ratio to between 2.6 and 3.2 even under honest use, so it was not
 adopted.
@@ -436,26 +460,32 @@ with minimised evidence sharing (S2) on the Large tests. The vertical axis is lo
 
 \subsection{Attribution and narratives}
 Typology attribution with shared evidence outperformed local attribution and both baselines
-on HI-Medium, but not on LI-Medium or on either fresh test, and we therefore regard it as
+on HI-Medium, but not on LI-Medium or on either replication test, and we therefore regard it as
 exploratory. Free-text narratives from a small local model passed the structural checks
 (valid JSON, the attributed typology, existing fields) in 0.86 (HI-Medium) and 0.92
 (LI-Medium) of first replies, below the target of 0.95. Larger models of 7 to 8 billion
 parameters did not resolve the problem: strict grounding, which also checks numbers, scope
 and claims, remained between 0.06 and 0.22 on validation for all four models
-(Table~\ref{tab:narrative}). N4 met the target on both fresh tests (1.00 and 0.95). An
+(Table~\ref{tab:narrative}). N4 met the target on both replication tests (1.00 and 0.95), although its strict grounding
+was lower on LI-Large (0.56) than on HI-Large (0.82). An
 automated judge rated its validation narratives faithful in all 30 sampled cases, compared
 with 21 to 29 for the free-text models.
 
 \input{tables/tab_narrative.tex}
 
 % =========================================================================================
-\section{Limitations}
+\section{Limitations}\label{sec:limits}
 AMLworld is synthetic, so the results describe what minimised sharing achieves on the
 standard benchmark for this problem rather than on real bank data. The low-illicit windows
 contain few cross-member test schemes (78 and 91), which widens their intervals. The audit
 considers honest-but-curious peers and four inference targets; collusion, poisoning and
 side channels are not covered, and the S1, S2 and PD responses are minimised and audited
-but not differentially private. The faithfulness of the narratives was judged by a single
+but not differentially private. The oblivious tokens limit re-identification only as far as
+the per-epoch budget does: relative to hashing, re-identification fell 8- to 9-fold on three
+of the four tests, short of the tenfold target, and an adaptive budget made it worse. When
+the pooled model was strongest (the stronger detector on LI-Large), minimised sharing
+recovered less than half of its gain. All tests use one federation of eight members of
+similar size; larger or more unequal federations were not studied. The faithfulness of the narratives was judged by a single
 automated rater that was neither blind nor independent of the template design. A federated
 neural scorer with differential privacy, also pre-registered, met its target on LI-Medium
 but not on HI-Medium, where the local detector left little room for improvement. Finally,
@@ -471,10 +501,14 @@ bucketed record addressed by metered tokens, allowed banks to link several times
 laundering schemes as local monitoring and to recover most of the gain of a pooled model,
 with far fewer alerts per linked scheme. These results held on four sealed tests, two of
 which were not opened during development, without the suspected artefact features and with
-a competitive local detector. Measuring leakage with attacks revealed that even the simplest
+a stronger local detector. Measuring leakage with attacks revealed that even the simplest
 disclosure, a bare alert flag, can leak an account attribute, and a gated flag removed this
-leakage on fresh data. We suggest that collaborative financial-crime detection adopt the same
-practice of pre-registration, sealed tests and replication on withheld data.
+leakage on the replication tests. Typology attribution and the pre-registered limit on token
+re-identification were not achieved. Natural next steps are a pilot on real transaction
+data under a data-sharing agreement, larger federations of unequal banks, flags with formal
+privacy guarantees, and blind human review of the case narratives. We suggest that
+collaborative financial-crime detection adopt the same practice of pre-registration, sealed
+tests and replication on withheld data.
 
 \section*{Acknowledgment}
 % IEEE policy requires disclosure of AI-generated content (system, sections, extent):
@@ -485,9 +519,13 @@ assistance of an AI system (Claude, Anthropic). The authors designed the study, 
 and revised all text and code, and take full responsibility for the content.
 
 \section*{Data and Code Availability}
-AMLworld is available under CDLA-Permissive-2.0. The code (MIT licence), pre-registration,
-amendments, sealed-test access log and result pages are in the project repository; one
-command regenerates every figure and table from the committed result pages.
+AMLworld~\cite{altman2023} is available under the CDLA-Permissive-2.0 licence. The FinMesh
+source code (MIT licence), configurations, pre-registration, amendments, sealed-test access
+log and result pages are publicly available at
+\url{https://github.com/allu0786ansari/FinMesh}. One command, \texttt{finmesh
+paper-assets}, rebuilds Figs.~2--5 and Tables~I--VI from the committed result pages without
+access to the data; the result pages themselves are reproduced from the raw AMLworld files
+by the commands listed, in order, in the repository's run logs.
 
 \bibliographystyle{IEEEtran}
 \bibliography{references}

@@ -1,6 +1,6 @@
 # Verification record for `main.tex`
 
-Each factual statement in the draft and its source in the repository. Result pages are under `docs/eval/test` (week-18 and Large runs), `docs/eval/a25` (A25 development and results) and `docs/gates` (G0/G1). Code paths are under `finmesh/`. Rounding in the text is half-up to the digits shown. Checked 9 Nov 2026.
+Each factual statement in the draft and its source in the repository. Result pages are under `docs/eval/test` (week-18 and Large runs), `docs/eval/a25` (A25 development and results) and `docs/gates` (G0/G1). Code paths are under `finmesh/`. Rounding in the text is half-up to the digits shown. Checked 9 Nov 2026; statements added in the 12 Nov revision (`REVISION_PLAN.md`) are in the last section.
 
 ## System (Section III)
 
@@ -98,3 +98,24 @@ Fig. 1 updates the proposal's workflow diagram (`docs/proposal/workflow.png`) to
 ## Related work (Section II, Table I)
 
 Every claim about another paper is sourced in `docs/paper/related_work.md`, with the links used to check it.
+
+## Added in the 12 Nov revision
+
+| Statement | Source |
+| --- | --- |
+| FATF encourages information sharing within data-protection rules | [fatf2021stocktake], [fatf2022partnering] (checked 12 Nov; links in `REVISION_PLAN.md`) |
+| "Primary tests" = HI-/LI-Medium sealed tests (week 18); "replication tests" = HI-/LI-Large windows (A25) | `docs/eval/test/RESULTS.md`; `docs/eval/a25/RESULTS_LARGE.md` |
+| Fed-RD reports peak test performance without a separate validation split (at least one study) | `docs/paper/related_work.md` (Khan et al. row) |
+| OPRF lineage; attack-based privacy risk; leakage between development and test data | [freedman2005keyword], [yeom2018privacy], [kapoor2023leakage] |
+| Token service learns the number of queries per bank, not their content | `finmesh/matching/tokens.py` (per-bank, per-epoch log of counts; blinded points) |
+| Probability buckets: five, edges 0.01, 0.05, 0.2, 0.5; bucket 2 ⇔ p ≥ 0.05 | `finmesh/schemas/evidence_v1.json`; `finmesh/sharing/evidence.py` (`bucket`, `searchsorted` right) |
+| S3: at most ε = 8 per account and epoch, summed over releases | `finmesh/sharing/ldp.py` (`EPSILON_CAP = 8.0`) |
+| Registered model settings fixed in advance, not tuned on validation | `docs/protocol/preregistration.md` §6 heading |
+| All amendments but one before the results they concerned (A24b after an opening, no score changed) | `docs/proposal/CHANGES.md` |
+| All runs on one 8 GB laptop | owner's machine (8 GB RAM, WSL); `docs/proposal/FinMesh_Proposal_v2.md` risk table; run logs |
+| G1: payment-format shares and self-transfers strongest in every baseline model | `docs/gates/G1.md` (item 3) |
+| HI-Medium primary test: legitimate token use over budget in 2 of 16 bank-epochs, 18.8% of requests | `docs/eval/test/RESULTS.md` (token-budget row) |
+| Replication budgets sized per window from validation traffic | `docs/protocol/improvement_plan_A25.md` ("Token budget, sized before any test") |
+| N4 strict grounding 0.82 (HI-Large), 0.56 (LI-Large) | `RESULTS_LARGE.md` (H3b rows) |
+| Limitations: PT2 8.1/9.3/8.7 vs 10; adaptive budget 2.6–3.2; H1b-L+ 0.49; federation B8 | `audit_*.md`; `budget_replay_*_cap4x.md`; `RESULTS_LARGE.md`; `preregistration.md` §1 |
+| `finmesh paper-assets` rebuilds Figs. 2–5 and Tables I–VI from the committed pages without data | tested 12 Nov in a clean clone: tables byte-identical, figures pixel-identical (PDFs now byte-identical too: no creation date) |

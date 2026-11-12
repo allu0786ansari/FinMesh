@@ -2,7 +2,7 @@
 
 | Path | What it is |
 | --- | --- |
-| `main.tex` | The full draft (IEEEtran conference, 8 pages with references): every section written, every number taken from the result pages; for the authors to edit |
+| `main.tex` | The full draft (IEEEtran conference, 8 pages with references; revised 12 Nov, see `REVISION_PLAN.md`): every section written, every number taken from the result pages; for the authors to edit |
 | `figures/fig_*.pdf` | Vector figures (PNG previews alongside) |
 | `tables/tab_*.tex` | IEEEtran table floats, `\input` by `main.tex` |
 | `static/fig_architecture.tex` | Fig. 1, the protocol diagram (TikZ source of `figures/fig_architecture.pdf`; drawn, not generated) |
@@ -14,6 +14,7 @@
 | `paper.docx` | Editable Word version of the draft in IEEE two-column layout (generated from `main.tex`; see below) |
 | `tools/make_overleaf.sh` | Packs the paper as an Overleaf project (.zip); see below |
 | `tools/make_docx.py`, `tools/ieee.csl` | The Word converter and the IEEE citation style it uses (CC BY-SA 3.0, Citation Style Language project) |
+| `REVISION_PLAN.md` | The section-by-section review of 12 Nov and what was changed |
 | `preview.pdf` | A compiled preview of the draft (local build; see below) |
 
 ## Regenerate
@@ -56,7 +57,7 @@ Use your venue's official IEEE template (the Overleaf "IEEE Conference Template"
 pdflatex main && bibtex main && pdflatex main && pdflatex main
 ```
 
-`preview.pdf` was built in the cloud workspace with IEEEtran.cls V1.8 and the natbib variant of the IEEE bibliography style. Your official build will differ only in small typographic details.
+`preview.pdf` is built with IEEEtran.cls V1.8b and the standard IEEEtran.bst, as on Overleaf.
 
 ## Word version
 

@@ -1,6 +1,6 @@
 # Revision plan (section-by-section review, Nov 2026)
 
-Changes agreed in the review, to be applied together at the end and compiled on Overleaf. Each item says what to change and why; the replacement text is given where it is more than a word. Status: **pending** until applied.
+Changes agreed in the review, to be applied together at the end and compiled on Overleaf. Each item says what to change and why; the replacement text is given where it is more than a word. Status: **applied 12 Nov 2026** (all sections, with the naming of section 11); compiled with IEEEtran.cls V1.8b and IEEEtran.bst: 8 pages, no errors, no overfull boxes, all fonts embedded.
 
 ## 1. Abstract and Index Terms (reviewed 12 Nov)
 
@@ -265,7 +265,7 @@ Why the earlier wording ("one command regenerates every figure and table") was c
 3. Run `uv run finmesh paper-assets` after the section 11 code edits, then update `VERIFICATION.md` for the new statements (token-budget overrun, bucket edges, ε cap, the limitations) and rebuild `paper.docx`, `preview.pdf` and the Overleaf zip from the final source.
 4. Spelling: the text uses British spelling throughout (minimised, licence, artefact); keep it consistent, or switch to American spelling if the venue asks.
 
-## 11. Naming of the two test rounds (proposed 12 Nov; to confirm with the authors)
+## 11. Naming of the two test rounds (applied 12 Nov)
 
 "Week-18" is a project-schedule label, not a term a reader knows, and "A25 fresh tests" uses an internal amendment code. Use two names throughout:
 

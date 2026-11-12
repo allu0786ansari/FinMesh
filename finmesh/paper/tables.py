@@ -80,7 +80,7 @@ def datasets() -> tuple[str, dict[str, Any]]:
         "Each set is a 16-day dense window of AMLworld, split by 6-h window 60/20/20 into train, "
         "validation and test with one-window gaps; eight institutions (federation B8) hold every "
         "account. Cross-member test schemes: laundering schemes in the test partition that touch "
-        "two or more institutions. Medium: the week-18 sealed tests; Large: the A25 fresh tests."
+        "two or more institutions. Medium: the primary tests; Large: the replication tests."
     )
     return _float("table", "datasets", "Test sets", "lrrrr", rows, notes), used
 
@@ -150,9 +150,10 @@ def results() -> tuple[str, dict[str, Any]]:
         r"value shown is the binding target, A3 fan-in, and the mark is the verdict over all "
         r"targets and, for the plain flag, the S3 levels with $\varepsilon\leq 2$. "
         r"H1d: PD configuration reaching $\geq$0.80 of S2's gain with the "
-        r"smallest share of S2's disclosed accounts. H3b on Medium: free-text narratives (A23); "
-        r"on Large: select-then-template (N4). Medium columns: week-18 tests; "
-        r"Large: A25 fresh tests."
+        r"smallest share of S2's disclosed accounts. H3b on Medium: free-text narratives; "
+        r"on Large: select-then-template (N4). Medium columns: primary tests; "
+        r"Large: replication tests. H2 (a federated DP scorer, a supporting track) "
+        r"is reported in Section~\ref{sec:limits}."
     )
     return _float(
         "table*", "results", "Pre-registered claims on the sealed tests", "lcccc", rows, notes
@@ -196,7 +197,7 @@ def case_quality() -> tuple[str, dict[str, Any]]:
     notes = (
         "Per detected scheme, seed-averaged: share of the scheme's accounts in its largest case "
         "(completeness), number of cases it is split into (fragmentation), and alerts raised per "
-        "scheme linked (analyst workload). A25 fresh tests, seeds 0--4."
+        "scheme linked (analyst workload). Replication tests, seeds 0--4."
     )
     return _float(
         "table", "casequality", "Case quality and analyst workload", "lrrrr", rows, notes
@@ -277,7 +278,7 @@ def narrative() -> tuple[str, dict[str, Any]]:
         f"N4: select-then-template (N3) & {_r(g.est, 2)} & {_r(st.est, 2)} & {f[0]}/{f[1]} \\\\"
     )
     rows.append(r"\hline")
-    rows.append(r"\multicolumn{4}{l}{\emph{N4 on the A25 fresh tests}} \\")
+    rows.append(r"\multicolumn{4}{l}{\emph{N4 on the replication tests}} \\")
     for ds in S.LARGE:
         g, st = S.narrative_page(f"narrative_{ds}_test_qwen3-8b_N4")
         used[f"N4 {ds}"] = {"grounding": g.__dict__, "strict": st.__dict__}

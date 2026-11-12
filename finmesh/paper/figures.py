@@ -77,7 +77,9 @@ def _save(fig: Any, out: Path, name: str) -> list[Path]:
     out.mkdir(parents=True, exist_ok=True)
     paths = [out / f"{name}.pdf", out / f"{name}.png"]
     for p in paths:
-        fig.savefig(p)
+        # no creation date in the PDF, so that a rebuild from the same pages is byte-identical
+        meta = {"CreationDate": None} if p.suffix == ".pdf" else {}
+        fig.savefig(p, metadata=meta)
     plt.close(fig)
     return paths
 
@@ -135,7 +137,7 @@ def ladder(out: Path) -> tuple[list[Path], dict[str, Any]]:
     ax.text(
         0.5,
         0.965,
-        "Week 18 tests",
+        "Primary tests",
         ha="center",
         va="top",
         fontsize=7,
@@ -145,7 +147,7 @@ def ladder(out: Path) -> tuple[list[Path], dict[str, Any]]:
     ax.text(
         2.5,
         0.965,
-        "A25 fresh tests",
+        "Replication tests",
         ha="center",
         va="top",
         fontsize=7,

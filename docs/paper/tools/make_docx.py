@@ -73,7 +73,7 @@ def read_aux(aux: Path) -> tuple[dict[str, str], dict[str, int]]:
         for m in re.finditer(r"\\newlabel\{([^}]*)\}\{\{(.*?)\}\{\d+\}", text)
     }
     cites = {
-        m.group(1): int(m.group(2)) for m in re.finditer(r"\\bibcite\{([^}]*)\}\{\{(\d+)\}", text)
+        m.group(1): int(m.group(2)) for m in re.finditer(r"\\bibcite\{([^}]*)\}\{\{?(\d+)", text)
     }
     return labels, cites
 
