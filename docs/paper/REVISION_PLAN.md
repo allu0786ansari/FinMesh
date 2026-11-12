@@ -265,7 +265,7 @@ Why the earlier wording ("one command regenerates every figure and table") was c
 3. Run `uv run finmesh paper-assets` after the section 11 code edits, then update `VERIFICATION.md` for the new statements (token-budget overrun, bucket edges, ε cap, the limitations) and rebuild `paper.docx`, `preview.pdf` and the Overleaf zip from the final source.
 4. Spelling: the text uses British spelling throughout (minimised, licence, artefact); keep it consistent, or switch to American spelling if the venue asks.
 
-## 11. Naming of the two test rounds (agreed 12 Nov)
+## 11. Naming of the two test rounds (proposed 12 Nov; to confirm with the authors)
 
 "Week-18" is a project-schedule label, not a term a reader knows, and "A25 fresh tests" uses an internal amendment code. Use two names throughout:
 
